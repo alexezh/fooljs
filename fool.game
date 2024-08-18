@@ -1,0 +1,107 @@
+/**
+ * facts:
+ *  count_my_hand
+ *  count_opp_hand
+ * 
+ * as we build steps, we make stream of actions into buffer against imaginary board
+ * we can then take first action and materialize it
+ * 
+ * action:
+ *   take(x):
+ *     
+ *   play_card(x)
+ * 
+ *    good_card
+ *      distribution based on what we've seen and stage of game
+ *      trump is good card
+ *      has pair
+ *      other left
+ *      can I defend with card
+ *        pair - less chances of add 
+ *        card of rank which already gone?
+ *      can I attack with card
+ *      what my opponent has
+ * 
+ *    good_hand
+ *      2-3 trumps
+ *      high trumps left
+ * 
+ * rules:
+ *    each round, get cards from stack
+ *    next attack is last person who beated
+ *    or next person after one who took
+ *    if defending, 
+ *    if attacking,
+ *      if pile empty, play *best attack card
+ *      if opponent took, end
+ *      if opponent beat previous, add *best or end
+ *
+ *     
+ * goal - 
+ *    play small card first
+ *    keep trump to the end of the game
+ *    make people take pile of low cards
+ *    make people play good cards
+ *      go with suit or card which people need good card
+ * 
+ * attack - 
+ *    drop low cards
+ *    play suit which opponent does not have to take trumps
+ *    
+ * 
+ * elements:
+ *    trick
+ *    pile
+ *    trump
+ *    hand
+ *    add
+ *    take
+ *    play
+ *    opponent prediction
+ *    planning
+ * 
+ * i am doing this to make another move?
+ *    
+ * 
+ * opponent_take
+ *    take_stack
+ *    
+ * 
+ * defend -
+ *    take_pile
+ *      cannot_beat_trick
+ *      pile_good
+ *      hand bad
+ *      opponent has more
+ *      opponent needs drop bad
+ *      
+ *      
+ *    play_card
+ * 
+ * clauses:
+ *    is_higher(x, y)
+ * 
+ *    
+ * 
+ *    next_card => hand_smallest | double
+ */
+
+game:
+  setup:
+    shuffle
+    deal cards
+    select trump suit: 
+      take top card, put under deck
+    select attacker: 
+      attacker = next(fool) or findplayer(smallest trump card)
+  turn:
+    setup:
+      defender = next(attacker)
+      attacker: play(select_card())
+    main:
+      defender: defend or transfer
+      defend: take or beat
+      transfer: select_card(value = value(attack)) // can fail in this case this chain goes nowhere
+      other players: attack or wait
+    end:
+      attacker = defender_lost ? next(defender) : defender

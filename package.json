@@ -1,0 +1,10 @@
+{
+  "name": "fool",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {},
+  "eslintConfig": {
+    "extends": []
+  }
+}
