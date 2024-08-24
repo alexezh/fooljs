@@ -1,3 +1,10 @@
+import { Action, Card, IActor, IEntity, Message, Suit } from "./actor";
+import { BotDealer } from "./botdealer";
+import { BotPlayer } from "./botplayer";
+import { Deck } from "./deck";
+import { IGame } from "./igame";
+import { InteractivePlayer } from "./interactiveplayer";
+
 type Concept = {
   innerName: string;
   outerName?: string;
@@ -5,66 +12,6 @@ type Concept = {
 
 type Clause = {
 
-}
-
-function getRandomInt(min: number, max: number): number {
-  const minCeiled = Math.ceil(min);
-  const maxFloored = Math.floor(max);
-  return Math.floor(Math.random() * (maxFloored - minCeiled) + minCeiled); // The maximum is exclusive and the minimum is inclusive
-}
-
-enum Suit {
-  Spade,
-  Diamond,
-  Club,
-  Heart
-}
-
-class Card {
-  public readonly id: number;
-  public readonly rank: number;
-  public readonly suit: Suit;
-  public open: boolean;
-
-  public constructor(suit: Suit, rank: number) {
-    this.rank = rank;
-    this.suit = suit;
-    this.id = suit * 100 + rank;
-    this.open = false;
-  }
-}
-
-interface IEntity {
-
-}
-
-class Deck implements IEntity {
-  private cards: Card[] = [];
-
-  public initialize(count: number) {
-    if (count === 36) {
-      for (let i = 0; i < Suit.Heart; i++) {
-        for (let j = 0; j < 9; j++) {
-          this.cards.push(new Card(i as Suit, j + 6));
-        }
-      }
-    } else {
-      throw new Error('Not supported')
-    }
-  }
-  public shuffle(): void {
-    for (let i = 0; i < 1000; i++) {
-      let i1 = getRandomInt(0, this.cards.length);
-      let i2 = getRandomInt(0, this.cards.length);
-      let c = this.cards[i1];
-      this.cards[i1] = this.cards[i2];
-      this.cards[i2] = c;
-    }
-  }
-
-  public takeTop(): Card {
-    return null;
-  }
 }
 
 class Stock implements IEntity {
@@ -82,7 +29,7 @@ class Stock implements IEntity {
  * we can have DM as actor which stays outside game and controls
  * rules. The key is that world is passive
  */
-class WorldModel {
+export class WorldModel {
   public readonly talon: Card[] = [];
   public readonly deck = new Deck();
   public readonly players: IActor[] = [];
@@ -146,21 +93,18 @@ language.addVerb("dealCards", "deal N cards", (model: WorldModel, ctx: NamedPara
   if (ctx["count"] === undefined) {
     return;
   }
-  let count = ctx["count"] as number;
-  for (let i = 0; i < count; i++) {
-    model.deck.
-      model.giveCard(take(deck))
-  }
+  // let count = ctx["count"] as number;
+  // for (let i = 0; i < count; i++) {
+  //   model.deck.
+  //     model.giveCard(take(deck))
+  // }
 });
 
 language.addVerb("deal card", "deal cards", (model: WorldModel, ctx: NamedParams): void => {
 
-  model.giveCard(model.deck, player, model.deck.takeTop());
+  // model.giveCard(model.deck, player, model.deck.takeTop());
 });
 
-interface IGame {
-
-}
 /**
  * idea is text interface for setting up rules of game
  * rules translated into set of clauses for each bot
@@ -173,20 +117,24 @@ interface IGame {
  */
 class Game implements IGame {
   private model: WorldModel;
-  private readonly dealer: IActor;
+  private dealer: BotDealer;
+  private readonly msgQueue: Message[] = [];
+  private pending: boolean = false;
 
   public setup() {
     this.model = new WorldModel();
     this.model.initialize(36);
 
-    this.model.players.push(new InteractivePlayer());
+    this.dealer = new BotDealer(this);
+    this.model.players.push(new InteractivePlayer(this));
     this.model.players.push(new BotPlayer());
   }
 
   public start() {
     this.model.deck.shuffle();
-    this.model.dealCards();
-    this.model.playGame();
+    //this.model.dealCards();
+    //this.model.playGame();
+    this.dealer.activate();
   }
 
   public isEnded(): boolean {
@@ -195,6 +143,24 @@ class Game implements IGame {
 
   public round() {
 
+  }
+
+  public sendMessage(msg: Message): void {
+    this.msgQueue.push(msg);
+    if (!this.pending) {
+      this.pending = true;
+      while (this.msgQueue.length > 0) {
+        this.deliverMessage(this.msgQueue.shift()!);
+      }
+      this.pending = false;
+    }
+  }
+
+  private deliverMessage(msg: Message) {
+    this.dealer.onMessage(msg);
+    for (let p of this.model.players) {
+      p.onMessage(msg);
+    }
   }
 }
 

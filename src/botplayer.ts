@@ -1,4 +1,5 @@
-import { type Action, ActionKind, type IActor } from "./actor";
+import { type Action, ActionKind, Card, type IActor, Message } from "./actor";
+import { type WorldModel } from "./fool";
 
 /**
  * maintains information which bot knows about player
@@ -24,8 +25,7 @@ export class BotPlayer implements IActor {
     throw new Error("Method not implemented.");
   }
   public nextTurn(): void {
-    Math.random();
-    return this.worldModel.playCard(this, card);
+    //return this.worldModel.playCard(this, card);
   }
   public onAction(action: Action) {
     if (action.kind === ActionKind.giveCard) {
@@ -39,5 +39,7 @@ export class BotPlayer implements IActor {
     // if (action.card) {
     //   action.target.id
     // }
+  }
+  onMessage(msg: Message) {
   }
 }
