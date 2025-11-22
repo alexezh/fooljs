@@ -5,6 +5,7 @@ export interface ARef {
   token: AToken;
   arefs: ReadonlyArray<ARef>;
   value: any;
+  delayedOp?: DelayedOp;
 }
 
 export interface AToken {
@@ -74,4 +75,57 @@ export function createRefWithSources(text: string, sourceTokens: ARef[]): ARef {
     value: null
   };
 }
+
+export function tokensToKey(tokens: ARef[]): string {
+  return tokens.map(t => getRefText(t)).join('|');
+}
+
+export function modelToKey(model: AModel): string {
+  return tokensToKey(model.tokens);
+}
+
+/**
+ * Create initial model from tokens
+ */
+export function createInitialModel(tokens: ARef[]): AModel {
+  return {
+    parent: undefined,
+    transform: 'initial',
+    tokens,
+    approxCost: 0
+  };
+}
+
+/**
+ * Get the path from root to this model
+ */
+export function getModelPath(model: AModel): AModel[] {
+  const path: AModel[] = [];
+  let current: AModel | undefined = model;
+  while (current) {
+    path.unshift(current);
+    current = current.parent;
+  }
+  return path;
+}
+
+// ============================================================================
+// Type definitions
+// ============================================================================
+
+export interface VariablePowerResult {
+  variable: ARef | null;
+  power: number | null;
+  endIndex: number;
+}
+
+// Operation types for delayed evaluation
+export type DelayedOp =
+  | { kind: 'add'; left: ARef; right: ARef }
+  | { kind: 'sub'; left: ARef; right: ARef }
+  | { kind: 'mul'; left: ARef; right: ARef }
+  | { kind: 'div'; left: ARef; right: ARef }
+  | { kind: 'pow'; base: ARef; exponent: ARef }
+  | { kind: 'combine'; terms: ARef[]; op: string }
+  | { kind: 'wrap'; terms: ARef[] };
 

@@ -1,30 +1,8 @@
-import { ARef } from './token.js';
-import {
-  Action,
-  applySum,
-  applyMul,
-  applyDiv,
-  applyCancel,
-  applyCleanup,
-  applySubToAdd,
-  applyParenthesis,
-  executeAction
-} from './actions.js';
+import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey } from './token.js';
+import { getAllActions } from './actions.js';
 import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
-
-// ============================================================================
-// Types
-// ============================================================================
-
-type ActionFunc = (tokens: ARef[]) => Action[] | ARef[] | null;
-
-interface HeapEntry {
-  estimatedTotal: number;
-  cost: number;
-  tokens: ARef[];
-  path: ARef[][];
-}
+import { isGoal } from './goal.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -86,131 +64,41 @@ class MinHeap<T> {
     }
   }
 }
-
 // ============================================================================
-// Helper functions
-// ============================================================================
-
-function getRefText(ref: ARef): string {
-  return ref.token.text;
-}
-
-function tokensToKey(tokens: ARef[]): string {
-  return tokens.map(t => getRefText(t)).join('|');
-}
-
-// TODO: implement in goal.ts
-function isGoal(tokens: ARef[]): boolean {
-  // Placeholder - implement actual goal checking logic
-  // A goal might be a simplified expression like a single number or "ax + b" form
-  return tokens.length === 1;
-}
-
-function isAction(item: unknown): item is Action {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    'cost' in item &&
-    'name' in item &&
-    'actionType' in item &&
-    'actionInfo' in item
-  );
-}
-
-// ============================================================================
-// Actions list
+// A* Search with AModel
 // ============================================================================
 
-const ACTIONS: ActionFunc[] = [
-  applySum,
-  applyMul,
-  applyDiv,
-  applyCancel,
-  applyCleanup,
-  applySubToAdd,
-  applyParenthesis
-];
+export function aStarSearch(startTokens: ARef[]): AModel[] | null {
+  const startModel = createInitialModel(startTokens);
 
-// ============================================================================
-// A* Search
-// ============================================================================
-
-export function aStarSearch(startTokens: ARef[]): ARef[][] | null {
-  const heap = new MinHeap<HeapEntry>((a, b) => a.estimatedTotal - b.estimatedTotal);
-
-  heap.push({
-    estimatedTotal: heuristic(startTokens),
-    cost: 0,
-    tokens: startTokens,
-    path: []
+  const heap = new MinHeap<AModel>((a, b) => {
+    const aTotal = a.approxCost + heuristic(a.tokens);
+    const bTotal = b.approxCost + heuristic(b.tokens);
+    return aTotal - bTotal;
   });
+
+  heap.push(startModel);
 
   const visited = new Set<string>();
 
   while (heap.length > 0) {
-    const entry = heap.pop()!;
-    const { cost, tokens, path } = entry;
+    const model = heap.pop()!;
 
-    const stateKey = tokensToKey(tokens);
+    const stateKey = modelToKey(model);
     if (visited.has(stateKey)) {
       continue;
     }
     visited.add(stateKey);
 
-    if (isGoal(tokens)) {
-      return [...path, tokens];
+    if (isGoal(model.tokens)) {
+      return getModelPath(model);
     }
 
-    for (const actionFunc of ACTIONS) {
-      const result = actionFunc(tokens);
-
-      // Handle different action return types
-      if (result === null) {
-        // No actions available from this function
-        continue;
-      }
-
-      if (Array.isArray(result)) {
-        if (result.length === 0) {
-          // Empty action list
-          continue;
-        }
-
-        // Check if it's a list of Action objects
-        if (isAction(result[0])) {
-          // It's a list of action tuples - execute each action
-          for (const action of result as Action[]) {
-            try {
-              const newTokens = executeAction(action);
-              const newKey = tokensToKey(newTokens);
-              if (newTokens && !visited.has(newKey)) {
-                const newCost = cost + action.cost;
-                heap.push({
-                  estimatedTotal: newCost + heuristic(newTokens),
-                  cost: newCost,
-                  tokens: newTokens,
-                  path: [...path, tokens]
-                });
-              }
-            } catch {
-              // Skip actions that fail to execute
-              continue;
-            }
-          }
-        } else {
-          // It's a list of tokens (old format) - treat as single action with cost 1
-          const newTokens = result as ARef[];
-          const newKey = tokensToKey(newTokens);
-          if (newTokens && !visited.has(newKey)) {
-            const newCost = cost + 1;
-            heap.push({
-              estimatedTotal: newCost + heuristic(newTokens),
-              cost: newCost,
-              tokens: newTokens,
-              path: [...path, tokens]
-            });
-          }
-        }
+    // Get all possible next states using generators
+    for (const nextModel of getAllActions(model)) {
+      const nextKey = modelToKey(nextModel);
+      if (!visited.has(nextKey)) {
+        heap.push(nextModel);
       }
     }
   }
@@ -219,19 +107,66 @@ export function aStarSearch(startTokens: ARef[]): ARef[][] | null {
 }
 
 /**
- * applySum - this is where it went wrong. We put knowledge of mul into plus
- * but it is not deep enough. We need to make it more like a plan, and quickly run through
- * big blocks, then fill in details
+ * Iterator-based search that yields models as they are explored
  */
+export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
+  const startModel = createInitialModel(startTokens);
+
+  const heap = new MinHeap<AModel>((a, b) => {
+    const aTotal = a.approxCost + heuristic(a.tokens);
+    const bTotal = b.approxCost + heuristic(b.tokens);
+    return aTotal - bTotal;
+  });
+
+  heap.push(startModel);
+
+  const visited = new Set<string>();
+
+  while (heap.length > 0) {
+    const model = heap.pop()!;
+
+    const stateKey = modelToKey(model);
+    if (visited.has(stateKey)) {
+      continue;
+    }
+    visited.add(stateKey);
+
+    // Yield current model being explored
+    yield model;
+
+    if (isGoal(model.tokens)) {
+      return;
+    }
+
+    // Get all possible next states using generators
+    for (const nextModel of getAllActions(model)) {
+      const nextKey = modelToKey(nextModel);
+      if (!visited.has(nextKey)) {
+        heap.push(nextModel);
+      }
+    }
+  }
+}
+
+// ============================================================================
+// Example usage (main)
+// ============================================================================
+
 function main(): void {
-  const exprStr = "-4 + 3 * 4 + x + y - 3";
-  //const exprStr = '4 + 3 * 4';
+  const exprStr = '-4 + 3 * 4 + x + y - 3';
+  // const exprStr = '4 + 3 * 4';
   const expr = parseExpression(exprStr);
+  console.log(`Searching for solution to: ${exprStr}`);
+  console.log(`Parsed tokens: ${expr.map(t => getRefText(t)).join(' ')}`);
+  console.log('---');
+
   const result = aStarSearch(expr);
 
   if (result) {
-    for (const step of result) {
-      console.log(step.map(t => getRefText(t)).join(' '));
+    console.log('Solution found:');
+    for (const model of result) {
+      const tokensStr = model.tokens.map(t => getRefText(t)).join(' ');
+      console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.approxCost})`);
     }
   } else {
     console.log('No solution found');

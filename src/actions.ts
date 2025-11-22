@@ -1,4 +1,17 @@
-import { AToken, ARef, tokenEquals, isNumber, isVariable, getRefText, splice, createAref, AModel } from './token.js';
+import {
+  AToken,
+  ARef,
+  AModel,
+  tokenEquals,
+  isNumber,
+  isVariable,
+  getRefText,
+  splice,
+  createAref,
+  createToken,
+  DelayedOp,
+  VariablePowerResult
+} from './token.js';
 import { makeMultTerm } from './transform.js';
 import {
   calculateAdditionCost,
@@ -7,138 +20,44 @@ import {
 } from './weight.js';
 
 // ============================================================================
-// Type definitions
-// ============================================================================
-
-interface VariablePowerResult {
-  variable: ARef | null;
-  power: number | null;
-  endIndex: number;
-}
-
-// Action info interfaces for type safety
-interface BaseActionInfo {
-  type: string;
-  originalTokens: ReadonlyArray<ARef>;
-  actionName: string;
-}
-
-interface MultiplyCoeffVarActionInfo extends BaseActionInfo {
-  type: 'multiply_coeff_var';
-  position: number;
-  leftToken: ARef;
-  rightToken: ARef;
-  pattern: 'number_variable' | 'variable_number';
-  id: string;
-}
-
-interface MultiplySameVarActionInfo extends BaseActionInfo {
-  type: 'multiply_same_var';
-  position: number;
-  variable: ARef;
-  leftPower: number;
-  rightPower: number;
-  totalPower: number;
-  leftEnd: number;
-  rightEnd: number;
-  id: string;
-}
-
-interface MultiplyNumbersActionInfo extends BaseActionInfo {
-  type: 'multiply_numbers';
-  position: number;
-  leftToken: ARef;
-  rightToken: ARef;
-  id: string;
-}
-
-interface WrapMultActionInfo extends BaseActionInfo {
-  type: 'wrap_mult';
-  context: string;
-}
-
-interface ComputeSumActionInfo extends BaseActionInfo {
-  type: 'compute_sum';
-  operation: '+';
-  position: number;
-  leftToken: ARef;
-  rightToken: ARef;
-}
-
-interface ComputeSubActionInfo extends BaseActionInfo {
-  type: 'compute_sub';
-  operation: '-';
-  position: number;
-  leftToken: ARef;
-  rightToken: ARef;
-}
-
-interface CombineTermsActionInfo extends BaseActionInfo {
-  type: 'combine_terms';
-  position: number;
-  startPos: number;
-  endPos: number;
-  variable: ARef;
-  power: number;
-  sourceTokens: ARef[];
-  id: string;
-}
-
-interface SubtractLikeTermsActionInfo extends BaseActionInfo {
-  type: 'subtract_like_terms';
-  position: number;
-  startPos: number;
-  endPos: number;
-  variable: ARef;
-  power: number;
-  sourceTokens: ARef[];
-  id: string;
-}
-
-interface ReorderActionInfo extends BaseActionInfo {
-  type: 'reorder';
-  position: number;
-  leftToken: ARef;
-  rightToken: ARef;
-  reorderPattern: 'number_first' | 'keep_order';
-}
-
-type ActionInfo =
-  | MultiplyCoeffVarActionInfo
-  | MultiplySameVarActionInfo
-  | MultiplyNumbersActionInfo
-  | WrapMultActionInfo
-  | ComputeSumActionInfo
-  | ComputeSubActionInfo
-  | CombineTermsActionInfo
-  | SubtractLikeTermsActionInfo
-  | ReorderActionInfo;
-
-// Type-safe action tuple interface (replaces Python tuple)
-export interface Action {
-  cost: number;
-  name: string;
-  actionType: string;
-  actionInfo: ActionInfo;
-}
-
-// ============================================================================
 // Helper functions
 // ============================================================================
 
-// TODO: implement in tokenattrs.ts
+function createDelayedRef(
+  text: string,
+  sourceArefs: ARef[],
+  delayedOp: DelayedOp
+): ARef {
+  return {
+    token: createToken(text),
+    arefs: sourceArefs,
+    value: null,
+    delayedOp
+  };
+}
+
+function createModel(
+  parent: AModel,
+  transform: string,
+  tokens: ARef[],
+  cost: number
+): AModel {
+  return {
+    parent,
+    transform,
+    tokens,
+    approxCost: parent.approxCost + cost
+  };
+}
+
 function getBoolAttr(token: ARef, attr: string, tokens: ReadonlyArray<ARef>): boolean {
-  // Placeholder implementation
   if (attr === 'is_factor') {
-    // Check if token is adjacent to a * operator
     const idx = tokens.indexOf(token);
     if (idx > 0 && tokenEquals(tokens[idx - 1], '*')) return true;
     if (idx < tokens.length - 1 && tokenEquals(tokens[idx + 1], '*')) return true;
     return false;
   }
   if (attr === 'is_term') {
-    // A term is something that can be added/subtracted
-    // Not adjacent to * operator
     const idx = tokens.indexOf(token);
     if (idx > 0 && tokenEquals(tokens[idx - 1], '*')) return false;
     if (idx < tokens.length - 1 && tokenEquals(tokens[idx + 1], '*')) return false;
@@ -154,7 +73,6 @@ function getVariablePower(tokens: ReadonlyArray<ARef>, startIdx: number): Variab
 
   if (isVariable(tokens[startIdx])) {
     const variable = tokens[startIdx];
-    // Check if next tokens are ^ and number
     if (
       startIdx + 2 < tokens.length &&
       tokenEquals(tokens[startIdx + 1], '^') &&
@@ -169,130 +87,17 @@ function getVariablePower(tokens: ReadonlyArray<ARef>, startIdx: number): Variab
   return { variable: null, power: null, endIndex: startIdx };
 }
 
-function operationName(op: string): string {
-  return op === '+' ? 'sum' : 'sub';
-}
-
 // ============================================================================
-// Action generators
+// Generator-based action functions with delayed operations
 // ============================================================================
 
-export function applyMul(tokens: ReadonlyArray<ARef>): Action[] {
-  const actions: Action[] = [];
+/**
+ * Apply sum/subtraction operations - yields AModel with delayed ops
+ */
+export function* applySum(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
 
-  for (let i = 1; i < tokens.length - 1; i++) {
-    if (tokenEquals(tokens[i], '*')) {
-      const left = tokens[i - 1];
-      const right = tokens[i + 1];
-
-      // Check if both operands are factors in multiplication
-      const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
-      const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
-
-      if (!(leftIsFactor && rightIsFactor)) {
-        continue;
-      }
-
-      // number * variable or variable * number
-      if (isNumber(left) && isVariable(right)) {
-        const actionInfo: MultiplyCoeffVarActionInfo = {
-          type: 'multiply_coeff_var',
-          position: i,
-          leftToken: left,
-          rightToken: right,
-          pattern: 'number_variable',
-          originalTokens: tokens,
-          id: `multiply_coeff_var_${i}`,
-          actionName: `multiply_coeff_var_${i}`
-        };
-        actions.push({
-          cost: 2,
-          name: `multiply_coeff_var_${i}`,
-          actionType: 'action_multiply_coeff_var',
-          actionInfo
-        });
-      } else if (isVariable(left) && isNumber(right)) {
-        const actionInfo: MultiplyCoeffVarActionInfo = {
-          type: 'multiply_coeff_var',
-          position: i,
-          leftToken: left,
-          rightToken: right,
-          pattern: 'variable_number',
-          originalTokens: tokens,
-          id: `multiply_coeff_var_${i}`,
-          actionName: `multiply_coeff_var_${i}`
-        };
-        actions.push({
-          cost: 2,
-          name: `multiply_coeff_var_${i}`,
-          actionType: 'action_multiply_coeff_var',
-          actionInfo
-        });
-      }
-
-      // Check for variable * variable patterns (including powers)
-      const leftResult = getVariablePower(tokens, i - 1);
-      const rightResult = getVariablePower(tokens, i + 1);
-
-      if (leftResult.variable && rightResult.variable) {
-        if (getRefText(leftResult.variable) === getRefText(rightResult.variable)) {
-          // Same variable: x * x = x^2, x^2 * x^3 = x^5
-          const totalPower = (leftResult.power ?? 0) + (rightResult.power ?? 0);
-          const actionInfo: MultiplySameVarActionInfo = {
-            type: 'multiply_same_var',
-            position: i,
-            variable: leftResult.variable,
-            leftPower: leftResult.power ?? 1,
-            rightPower: rightResult.power ?? 1,
-            totalPower,
-            leftEnd: leftResult.endIndex,
-            rightEnd: rightResult.endIndex,
-            originalTokens: tokens,
-            id: `multiply_same_var_${i}`,
-            actionName: `multiply_same_var_${i}`
-          };
-          actions.push({
-            cost: 2,
-            name: `multiply_same_var_${i}`,
-            actionType: 'action_multiply_same_var',
-            actionInfo
-          });
-        }
-        // Different variables: x * y = x*y (already in correct form, no action needed)
-      }
-
-      // number * number
-      if (isNumber(left) && isNumber(right)) {
-        const leftValue = left.value ?? parseInt(getRefText(left), 10);
-        const rightValue = right.value ?? parseInt(getRefText(right), 10);
-        const cost = calculateMultiplicationCost(leftValue, rightValue);
-
-        const actionInfo: MultiplyNumbersActionInfo = {
-          type: 'multiply_numbers',
-          position: i,
-          leftToken: left,
-          rightToken: right,
-          originalTokens: tokens,
-          id: `multiply_numbers_${i}`,
-          actionName: `multiply_numbers_${i}`
-        };
-        actions.push({
-          cost,
-          name: `multiply_numbers_${i}`,
-          actionType: 'action_multiply_numbers',
-          actionInfo
-        });
-      }
-    }
-  }
-
-  return actions;
-}
-
-export function* applySum(model: AModel): Iterable<AModel> {
-  const actions: Action[] = [];
-
-  // Check if there are any multiplication terms in the expression
+  // Check for multiplication terms that need wrapping first
   let hasMultiplications = false;
   for (const token of tokens) {
     if (getBoolAttr(token, 'is_factor', tokens)) {
@@ -301,20 +106,9 @@ export function* applySum(model: AModel): Iterable<AModel> {
     }
   }
 
-  // Generate single wrap action for all multiplications if any exist
   if (hasMultiplications) {
-    const actionInfo: WrapMultActionInfo = {
-      type: 'wrap_mult',
-      originalTokens: tokens,
-      context: 'wrap_all_multiplications',
-      actionName: 'wrap_all_mult'
-    };
-    actions.push({
-      cost: 1,
-      name: 'wrap_all_mult',
-      actionType: 'action_wrap_mult',
-      actionInfo
-    });
+    const newTokens = wrapAllMultiplications(tokens);
+    yield createModel(model, 'wrap_mult', newTokens, 1);
   }
 
   // Look for addition/subtraction operations
@@ -324,7 +118,6 @@ export function* applySum(model: AModel): Iterable<AModel> {
       const left = tokens[i - 1];
       const right = tokens[i + 1];
 
-      // Check if both operands are terms that can be added/subtracted
       const leftIsTerm = getBoolAttr(left, 'is_term', tokens);
       const rightIsTerm = getBoolAttr(right, 'is_term', tokens);
 
@@ -332,11 +125,8 @@ export function* applySum(model: AModel): Iterable<AModel> {
         continue;
       }
 
-      // number +/- number - offer computation
+      // number +/- number - create delayed operation
       if (isNumber(left) && isNumber(right)) {
-        const actionType = `action_compute_${operationName(op)}`;
-        const actionName = `compute_${operationName(op)}_${i}`;
-
         const leftValue = left.value ?? parseInt(getRefText(left), 10);
         const rightValue = right.value ?? parseInt(getRefText(right), 10);
 
@@ -344,32 +134,18 @@ export function* applySum(model: AModel): Iterable<AModel> {
           ? calculateAdditionCost(leftValue, rightValue)
           : calculateSubtractionCost(leftValue, rightValue);
 
-        if (op === '+') {
-          const actionInfo: ComputeSumActionInfo = {
-            type: 'compute_sum',
-            operation: '+',
-            position: i,
-            leftToken: left,
-            rightToken: right,
-            originalTokens: tokens,
-            actionName
-          };
-          actions.push({ cost, name: actionName, actionType, actionInfo });
-        } else {
-          const actionInfo: ComputeSubActionInfo = {
-            type: 'compute_sub',
-            operation: '-',
-            position: i,
-            leftToken: left,
-            rightToken: right,
-            originalTokens: tokens,
-            actionName
-          };
-          actions.push({ cost, name: actionName, actionType, actionInfo });
-        }
+        const delayedOp: DelayedOp = op === '+'
+          ? { kind: 'add', left, right }
+          : { kind: 'sub', left, right };
+
+        const resultText = `(${getRefText(left)}${op}${getRefText(right)})`;
+        const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+        const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+
+        yield createModel(model, `compute_${op === '+' ? 'sum' : 'sub'}_${i}`, newTokens, cost);
       }
 
-      // Handle pure variables with powers (produce separate tokens) - only for addition
+      // Handle like terms: x + x -> 2*x (only for addition)
       if (op === '+') {
         const leftResult = getVariablePower(tokens, i - 1);
         const rightResult = getVariablePower(tokens, i + 1);
@@ -380,75 +156,17 @@ export function* applySum(model: AModel): Iterable<AModel> {
           getRefText(leftResult.variable) === getRefText(rightResult.variable) &&
           leftResult.power === rightResult.power
         ) {
-          const actionInfo: CombineTermsActionInfo = {
-            type: 'combine_terms',
-            position: i,
-            startPos: i - 1,
-            endPos: rightResult.endIndex,
-            variable: leftResult.variable,
-            power: leftResult.power ?? 1,
-            sourceTokens: tokens.slice(i - 1, rightResult.endIndex),
-            originalTokens: tokens,
-            id: `combine_like_terms_${i}`,
-            actionName: `combine_like_terms_${i}`
-          };
-          actions.push({
-            cost: 3,
-            name: `combine_like_terms_${i}`,
-            actionType: 'action_combine_terms',
-            actionInfo
-          });
+          const sourceTokens = tokens.slice(i - 1, rightResult.endIndex);
+          const delayedOp: DelayedOp = { kind: 'combine', terms: sourceTokens, op: '+' };
+          const resultText = `(2*${getRefText(leftResult.variable)}${leftResult.power !== 1 ? '^' + leftResult.power : ''})`;
+          const resultRef = createDelayedRef(resultText, sourceTokens, delayedOp);
+          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
+
+          yield createModel(model, `combine_like_terms_${i}`, newTokens, 3);
         }
       }
 
-      // variable + number or number + variable (reorder) - only for addition
-      if (op === '+' && isVariable(left) && isNumber(right)) {
-        const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
-        const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
-
-        if (!(leftIsFactor || rightIsFactor)) {
-          const actionInfo: ReorderActionInfo = {
-            type: 'reorder',
-            position: i,
-            leftToken: left,
-            rightToken: right,
-            reorderPattern: 'number_first',
-            originalTokens: tokens,
-            actionName: `reorder_${i}`
-          };
-          actions.push({
-            cost: 4,
-            name: `reorder_${i}`,
-            actionType: 'action_reorder',
-            actionInfo
-          });
-        }
-      }
-
-      if (op === '+' && isNumber(left) && isVariable(right)) {
-        const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
-        const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
-
-        if (!(leftIsFactor || rightIsFactor)) {
-          const actionInfo: ReorderActionInfo = {
-            type: 'reorder',
-            position: i,
-            leftToken: left,
-            rightToken: right,
-            reorderPattern: 'keep_order',
-            originalTokens: tokens,
-            actionName: `reorder_${i}`
-          };
-          actions.push({
-            cost: 4,
-            name: `reorder_${i}`,
-            actionType: 'action_reorder',
-            actionInfo
-          });
-        }
-      }
-
-      // Handle subtraction-specific operations
+      // Handle like terms subtraction: x - x -> 0
       if (op === '-') {
         const leftResult = getVariablePower(tokens, i - 1);
         const rightResult = getVariablePower(tokens, i + 1);
@@ -459,40 +177,261 @@ export function* applySum(model: AModel): Iterable<AModel> {
           getRefText(leftResult.variable) === getRefText(rightResult.variable) &&
           leftResult.power === rightResult.power
         ) {
-          const actionInfo: SubtractLikeTermsActionInfo = {
-            type: 'subtract_like_terms',
-            position: i,
-            startPos: i - 1,
-            endPos: rightResult.endIndex,
-            variable: leftResult.variable,
-            power: leftResult.power ?? 1,
-            sourceTokens: tokens.slice(i - 1, rightResult.endIndex),
-            originalTokens: tokens,
-            id: `subtract_like_terms_${i}`,
-            actionName: `subtract_like_terms_${i}`
-          };
-          actions.push({
-            cost: 3,
-            name: `subtract_like_terms_${i}`,
-            actionType: 'action_subtract_like_terms',
-            actionInfo
-          });
+          const sourceTokens = tokens.slice(i - 1, rightResult.endIndex);
+          const delayedOp: DelayedOp = { kind: 'sub', left: leftResult.variable, right: rightResult.variable };
+          const resultRef = createDelayedRef('0', sourceTokens, delayedOp);
+          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
+
+          yield createModel(model, `subtract_like_terms_${i}`, newTokens, 3);
+        }
+      }
+
+      // Reorder: variable + number -> number + variable
+      if (op === '+' && isVariable(left) && isNumber(right)) {
+        const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
+        const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
+
+        if (!(leftIsFactor || rightIsFactor)) {
+          const combinedText = `(${getRefText(right)}+${getRefText(left)})`;
+          const newRef = createAref(combinedText, [left, right]);
+          const newTokens = splice(tokens, i - 1, i + 2, [newRef]);
+
+          yield createModel(model, `reorder_${i}`, newTokens, 4);
         }
       }
     }
   }
+}
 
-  return actions;
+/**
+ * Apply multiplication operations - yields AModel with delayed ops
+ */
+export function* applyMul(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+
+  for (let i = 1; i < tokens.length - 1; i++) {
+    if (tokenEquals(tokens[i], '*')) {
+      const left = tokens[i - 1];
+      const right = tokens[i + 1];
+
+      const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
+      const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
+
+      if (!(leftIsFactor && rightIsFactor)) {
+        continue;
+      }
+
+      // number * variable -> coefficient-variable with delayed op
+      if (isNumber(left) && isVariable(right)) {
+        const delayedOp: DelayedOp = { kind: 'mul', left, right };
+        const combinedText = `${getRefText(left)}${getRefText(right)}`;
+        const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
+        const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+
+        yield createModel(model, `multiply_coeff_var_${i}`, newTokens, 2);
+      } else if (isVariable(left) && isNumber(right)) {
+        const delayedOp: DelayedOp = { kind: 'mul', left, right };
+        const combinedText = `${getRefText(right)}${getRefText(left)}`;
+        const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
+        const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+
+        yield createModel(model, `multiply_coeff_var_${i}`, newTokens, 2);
+      }
+
+      // variable * variable (same variable) -> power with delayed op
+      const leftResult = getVariablePower(tokens, i - 1);
+      const rightResult = getVariablePower(tokens, i + 1);
+
+      if (leftResult.variable && rightResult.variable) {
+        if (getRefText(leftResult.variable) === getRefText(rightResult.variable)) {
+          const totalPower = (leftResult.power ?? 1) + (rightResult.power ?? 1);
+          const delayedOp: DelayedOp = { kind: 'pow', base: leftResult.variable, exponent: createAref(String(totalPower)) };
+          const resultText = totalPower === 1
+            ? getRefText(leftResult.variable)
+            : `${getRefText(leftResult.variable)}^${totalPower}`;
+          const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
+
+          yield createModel(model, `multiply_same_var_${i}`, newTokens, 2);
+        }
+      }
+
+      // number * number -> delayed multiplication
+      if (isNumber(left) && isNumber(right)) {
+        const leftValue = left.value ?? parseInt(getRefText(left), 10);
+        const rightValue = right.value ?? parseInt(getRefText(right), 10);
+        const cost = calculateMultiplicationCost(leftValue, rightValue);
+
+        const delayedOp: DelayedOp = { kind: 'mul', left, right };
+        const resultText = `(${getRefText(left)}*${getRefText(right)})`;
+        const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+        const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+
+        yield createModel(model, `multiply_numbers_${i}`, newTokens, cost);
+      }
+    }
+  }
+}
+
+/**
+ * Apply division operations - yields AModel with delayed ops
+ */
+export function* applyDiv(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+
+  for (let i = 1; i < tokens.length - 1; i++) {
+    if (tokenEquals(tokens[i], '/')) {
+      const left = tokens[i - 1];
+      const right = tokens[i + 1];
+
+      // number / number
+      if (isNumber(left) && isNumber(right)) {
+        const rightVal = parseInt(getRefText(right), 10);
+        const leftVal = parseInt(getRefText(left), 10);
+        if (rightVal !== 0 && leftVal % rightVal === 0) {
+          const delayedOp: DelayedOp = { kind: 'div', left, right };
+          const resultText = `(${getRefText(left)}/${getRefText(right)})`;
+          const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+          const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+
+          yield createModel(model, `divide_numbers_${i}`, newTokens, 2);
+        }
+      }
+
+      // variable / variable
+      const leftResult = getVariablePower(tokens, i - 1);
+      const rightResult = getVariablePower(tokens, i + 1);
+
+      if (
+        leftResult.variable &&
+        rightResult.variable &&
+        getRefText(leftResult.variable) === getRefText(rightResult.variable)
+      ) {
+        const powerDiff = (leftResult.power ?? 1) - (rightResult.power ?? 1);
+        const sourceArefs = tokens.slice(i - 1, rightResult.endIndex);
+        const delayedOp: DelayedOp = { kind: 'div', left: leftResult.variable, right: rightResult.variable };
+
+        let resultText: string;
+        if (powerDiff === 0) {
+          resultText = '1';
+        } else if (powerDiff === 1) {
+          resultText = getRefText(leftResult.variable);
+        } else {
+          resultText = `${getRefText(leftResult.variable)}^${powerDiff}`;
+        }
+
+        const resultRef = createDelayedRef(resultText, sourceArefs, delayedOp);
+        const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
+
+        yield createModel(model, `divide_vars_${i}`, newTokens, 2);
+      }
+    }
+  }
+}
+
+/**
+ * Apply cancellation operations - yields AModel
+ */
+export function* applyCancel(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+
+  function isPartOfMultiplication(index: number): boolean {
+    if (index > 0 && tokenEquals(tokens[index - 1], '*')) return true;
+    if (index + 1 < tokens.length && tokenEquals(tokens[index + 1], '*')) return true;
+    return false;
+  }
+
+  // Look for +term ... -term patterns
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokenEquals(tokens[i], '+') && i + 1 < tokens.length) {
+      const addTerm = tokens[i + 1];
+      if (isPartOfMultiplication(i + 1)) continue;
+
+      for (let j = i + 2; j < tokens.length; j++) {
+        if (
+          tokenEquals(tokens[j], '-') &&
+          j + 1 < tokens.length &&
+          getRefText(tokens[j + 1]) === getRefText(addTerm) &&
+          !isPartOfMultiplication(j + 1)
+        ) {
+          let newTokens = splice(tokens, j, j + 2, []);
+          newTokens = splice(newTokens, i, i + 2, []);
+
+          yield createModel(model, `cancel_${i}_${j}`, newTokens, 1);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Apply cleanup operations - yields AModel
+ */
+export function* applyCleanup(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+  if (tokens.length === 0) return;
+
+  // Remove leading + operator
+  if (tokenEquals(tokens[0], '+')) {
+    const newTokens = splice(tokens, 0, 1, []);
+    yield createModel(model, 'remove_leading_plus', newTokens, 1);
+  }
+
+  // Remove leading - operator and negate
+  if (tokenEquals(tokens[0], '-') && tokens.length > 1 && isNumber(tokens[1])) {
+    const negativeRef = createAref('-' + getRefText(tokens[1]), [tokens[1]]);
+    const newTokens = splice(tokens, 0, 2, [negativeRef]);
+    yield createModel(model, 'negate_leading', newTokens, 1);
+  }
+}
+
+/**
+ * Apply parenthesis removal - yields AModel
+ */
+export function* applyParenthesis(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokenEquals(tokens[i], '(')) {
+      for (let j = i + 2; j < tokens.length; j++) {
+        if (tokenEquals(tokens[j], ')')) {
+          const subexpr = tokens.slice(i + 1, j);
+          if (subexpr.length === 1) {
+            const newTokens = splice(tokens, i, j + 1, subexpr);
+            yield createModel(model, `remove_parens_${i}`, newTokens, 1);
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Convert subtraction to addition with negatives - yields AModel
+ */
+export function* applySubToAdd(model: AModel): Generator<AModel> {
+  const tokens = model.tokens;
+
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
+      const nextToken = tokens[i + 1];
+      if (isNumber(nextToken)) {
+        const plusRef = createAref('+');
+        const negativeRef = createAref('-' + getRefText(nextToken), [nextToken]);
+        const newTokens = splice(tokens, i, i + 2, [plusRef, negativeRef]);
+
+        yield createModel(model, `sub_to_add_${i}`, newTokens, 1);
+      }
+    }
+  }
 }
 
 // ============================================================================
-// Action executors
+// Helper: wrap all multiplication terms
 // ============================================================================
 
-export function actionWrapMult(actionInfo: WrapMultActionInfo): ARef[] {
-  const tokens = actionInfo.originalTokens;
-
-  function detectAllMultTerms(tokens: ARef[]): Array<{ start: number; end: number }> {
+function wrapAllMultiplications(tokens: ReadonlyArray<ARef>): ARef[] {
+  function detectAllMultTerms(): Array<{ start: number; end: number }> {
     const multTerms: Array<{ start: number; end: number }> = [];
     let i = 0;
 
@@ -523,333 +462,164 @@ export function actionWrapMult(actionInfo: WrapMultActionInfo): ARef[] {
     return multTerms;
   }
 
-  const multTerms = detectAllMultTerms(tokens);
+  const multTerms = detectAllMultTerms();
   let newTokens = [...tokens];
 
-  // Process from right to left to maintain correct indices
+  // Process from right to left
   for (let j = multTerms.length - 1; j >= 0; j--) {
     const { start, end } = multTerms[j];
     const multTokens = newTokens.slice(start, end);
-    const multTerm = makeMultTerm(multTokens);
-    newTokens = splice(newTokens, start, end, [multTerm]);
+    const delayedOp: DelayedOp = { kind: 'wrap', terms: [...multTokens] };
+    const wrapText = multTokens.map(t => getRefText(t)).join('');
+    const wrappedRef = createDelayedRef(`_${wrapText}`, multTokens, delayedOp);
+    newTokens = splice(newTokens, start, end, [wrappedRef]);
   }
 
   return newTokens;
 }
 
-export function actionComputeSum(actionInfo: ComputeSumActionInfo): ARef[] {
-  const { originalTokens: tokens, position, leftToken, rightToken } = actionInfo;
-
-  const leftValue = leftToken.value as number;
-  const rightValue = rightToken.value as number;
-  const resultValue = leftValue + rightValue;
-
-  const resultAref = createAref(String(resultValue), [leftToken, rightToken], resultValue);
-  return splice(tokens, position - 1, position + 2, [resultAref]);
-}
-
-export function actionComputeSub(actionInfo: ComputeSubActionInfo): ARef[] {
-  const { originalTokens: tokens, position, leftToken, rightToken } = actionInfo;
-
-  const leftValue = leftToken.value as number;
-  const rightValue = rightToken.value as number;
-  const resultValue = leftValue - rightValue;
-
-  const resultAref = createAref(String(resultValue), [leftToken, rightToken], resultValue);
-  return splice(tokens, position - 1, position + 2, [resultAref]);
-}
-
-export function actionCombineTerms(actionInfo: CombineTermsActionInfo): ARef[] {
-  const { originalTokens: tokens, startPos, endPos, variable, power, sourceTokens } = actionInfo;
-
-  if (power === 1) {
-    // x + x = 2*x
-    const twoAref = createAref('2', sourceTokens);
-    const multAref = createAref('*');
-    return splice(tokens, startPos, endPos, [twoAref, multAref, variable]);
-  } else {
-    // x^2 + x^2 = 2*x^2
-    const twoAref = createAref('2', sourceTokens);
-    const multAref = createAref('*');
-    const caretAref = createAref('^');
-    const powerAref = createAref(String(power));
-    return splice(tokens, startPos, endPos, [twoAref, multAref, variable, caretAref, powerAref]);
-  }
-}
-
-export function actionReorder(actionInfo: ReorderActionInfo): ARef[] {
-  const { originalTokens: tokens, position, leftToken, rightToken, reorderPattern } = actionInfo;
-
-  let combinedText: string;
-  if (reorderPattern === 'number_first') {
-    combinedText = getRefText(rightToken) + '+' + getRefText(leftToken);
-  } else {
-    combinedText = getRefText(leftToken) + '+' + getRefText(rightToken);
-  }
-
-  const newAref = createAref(combinedText, [leftToken, rightToken]);
-  return splice(tokens, position - 1, position + 2, [newAref]);
-}
-
-export function actionMultiplyCoeffVar(actionInfo: MultiplyCoeffVarActionInfo): ARef[] {
-  const { originalTokens: tokens, position, leftToken, rightToken, pattern } = actionInfo;
-
-  let combinedText: string;
-  if (pattern === 'number_variable') {
-    combinedText = parseInt(getRefText(leftToken), 10) + getRefText(rightToken);
-  } else {
-    combinedText = parseInt(getRefText(rightToken), 10) + getRefText(leftToken);
-  }
-
-  const newAref = createAref(combinedText, [leftToken, rightToken]);
-  return splice(tokens, position - 1, position + 2, [newAref]);
-}
-
-export function actionMultiplySameVar(actionInfo: MultiplySameVarActionInfo): ARef[] {
-  const { originalTokens: tokens, position, variable, totalPower, rightEnd } = actionInfo;
-
-  if (totalPower === 1) {
-    return splice(tokens, position - 1, rightEnd, [variable]);
-  } else {
-    const caretAref = createAref('^');
-    const powerAref = createAref(String(totalPower), [tokens[position - 1], tokens[position + 1]]);
-    return splice(tokens, position - 1, rightEnd, [variable, caretAref, powerAref]);
-  }
-}
-
-export function actionMultiplyNumbers(actionInfo: MultiplyNumbersActionInfo): ARef[] {
-  const { originalTokens: tokens, position, leftToken, rightToken } = actionInfo;
-
-  const leftValue = leftToken.value ?? parseInt(getRefText(leftToken), 10);
-  const rightValue = rightToken.value ?? parseInt(getRefText(rightToken), 10);
-  const resultValue = leftValue * rightValue;
-
-  const resultAref = createAref(String(resultValue), [leftToken, rightToken], resultValue);
-  return splice(tokens, position - 1, position + 2, [resultAref]);
-}
-
-export function actionSubtractLikeTerms(actionInfo: SubtractLikeTermsActionInfo): ARef[] {
-  const { originalTokens: tokens, startPos, endPos, sourceTokens } = actionInfo;
-
-  const zeroAref = createAref('0', sourceTokens, 0);
-  return splice(tokens, startPos, endPos, [zeroAref]);
-}
-
 // ============================================================================
-// Direct apply functions (return modified tokens or null)
+// Evaluate delayed operations (when needed)
 // ============================================================================
 
-export function applyDiv(tokens: ReadonlyArray<ARef>): ARef[] | null {
-  for (let i = 1; i < tokens.length - 1; i++) {
-    if (tokenEquals(tokens[i], '/')) {
-      const left = tokens[i - 1];
-      const right = tokens[i + 1];
+export function evaluateDelayedOp(ref: ARef): number | null {
+  if (!ref.delayedOp) {
+    return ref.value;
+  }
 
-      // number / number
-      if (isNumber(left) && isNumber(right)) {
-        const rightVal = parseInt(getRefText(right), 10);
-        const leftVal = parseInt(getRefText(left), 10);
-        if (rightVal !== 0 && leftVal % rightVal === 0) {
-          const resultValue = Math.floor(leftVal / rightVal);
-          const resultAref = createAref(String(resultValue), [left, right]);
-          return splice(tokens, i - 1, i + 2, [resultAref]);
-        }
-      }
-
-      // Check for variable / variable patterns (including powers)
-      const leftResult = getVariablePower(tokens, i - 1);
-      const rightResult = getVariablePower(tokens, i + 1);
-
-      if (
-        leftResult.variable &&
-        rightResult.variable &&
-        getRefText(leftResult.variable) === getRefText(rightResult.variable)
-      ) {
-        const powerDiff = (leftResult.power ?? 1) - (rightResult.power ?? 1);
-
-        if (powerDiff === 0) {
-          const sourceArefs = tokens.slice(i - 1, rightResult.endIndex);
-          const oneAref = createAref('1', sourceArefs);
-          return splice(tokens, i - 1, rightResult.endIndex, [oneAref]);
-        } else if (powerDiff === 1) {
-          return splice(tokens, i - 1, rightResult.endIndex, [leftResult.variable]);
-        } else {
-          const sourceArefs = tokens.slice(i - 1, rightResult.endIndex);
-          const powerAref = createAref(String(powerDiff), sourceArefs);
-          const caretAref = createAref('^');
-          return splice(tokens, i - 1, rightResult.endIndex, [
-            leftResult.variable,
-            caretAref,
-            powerAref
-          ]);
-        }
-      }
+  const op = ref.delayedOp;
+  switch (op.kind) {
+    case 'add': {
+      const leftVal = op.left.value ?? parseInt(getRefText(op.left), 10);
+      const rightVal = op.right.value ?? parseInt(getRefText(op.right), 10);
+      return leftVal + rightVal;
     }
-  }
-  return null;
-}
-
-export function applyCancel(tokens: ARef[]): ARef[] | null {
-  function isPartOfMultiplication(tokens: ARef[], index: number): boolean {
-    if (index > 0 && tokenEquals(tokens[index - 1], '*')) return true;
-    if (index + 1 < tokens.length && tokenEquals(tokens[index + 1], '*')) return true;
-    return false;
-  }
-
-  // Look for addition and subtraction of the same term to cancel out
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '+') && i + 1 < tokens.length) {
-      const addTerm = tokens[i + 1];
-      if (isPartOfMultiplication(tokens, i + 1)) continue;
-
-      for (let j = i + 2; j < tokens.length; j++) {
-        if (
-          tokenEquals(tokens[j], '-') &&
-          j + 1 < tokens.length &&
-          getRefText(tokens[j + 1]) === getRefText(addTerm) &&
-          !isPartOfMultiplication(tokens, j + 1)
-        ) {
-          let newTokens = splice(tokens, j, j + 2, []);
-          newTokens = splice(newTokens, i, i + 2, []);
-          return newTokens;
-        }
-      }
+    case 'sub': {
+      const leftVal = op.left.value ?? parseInt(getRefText(op.left), 10);
+      const rightVal = op.right.value ?? parseInt(getRefText(op.right), 10);
+      return leftVal - rightVal;
     }
-  }
-
-  // Also look for subtraction followed by addition of the same term
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
-      const subTerm = tokens[i + 1];
-      if (isPartOfMultiplication(tokens, i + 1)) continue;
-
-      for (let j = i + 2; j < tokens.length; j++) {
-        if (
-          tokenEquals(tokens[j], '+') &&
-          j + 1 < tokens.length &&
-          getRefText(tokens[j + 1]) === getRefText(subTerm) &&
-          !isPartOfMultiplication(tokens, j + 1)
-        ) {
-          let newTokens = splice(tokens, j, j + 2, []);
-          newTokens = splice(newTokens, i, i + 2, []);
-          return newTokens;
-        }
-      }
+    case 'mul': {
+      const leftVal = op.left.value ?? parseInt(getRefText(op.left), 10);
+      const rightVal = op.right.value ?? parseInt(getRefText(op.right), 10);
+      return leftVal * rightVal;
     }
-  }
-
-  // Handle case where first term is implicitly positive
-  if (
-    tokens.length >= 3 &&
-    !tokenEquals(tokens[0], '+') &&
-    !tokenEquals(tokens[0], '-')
-  ) {
-    const firstTerm = tokens[0];
-    if (!isPartOfMultiplication(tokens, 0)) {
-      for (let i = 1; i < tokens.length; i++) {
-        if (
-          i + 1 < tokens.length &&
-          tokenEquals(tokens[i], '-') &&
-          getRefText(tokens[i + 1]) === getRefText(firstTerm) &&
-          !isPartOfMultiplication(tokens, i + 1)
-        ) {
-          return splice(splice(tokens, i, i + 2, []), 0, 1, []);
-        }
-      }
+    case 'div': {
+      const leftVal = op.left.value ?? parseInt(getRefText(op.left), 10);
+      const rightVal = op.right.value ?? parseInt(getRefText(op.right), 10);
+      if (rightVal === 0) return null;
+      return Math.floor(leftVal / rightVal);
     }
-  }
-
-  return null;
-}
-
-export function applySubToAdd(tokens: ARef[]): ARef[] | null {
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
-      const nextToken = tokens[i + 1];
-      if (isNumber(nextToken)) {
-        const plusAref = createAref('+');
-        const negativeAref = createAref('-' + getRefText(nextToken), [nextToken]);
-        return splice(tokens, i, i + 2, [plusAref, negativeAref]);
-      }
-    }
-  }
-  return null;
-}
-
-export function applyCleanup(tokens: ARef[]): ARef[] | null {
-  if (tokens.length === 0) return null;
-
-  // Remove leading + operator
-  if (tokenEquals(tokens[0], '+')) {
-    return splice(tokens, 0, 1, []);
-  }
-
-  // Remove leading - operator and negate the first term if it's a number
-  if (tokenEquals(tokens[0], '-') && tokens.length > 1) {
-    if (isNumber(tokens[1])) {
-      const negativeAref = createAref('-' + getRefText(tokens[1]), [tokens[1]]);
-      return splice(tokens, 0, 2, [negativeAref]);
-    } else {
-      return tokens;
-    }
-  }
-
-  return null;
-}
-
-export function applyParenthesis(tokens: ARef[]): ARef[] | null {
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '(')) {
-      for (let j = i + 2; j < tokens.length; j++) {
-        if (tokenEquals(tokens[j], ')')) {
-          const subexpr = tokens.slice(i + 1, j);
-          if (subexpr.length === 1) {
-            return splice(tokens, i, j + 1, subexpr);
-          }
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// ============================================================================
-// Action executor
-// ============================================================================
-
-export function executeAction(action: Action): ARef[] {
-  const { actionType, actionInfo } = action;
-
-  switch (actionType) {
-    case 'action_wrap_mult':
-      return actionWrapMult(actionInfo as WrapMultActionInfo);
-    case 'action_compute_sum':
-      return actionComputeSum(actionInfo as ComputeSumActionInfo);
-    case 'action_compute_sub':
-      return actionComputeSub(actionInfo as ComputeSubActionInfo);
-    case 'action_combine_terms':
-      return actionCombineTerms(actionInfo as CombineTermsActionInfo);
-    case 'action_reorder':
-      return actionReorder(actionInfo as ReorderActionInfo);
-    case 'action_multiply_coeff_var':
-      return actionMultiplyCoeffVar(actionInfo as MultiplyCoeffVarActionInfo);
-    case 'action_multiply_same_var':
-      return actionMultiplySameVar(actionInfo as MultiplySameVarActionInfo);
-    case 'action_multiply_numbers':
-      return actionMultiplyNumbers(actionInfo as MultiplyNumbersActionInfo);
-    case 'action_subtract_like_terms':
-      return actionSubtractLikeTerms(actionInfo as SubtractLikeTermsActionInfo);
     default:
-      throw new Error(`Unknown action type: ${actionType}`);
+      return null;
   }
 }
 
-// Legacy function for backwards compatibility
-export function applyMulLegacy(tokens: ARef[]): ARef[] | null {
-  const actions = applyMul(tokens);
-  if (actions.length > 0) {
-    actions.sort((a, b) => a.cost - b.cost);
-    return executeAction(actions[0]);
+// ============================================================================
+// All actions combined
+// ============================================================================
+
+export type ActionGenerator = (model: AModel) => Generator<AModel>;
+
+export const ALL_ACTIONS: ActionGenerator[] = [
+  applySum,
+  applyMul,
+  applyDiv,
+  applyCancel,
+  applyCleanup,
+  applySubToAdd,
+  applyParenthesis
+];
+
+/**
+ * Entry in the merge heap: holds current model and its source iterator
+ */
+interface MergeEntry {
+  model: AModel;
+  iterator: Generator<AModel>;
+}
+
+/**
+ * Min-heap for merging sorted iterators by cost
+ */
+class MergeHeap {
+  private heap: MergeEntry[] = [];
+
+  push(entry: MergeEntry): void {
+    this.heap.push(entry);
+    this.bubbleUp(this.heap.length - 1);
   }
-  return null;
+
+  pop(): MergeEntry | undefined {
+    if (this.heap.length === 0) return undefined;
+    if (this.heap.length === 1) return this.heap.pop();
+
+    const result = this.heap[0];
+    this.heap[0] = this.heap.pop()!;
+    this.bubbleDown(0);
+    return result;
+  }
+
+  get length(): number {
+    return this.heap.length;
+  }
+
+  private bubbleUp(index: number): void {
+    while (index > 0) {
+      const parentIndex = Math.floor((index - 1) / 2);
+      if (this.heap[index].model.approxCost >= this.heap[parentIndex].model.approxCost) break;
+      [this.heap[index], this.heap[parentIndex]] = [this.heap[parentIndex], this.heap[index]];
+      index = parentIndex;
+    }
+  }
+
+  private bubbleDown(index: number): void {
+    const length = this.heap.length;
+    while (true) {
+      const leftChild = 2 * index + 1;
+      const rightChild = 2 * index + 2;
+      let smallest = index;
+
+      if (leftChild < length && this.heap[leftChild].model.approxCost < this.heap[smallest].model.approxCost) {
+        smallest = leftChild;
+      }
+      if (rightChild < length && this.heap[rightChild].model.approxCost < this.heap[smallest].model.approxCost) {
+        smallest = rightChild;
+      }
+      if (smallest === index) break;
+
+      [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+      index = smallest;
+    }
+  }
+}
+
+/**
+ * Get all possible next states from current model, merged and sorted by cost.
+ * Assumes each individual action generator yields models sorted by cost (lowest first).
+ * Uses k-way merge to yield globally sorted results across all action types.
+ */
+export function* getAllActions(model: AModel): Generator<AModel> {
+  const mergeHeap = new MergeHeap();
+
+  // Initialize heap with first element from each action generator
+  for (const actionFn of ALL_ACTIONS) {
+    const iterator = actionFn(model);
+    const first = iterator.next();
+    if (!first.done) {
+      mergeHeap.push({ model: first.value, iterator });
+    }
+  }
+
+  // K-way merge: always yield the lowest cost model, then pull next from its source
+  while (mergeHeap.length > 0) {
+    const entry = mergeHeap.pop()!;
+    yield entry.model;
+
+    // Get next model from the same iterator
+    const next = entry.iterator.next();
+    if (!next.done) {
+      mergeHeap.push({ model: next.value, iterator: entry.iterator });
+    }
+  }
 }
