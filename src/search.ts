@@ -1,8 +1,10 @@
-import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey } from './token.js';
+import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey, createAref, createModel } from './token.js';
 import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
+import { evaluateDelayedOp } from './actions.js';
+import { COST } from './terms.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -65,6 +67,60 @@ class MinHeap<T> {
   }
 }
 // ============================================================================
+// Compute delayed operations
+// ============================================================================
+
+/**
+ * Evaluate a single delayed ref and return a new ref with computed value.
+ * Returns null if the ref has no delayed op or can't be computed (e.g., contains variables).
+ */
+function computeSingleRef(ref: ARef): ARef | null {
+  if (!ref.delayedOp) {
+    return null;
+  }
+
+  // Only compute if result is a digit type (pure numeric)
+  if (ref.refType !== 'digit') {
+    return null;
+  }
+
+  const value = evaluateDelayedOp(ref);
+  if (value === null) {
+    return null;
+  }
+
+  // Create new ref with computed value
+  return createAref(String(value), ref.arefs as ARef[], value);
+}
+
+/**
+ * Compute all delayed refs in a model's tokens.
+ * Returns a new model with computed values, or null if nothing was computed.
+ */
+function computeDelayedRefs(model: AModel): AModel | null {
+  let hasComputed = false;
+  const newTokens: ARef[] = [];
+
+  for (const token of model.tokens) {
+    const computed = computeSingleRef(token);
+    if (computed) {
+      newTokens.push(computed);
+      hasComputed = true;
+    } else {
+      newTokens.push(token);
+    }
+  }
+
+  if (!hasComputed) {
+    return null;
+  }
+
+  // Create new model with computed tokens
+  // Cost of computation is low since it's just evaluation
+  return createModel(model, 'compute', newTokens, COST.ADD_SINGLE_DIGIT);
+}
+
+// ============================================================================
 // A* Search with AModel
 // ============================================================================
 
@@ -79,35 +135,53 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
 
   heap.push(startModel);
 
-  const endOfChain: AModel[] = [];
-
   const visited = new Set<string>();
+
   while (heap.length > 0) {
-    const model = heap.pop()!;
+    const endOfChain: AModel[] = [];
 
-    const stateKey = modelToKey(model);
-    if (visited.has(stateKey)) {
-      continue;
-    }
-    visited.add(stateKey);
+    while (heap.length > 0) {
+      const model = heap.pop()!;
 
-    if (isGoal(model.tokens)) {
-      return getModelPath(model);
-    }
+      const stateKey = modelToKey(model);
+      if (visited.has(stateKey)) {
+        continue;
+      }
+      visited.add(stateKey);
 
-    // Get all possible next states using generators
-    let isEnd = true;
-    for (const nextModel of getAllActions(model)) {
-      const nextKey = modelToKey(nextModel);
-      if (!visited.has(nextKey)) {
-        heap.push(nextModel);
-        isEnd = false;
+      if (isGoal(model.tokens)) {
+        return getModelPath(model);
+      }
+
+      // Get all possible next states using generators
+      let isEnd = true;
+      for (const nextModel of getAllActions(model)) {
+        const nextKey = modelToKey(nextModel);
+        if (!visited.has(nextKey)) {
+          heap.push(nextModel);
+          isEnd = false;
+        }
+      }
+
+      if (isEnd) {
+        endOfChain.push(model)
       }
     }
 
-    if (isEnd) {
-      endOfChain.push(model)
+    // Compute delayed operations for end-of-chain models and continue search
+    for (const model of endOfChain) {
+      const computedModel = computeDelayedRefs(model);
+      if (computedModel) {
+        const computedKey = modelToKey(computedModel);
+        if (!visited.has(computedKey)) {
+          // New state after computation - add to heap for further exploration
+          heap.push(computedModel);
+        }
+        // If already visited, skip - we've seen this computed state before
+      }
     }
+
+    endOfChain.length = 0;
   }
 
 
