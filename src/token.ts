@@ -12,6 +12,13 @@ export interface AToken {
   text: string;
 }
 
+export interface AModel {
+  parent?: AModel;
+  transform: string;
+  tokens: ARef[];
+  approxCost: number;
+}
+
 export type TokenLike = string | AToken | ARef;
 
 let nextTokenId = 1;
@@ -56,7 +63,7 @@ export function tokenEquals(token: ARef, str: string): boolean {
   return getRefText(token) === str;
 }
 
-export function splice(tokens: ARef[], start: number, end: number, replacement: ARef[]): ARef[] {
+export function splice(tokens: ReadonlyArray<ARef>, start: number, end: number, replacement: ARef[]): ARef[] {
   return [...tokens.slice(0, start), ...replacement, ...tokens.slice(end)];
 }
 

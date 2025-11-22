@@ -1,4 +1,4 @@
-import { AToken, ARef, tokenEquals, isNumber, isVariable, getRefText, splice, createAref } from './token.js';
+import { AToken, ARef, tokenEquals, isNumber, isVariable, getRefText, splice, createAref, AModel } from './token.js';
 import { makeMultTerm } from './transform.js';
 import {
   calculateAdditionCost,
@@ -19,7 +19,7 @@ interface VariablePowerResult {
 // Action info interfaces for type safety
 interface BaseActionInfo {
   type: string;
-  originalTokens: ARef[];
+  originalTokens: ReadonlyArray<ARef>;
   actionName: string;
 }
 
@@ -127,7 +127,7 @@ export interface Action {
 // ============================================================================
 
 // TODO: implement in tokenattrs.ts
-function getBoolAttr(token: ARef, attr: string, tokens: ARef[]): boolean {
+function getBoolAttr(token: ARef, attr: string, tokens: ReadonlyArray<ARef>): boolean {
   // Placeholder implementation
   if (attr === 'is_factor') {
     // Check if token is adjacent to a * operator
@@ -147,7 +147,7 @@ function getBoolAttr(token: ARef, attr: string, tokens: ARef[]): boolean {
   return false;
 }
 
-function getVariablePower(tokens: ARef[], startIdx: number): VariablePowerResult {
+function getVariablePower(tokens: ReadonlyArray<ARef>, startIdx: number): VariablePowerResult {
   if (startIdx >= tokens.length) {
     return { variable: null, power: null, endIndex: startIdx };
   }
@@ -177,7 +177,7 @@ function operationName(op: string): string {
 // Action generators
 // ============================================================================
 
-export function applyMul(tokens: ARef[]): Action[] {
+export function applyMul(tokens: ReadonlyArray<ARef>): Action[] {
   const actions: Action[] = [];
 
   for (let i = 1; i < tokens.length - 1; i++) {
@@ -289,7 +289,7 @@ export function applyMul(tokens: ARef[]): Action[] {
   return actions;
 }
 
-export function applySum(tokens: ARef[]): Action[] {
+export function* applySum(model: AModel): Iterable<AModel> {
   const actions: Action[] = [];
 
   // Check if there are any multiplication terms in the expression
@@ -639,7 +639,7 @@ export function actionSubtractLikeTerms(actionInfo: SubtractLikeTermsActionInfo)
 // Direct apply functions (return modified tokens or null)
 // ============================================================================
 
-export function applyDiv(tokens: ARef[]): ARef[] | null {
+export function applyDiv(tokens: ReadonlyArray<ARef>): ARef[] | null {
   for (let i = 1; i < tokens.length - 1; i++) {
     if (tokenEquals(tokens[i], '/')) {
       const left = tokens[i - 1];

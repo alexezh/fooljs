@@ -218,13 +218,14 @@ export function aStarSearch(startTokens: ARef[]): ARef[][] | null {
   return null;
 }
 
-// ============================================================================
-// Example usage (main)
-// ============================================================================
-
+/**
+ * applySum - this is where it went wrong. We put knowledge of mul into plus
+ * but it is not deep enough. We need to make it more like a plan, and quickly run through
+ * big blocks, then fill in details
+ */
 function main(): void {
-  // const exprStr = "-4 + 3 * 4 + x + y - 3";
-  const exprStr = '4 + 3 * 4';
+  const exprStr = "-4 + 3 * 4 + x + y - 3";
+  //const exprStr = '4 + 3 * 4';
   const expr = parseExpression(exprStr);
   const result = aStarSearch(expr);
 
