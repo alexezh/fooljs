@@ -1,4 +1,4 @@
-import { AToken, ARef } from './token.js';
+import { AToken, ARef, RefType, inferRefType } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -8,12 +8,12 @@ function createToken(text: string): AToken {
   return { id: nextTokenId++, text };
 }
 
-function createRef(token: AToken, value?: number): ARef {
-  return { token, arefs: [], value: value ?? null };
+function createRef(token: AToken, refType: RefType, value?: number): ARef {
+  return { token, arefs: [], refType, value: value ?? null };
 }
 
-function createRefFromText(text: string, value?: number): ARef {
-  return createRef(createToken(text), value);
+function createRefFromText(text: string, refType: RefType, value?: number): ARef {
+  return createRef(createToken(text), refType, value);
 }
 
 function getTokenText(token: TokenLike): string {
@@ -92,15 +92,19 @@ export function parseExpression(expr: string): ARef[] {
       // This is a coefficient-variable pair like "2x"
       const numberValue = parseInt(tokens[i].text, 10);
       processed.push(
-        createRef(tokens[i], numberValue),
-        createRefFromText('*'),
-        createRef(tokens[i + 1])
+        createRef(tokens[i], 'digit', numberValue),
+        createRefFromText('*', 'op'),
+        createRef(tokens[i + 1], 'variable')
       );
       i += 2;
     } else {
       // Set value for number tokens
-      const value = isNumber(tokens[i]) ? parseInt(tokens[i].text, 10) : undefined;
-      processed.push(createRef(tokens[i], value));
+      if (isNumber(tokens[i])) {
+        const value = parseInt(tokens[i].text, 10);
+        processed.push(createRef(tokens[i], 'digit', value));
+      } else {
+        processed.push(createRef(tokens[i], inferRefType(tokens[i].text)));
+      }
       i++;
     }
   }

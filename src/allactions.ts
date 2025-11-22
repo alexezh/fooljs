@@ -1,5 +1,6 @@
 
-import { applyCancel, applyCleanup, applyDiv, applyMul, applyParenthesis, applySubToAdd } from "./actions.js";
+import { applyCancel, applyCleanup, applyDiv, applyParenthesis, applySubToAdd } from "./actions.js";
+import { applyMul } from "./applyMul.js";
 import { applySum } from "./applySum.js";
 import { AModel } from "./token.js";
 

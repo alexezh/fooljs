@@ -1,5 +1,5 @@
-import { calculateTermAddCost, canAddTerms, extractTerms } from "./terms.js";
-import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getRefText } from "./token.js";
+import { calculateTermAddCost, canAddTerms, extractTerms, Term } from "./terms.js";
+import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getRefText, areRefsCompatible } from "./token.js";
 
 /**
  * Apply sum/subtraction operations - yields AModel with delayed ops.
@@ -38,7 +38,7 @@ export function* applySum(model: AModel): Generator<AModel> {
     let delayedOp: DelayedOp;
 
     if (termA.isNumber && termB.isNumber) {
-      // Number + Number or Number - Number
+      // Number + Number or Number - Number (digits combine immediately)
       delayedOp = effectiveOp === '+'
         ? { kind: 'add', left: termA.refs[0], right: termB.refs[0] }
         : { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
@@ -54,6 +54,24 @@ export function* applySum(model: AModel): Generator<AModel> {
         // x - x = 0
         delayedOp = { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
         resultText = '0';
+      }
+    } else if (termA.isExpr || termB.isExpr) {
+      // Expression combinations - keep as delayed sum/sub if compatible
+      const allRefs = [...termA.refs, ...termB.refs];
+      const aText = getRefText(termA.refs[0]);
+      const bText = getRefText(termB.refs[0]);
+
+      if (effectiveOp === '+') {
+        delayedOp = { kind: 'add', left: termA.refs[0], right: termB.refs[0] };
+        resultText = `(${aText}+${bText})`;
+      } else {
+        delayedOp = { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
+        // Check if expressions are identical (cancel out)
+        if (aText === bText) {
+          resultText = '0';
+        } else {
+          resultText = `(${aText}-${bText})`;
+        }
       }
     } else {
       continue; // Skip non-combinable pairs
@@ -100,6 +118,6 @@ export function* applySum(model: AModel): Generator<AModel> {
       ? `${effectiveOp === '+' ? 'add' : 'sub'}_${termA.startIdx}_${termB.startIdx}`
       : `combine_${termA.startIdx}_${termB.startIdx}`;
 
-    yield createModel(model, transformName, newTokens, pairs.find(p => p.i === i && p.j === j)!.cost);
+    yield createModel(model, transformName, newTokens, pairs.find(p => p.i === i && p.j === j)!.cost, resultRef);
   }
 }

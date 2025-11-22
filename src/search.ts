@@ -79,8 +79,9 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
 
   heap.push(startModel);
 
-  const visited = new Set<string>();
+  const endOfChain: AModel[] = [];
 
+  const visited = new Set<string>();
   while (heap.length > 0) {
     const model = heap.pop()!;
 
@@ -95,13 +96,20 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
     }
 
     // Get all possible next states using generators
+    let isEnd = true;
     for (const nextModel of getAllActions(model)) {
       const nextKey = modelToKey(nextModel);
       if (!visited.has(nextKey)) {
         heap.push(nextModel);
+        isEnd = false;
       }
     }
+
+    if (isEnd) {
+      endOfChain.push(model)
+    }
   }
+
 
   return null;
 }
