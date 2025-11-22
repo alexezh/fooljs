@@ -129,3 +129,29 @@ export type DelayedOp =
   | { kind: 'combine'; terms: ARef[]; op: string }
   | { kind: 'wrap'; terms: ARef[] };
 
+export function createDelayedRef(
+  text: string,
+  sourceArefs: ARef[],
+  delayedOp: DelayedOp
+): ARef {
+  return {
+    token: createToken(text),
+    arefs: sourceArefs,
+    value: null,
+    delayedOp
+  };
+}
+
+export function createModel(
+  parent: AModel,
+  transform: string,
+  tokens: ARef[],
+  cost: number
+): AModel {
+  return {
+    parent,
+    transform,
+    tokens,
+    approxCost: parent.approxCost + cost
+  };
+}

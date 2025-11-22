@@ -1,8 +1,8 @@
 import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey } from './token.js';
-import { getAllActions } from './actions.js';
 import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
+import { getAllActions } from './allactions.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation

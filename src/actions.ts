@@ -10,7 +10,9 @@ import {
   createAref,
   createToken,
   DelayedOp,
-  VariablePowerResult
+  VariablePowerResult,
+  createDelayedRef,
+  createModel
 } from './token.js';
 import { makeMultTerm } from './transform.js';
 import {
@@ -18,37 +20,6 @@ import {
   calculateMultiplicationCost,
   calculateSubtractionCost
 } from './weight.js';
-
-// ============================================================================
-// Helper functions
-// ============================================================================
-
-function createDelayedRef(
-  text: string,
-  sourceArefs: ARef[],
-  delayedOp: DelayedOp
-): ARef {
-  return {
-    token: createToken(text),
-    arefs: sourceArefs,
-    value: null,
-    delayedOp
-  };
-}
-
-function createModel(
-  parent: AModel,
-  transform: string,
-  tokens: ARef[],
-  cost: number
-): AModel {
-  return {
-    parent,
-    transform,
-    tokens,
-    approxCost: parent.approxCost + cost
-  };
-}
 
 function getBoolAttr(token: ARef, attr: string, tokens: ReadonlyArray<ARef>): boolean {
   if (attr === 'is_factor') {
@@ -85,122 +56,6 @@ function getVariablePower(tokens: ReadonlyArray<ARef>, startIdx: number): Variab
     }
   }
   return { variable: null, power: null, endIndex: startIdx };
-}
-
-// ============================================================================
-// Generator-based action functions with delayed operations
-// ============================================================================
-
-/**
- * Apply sum/subtraction operations - yields AModel with delayed ops
- */
-export function* applySum(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
-
-  // Check for multiplication terms that need wrapping first
-  let hasMultiplications = false;
-  for (const token of tokens) {
-    if (getBoolAttr(token, 'is_factor', tokens)) {
-      hasMultiplications = true;
-      break;
-    }
-  }
-
-  if (hasMultiplications) {
-    const newTokens = wrapAllMultiplications(tokens);
-    yield createModel(model, 'wrap_mult', newTokens, 1);
-  }
-
-  // Look for addition/subtraction operations
-  for (let i = 1; i < tokens.length - 1; i++) {
-    const op = getRefText(tokens[i]);
-    if (op === '+' || op === '-') {
-      const left = tokens[i - 1];
-      const right = tokens[i + 1];
-
-      const leftIsTerm = getBoolAttr(left, 'is_term', tokens);
-      const rightIsTerm = getBoolAttr(right, 'is_term', tokens);
-
-      if (!(leftIsTerm && rightIsTerm)) {
-        continue;
-      }
-
-      // number +/- number - create delayed operation
-      if (isNumber(left) && isNumber(right)) {
-        const leftValue = left.value ?? parseInt(getRefText(left), 10);
-        const rightValue = right.value ?? parseInt(getRefText(right), 10);
-
-        const cost = op === '+'
-          ? calculateAdditionCost(leftValue, rightValue)
-          : calculateSubtractionCost(leftValue, rightValue);
-
-        const delayedOp: DelayedOp = op === '+'
-          ? { kind: 'add', left, right }
-          : { kind: 'sub', left, right };
-
-        const resultText = `(${getRefText(left)}${op}${getRefText(right)})`;
-        const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
-        const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
-
-        yield createModel(model, `compute_${op === '+' ? 'sum' : 'sub'}_${i}`, newTokens, cost);
-      }
-
-      // Handle like terms: x + x -> 2*x (only for addition)
-      if (op === '+') {
-        const leftResult = getVariablePower(tokens, i - 1);
-        const rightResult = getVariablePower(tokens, i + 1);
-
-        if (
-          leftResult.variable &&
-          rightResult.variable &&
-          getRefText(leftResult.variable) === getRefText(rightResult.variable) &&
-          leftResult.power === rightResult.power
-        ) {
-          const sourceTokens = tokens.slice(i - 1, rightResult.endIndex);
-          const delayedOp: DelayedOp = { kind: 'combine', terms: sourceTokens, op: '+' };
-          const resultText = `(2*${getRefText(leftResult.variable)}${leftResult.power !== 1 ? '^' + leftResult.power : ''})`;
-          const resultRef = createDelayedRef(resultText, sourceTokens, delayedOp);
-          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
-
-          yield createModel(model, `combine_like_terms_${i}`, newTokens, 3);
-        }
-      }
-
-      // Handle like terms subtraction: x - x -> 0
-      if (op === '-') {
-        const leftResult = getVariablePower(tokens, i - 1);
-        const rightResult = getVariablePower(tokens, i + 1);
-
-        if (
-          leftResult.variable &&
-          rightResult.variable &&
-          getRefText(leftResult.variable) === getRefText(rightResult.variable) &&
-          leftResult.power === rightResult.power
-        ) {
-          const sourceTokens = tokens.slice(i - 1, rightResult.endIndex);
-          const delayedOp: DelayedOp = { kind: 'sub', left: leftResult.variable, right: rightResult.variable };
-          const resultRef = createDelayedRef('0', sourceTokens, delayedOp);
-          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
-
-          yield createModel(model, `subtract_like_terms_${i}`, newTokens, 3);
-        }
-      }
-
-      // Reorder: variable + number -> number + variable
-      if (op === '+' && isVariable(left) && isNumber(right)) {
-        const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
-        const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
-
-        if (!(leftIsFactor || rightIsFactor)) {
-          const combinedText = `(${getRefText(right)}+${getRefText(left)})`;
-          const newRef = createAref(combinedText, [left, right]);
-          const newTokens = splice(tokens, i - 1, i + 2, [newRef]);
-
-          yield createModel(model, `reorder_${i}`, newTokens, 4);
-        }
-      }
-    }
-  }
 }
 
 /**
@@ -427,58 +282,6 @@ export function* applySubToAdd(model: AModel): Generator<AModel> {
 }
 
 // ============================================================================
-// Helper: wrap all multiplication terms
-// ============================================================================
-
-function wrapAllMultiplications(tokens: ReadonlyArray<ARef>): ARef[] {
-  function detectAllMultTerms(): Array<{ start: number; end: number }> {
-    const multTerms: Array<{ start: number; end: number }> = [];
-    let i = 0;
-
-    while (i < tokens.length) {
-      if (getBoolAttr(tokens[i], 'is_factor', tokens)) {
-        const start = i;
-        let end = i + 1;
-
-        while (end < tokens.length) {
-          if (tokenEquals(tokens[end], '*')) {
-            end++;
-            if (end < tokens.length && getBoolAttr(tokens[end], 'is_factor', tokens)) {
-              end++;
-            } else {
-              break;
-            }
-          } else {
-            break;
-          }
-        }
-
-        multTerms.push({ start, end });
-        i = end;
-      } else {
-        i++;
-      }
-    }
-    return multTerms;
-  }
-
-  const multTerms = detectAllMultTerms();
-  let newTokens = [...tokens];
-
-  // Process from right to left
-  for (let j = multTerms.length - 1; j >= 0; j--) {
-    const { start, end } = multTerms[j];
-    const multTokens = newTokens.slice(start, end);
-    const delayedOp: DelayedOp = { kind: 'wrap', terms: [...multTokens] };
-    const wrapText = multTokens.map(t => getRefText(t)).join('');
-    const wrappedRef = createDelayedRef(`_${wrapText}`, multTokens, delayedOp);
-    newTokens = splice(newTokens, start, end, [wrappedRef]);
-  }
-
-  return newTokens;
-}
-
-// ============================================================================
 // Evaluate delayed operations (when needed)
 // ============================================================================
 
@@ -515,111 +318,3 @@ export function evaluateDelayedOp(ref: ARef): number | null {
   }
 }
 
-// ============================================================================
-// All actions combined
-// ============================================================================
-
-export type ActionGenerator = (model: AModel) => Generator<AModel>;
-
-export const ALL_ACTIONS: ActionGenerator[] = [
-  applySum,
-  applyMul,
-  applyDiv,
-  applyCancel,
-  applyCleanup,
-  applySubToAdd,
-  applyParenthesis
-];
-
-/**
- * Entry in the merge heap: holds current model and its source iterator
- */
-interface MergeEntry {
-  model: AModel;
-  iterator: Generator<AModel>;
-}
-
-/**
- * Min-heap for merging sorted iterators by cost
- */
-class MergeHeap {
-  private heap: MergeEntry[] = [];
-
-  push(entry: MergeEntry): void {
-    this.heap.push(entry);
-    this.bubbleUp(this.heap.length - 1);
-  }
-
-  pop(): MergeEntry | undefined {
-    if (this.heap.length === 0) return undefined;
-    if (this.heap.length === 1) return this.heap.pop();
-
-    const result = this.heap[0];
-    this.heap[0] = this.heap.pop()!;
-    this.bubbleDown(0);
-    return result;
-  }
-
-  get length(): number {
-    return this.heap.length;
-  }
-
-  private bubbleUp(index: number): void {
-    while (index > 0) {
-      const parentIndex = Math.floor((index - 1) / 2);
-      if (this.heap[index].model.approxCost >= this.heap[parentIndex].model.approxCost) break;
-      [this.heap[index], this.heap[parentIndex]] = [this.heap[parentIndex], this.heap[index]];
-      index = parentIndex;
-    }
-  }
-
-  private bubbleDown(index: number): void {
-    const length = this.heap.length;
-    while (true) {
-      const leftChild = 2 * index + 1;
-      const rightChild = 2 * index + 2;
-      let smallest = index;
-
-      if (leftChild < length && this.heap[leftChild].model.approxCost < this.heap[smallest].model.approxCost) {
-        smallest = leftChild;
-      }
-      if (rightChild < length && this.heap[rightChild].model.approxCost < this.heap[smallest].model.approxCost) {
-        smallest = rightChild;
-      }
-      if (smallest === index) break;
-
-      [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
-      index = smallest;
-    }
-  }
-}
-
-/**
- * Get all possible next states from current model, merged and sorted by cost.
- * Assumes each individual action generator yields models sorted by cost (lowest first).
- * Uses k-way merge to yield globally sorted results across all action types.
- */
-export function* getAllActions(model: AModel): Generator<AModel> {
-  const mergeHeap = new MergeHeap();
-
-  // Initialize heap with first element from each action generator
-  for (const actionFn of ALL_ACTIONS) {
-    const iterator = actionFn(model);
-    const first = iterator.next();
-    if (!first.done) {
-      mergeHeap.push({ model: first.value, iterator });
-    }
-  }
-
-  // K-way merge: always yield the lowest cost model, then pull next from its source
-  while (mergeHeap.length > 0) {
-    const entry = mergeHeap.pop()!;
-    yield entry.model;
-
-    // Get next model from the same iterator
-    const next = entry.iterator.next();
-    if (!next.done) {
-      mergeHeap.push({ model: next.value, iterator: entry.iterator });
-    }
-  }
-}
