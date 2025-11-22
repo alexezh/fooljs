@@ -1,10 +1,5 @@
-import { ARef } from './math';
-
-// TODO: implement is_goal in goal.ts
-function isGoal(tokens: ARef[]): boolean {
-  // Placeholder - implement actual goal checking logic
-  return false;
-}
+import { isGoal } from './goal.js';
+import { ARef } from './token.js';
 
 function countDigits(value: number): number {
   return Math.abs(value).toString().length;

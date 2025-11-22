@@ -1,16 +1,14 @@
-import { AToken, ARef } from './math';
-import { makeMultTerm } from './transform';
+import { AToken, ARef, tokenEquals, isNumber, isVariable, getRefText, splice, createAref } from './token.js';
+import { makeMultTerm } from './transform.js';
 import {
   calculateAdditionCost,
   calculateMultiplicationCost,
   calculateSubtractionCost
-} from './weight';
+} from './weight.js';
 
 // ============================================================================
 // Type definitions
 // ============================================================================
-
-type TokenLike = string | AToken | ARef;
 
 interface VariablePowerResult {
   variable: ARef | null;
@@ -127,52 +125,6 @@ export interface Action {
 // ============================================================================
 // Helper functions
 // ============================================================================
-
-let nextTokenId = 1;
-
-function createToken(text: string): AToken {
-  return { id: nextTokenId++, text };
-}
-
-function createAref(text: string, sourceArefs?: ARef[], value?: number | null): ARef {
-  return {
-    token: createToken(text),
-    arefs: sourceArefs ?? [],
-    value: value ?? null
-  };
-}
-
-function getRefText(ref: ARef): string {
-  return ref.token.text;
-}
-
-function isNumber(token: TokenLike): boolean {
-  const text = typeof token === 'string'
-    ? token
-    : 'text' in token
-      ? token.text
-      : token.token.text;
-  if (/^\d+$/.test(text)) return true;
-  if (text.startsWith('-') && /^\d+$/.test(text.slice(1))) return true;
-  return false;
-}
-
-function isVariable(token: TokenLike): boolean {
-  const text = typeof token === 'string'
-    ? token
-    : 'text' in token
-      ? token.text
-      : token.token.text;
-  return text.length === 1 && /^[a-zA-Z]$/.test(text);
-}
-
-function tokenEquals(token: ARef, str: string): boolean {
-  return getRefText(token) === str;
-}
-
-function splice(tokens: ARef[], start: number, end: number, replacement: ARef[]): ARef[] {
-  return [...tokens.slice(0, start), ...replacement, ...tokens.slice(end)];
-}
 
 // TODO: implement in tokenattrs.ts
 function getBoolAttr(token: ARef, attr: string, tokens: ARef[]): boolean {

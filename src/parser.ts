@@ -1,4 +1,4 @@
-import { AToken, ARef } from './math';
+import { AToken, ARef } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 

@@ -1,22 +1,4 @@
-import { AToken, ARef } from './math';
-
-let nextTokenId = 1;
-
-function createToken(text: string): AToken {
-  return { id: nextTokenId++, text };
-}
-
-function createRefWithSources(text: string, sourceTokens: ARef[]): ARef {
-  return {
-    token: createToken(text),
-    arefs: sourceTokens,
-    value: null
-  };
-}
-
-function getRefText(ref: ARef): string {
-  return ref.token.text;
-}
+import { AToken, ARef, getRefText, createRefWithSources } from './token.js';
 
 export function makeMultTerm(tokens: ARef[]): ARef {
   // Create a concatenated name with underscore prefix
