@@ -46,6 +46,9 @@ export interface AModel {
   parent?: AModel;
   transform: string;
   refs: ARef[];
+  /**
+   * cost to full compute from 0. combined from past cost and estimated future cost
+   */
   approxCost: number;
   resultRef?: ARef;  // The ref created by this transform (also in tokens array)
 }
@@ -263,22 +266,6 @@ export function createDelayedRef(
     delayedOp,
     refType,
     variables
-  };
-}
-
-export function createModel(
-  parent: AModel,
-  transform: string,
-  tokens: ARef[],
-  cost: number,
-  resultRef?: ARef
-): AModel {
-  return {
-    parent,
-    transform,
-    refs: tokens,
-    approxCost: parent.approxCost + cost,
-    resultRef
   };
 }
 

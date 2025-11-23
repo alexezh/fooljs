@@ -1,3 +1,4 @@
+import { createModel } from './model.js';
 import { COST } from './terms.js';
 import {
   ARef,
@@ -9,7 +10,6 @@ import {
   createAref,
   DelayedOp,
   createDelayedRef,
-  createModel,
   getPower,
   getBaseVariable,
   getVariableName,

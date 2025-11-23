@@ -1,10 +1,11 @@
-import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey, createAref, createModel } from './token.js';
+import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey, createAref } from './token.js';
 import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
 import { evaluateDelayedOp } from './actions.js';
 import { COST } from './terms.js';
+import { createModel, getApproxCost } from './model.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -195,8 +196,8 @@ export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
   const startModel = createInitialModel(startTokens);
 
   const heap = new MinHeap<AModel>((a, b) => {
-    const aTotal = a.approxCost + heuristic(a.refs);
-    const bTotal = b.approxCost + heuristic(b.refs);
+    const aTotal = getApproxCost(a);
+    const bTotal = getApproxCost(b);
     return aTotal - bTotal;
   });
 
@@ -204,6 +205,10 @@ export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
 
   const visited = new Set<string>();
 
+  // we want to split op into plan and compute
+  // there has to be non-zero cost for looking terms far apart
+  // then if we found an entry, we spent cost X and have planned cost Y with complexity reduction Z
+  // 
   while (heap.length > 0) {
     const model = heap.pop()!;
 
