@@ -37,35 +37,64 @@ export function* applySum(model: AModel): Generator<AModel> {
     let resultText: string;
     let delayedOp: DelayedOp;
 
+    const refA = termA.refs[0];
+    const refB = termB.refs[0];
+
+    // Only create delayed op when:
+    // 1. Both are digits, OR
+    // 2. Both are expressions/variables with the same variables (and same power for variables)
+
     if (termA.isNumber && termB.isNumber) {
-      // Number + Number or Number - Number (digits combine immediately)
+      // Case 1: Digit + Digit or Digit - Digit
+      // Both must be digit type (pure numeric)
+      if (refA.refType !== 'digit' || refB.refType !== 'digit') {
+        continue;
+      }
       delayedOp = effectiveOp === '+'
-        ? { kind: 'add', left: termA.refs[0], right: termB.refs[0] }
-        : { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
-      resultText = `(${getRefText(termA.refs[0])}${effectiveOp}${getRefText(termB.refs[0])})`;
+        ? { kind: 'add', left: refA, right: refB }
+        : { kind: 'sub', left: refA, right: refB };
+      resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+
     } else if (termA.isVariable && termB.isVariable) {
-      // Like terms: x + x -> 2x, x - x -> 0
-      const allRefs = [...termA.refs, ...termB.refs];
+      // Case 2a: Variable + Variable (same name and power)
+      // Already validated by canAddTerms that variableName and power match
       if (effectiveOp === '+') {
-        delayedOp = { kind: 'combine', terms: allRefs, op: '+' };
+        delayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
         const powerStr = termA.power !== 1 ? `^${termA.power}` : '';
         resultText = `(2*${termA.variableName}${powerStr})`;
       } else {
         // x - x = 0
-        delayedOp = { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
+        delayedOp = { kind: 'sub', left: refA, right: refB };
         resultText = '0';
       }
-    } else if (termA.isExpr || termB.isExpr) {
-      // Expression combinations - keep as delayed sum/sub if compatible
-      const allRefs = [...termA.refs, ...termB.refs];
-      const aText = getRefText(termA.refs[0]);
-      const bText = getRefText(termB.refs[0]);
+
+    } else if ((termA.isExpr || termB.isExpr) && areRefsCompatible(refA, refB)) {
+      // Case 2b: Expression + Expression with same variables
+      // Only combine if refs have identical variable sets
+      const aVars = refA.variables ?? [];
+      const bVars = refB.variables ?? [];
+
+      // Strict check: must have same variables
+      if (aVars.length === 0 && bVars.length === 0) {
+        // Both are digit expressions - ok to combine
+      } else if (aVars.length !== bVars.length) {
+        continue; // Different variable count - skip
+      } else {
+        // Check all variables match
+        const aSet = new Set(aVars);
+        if (!bVars.every(v => aSet.has(v))) {
+          continue; // Different variables - skip
+        }
+      }
+
+      const aText = getRefText(refA);
+      const bText = getRefText(refB);
 
       if (effectiveOp === '+') {
-        delayedOp = { kind: 'add', left: termA.refs[0], right: termB.refs[0] };
+        delayedOp = { kind: 'add', left: refA, right: refB };
         resultText = `(${aText}+${bText})`;
       } else {
-        delayedOp = { kind: 'sub', left: termA.refs[0], right: termB.refs[0] };
+        delayedOp = { kind: 'sub', left: refA, right: refB };
         // Check if expressions are identical (cancel out)
         if (aText === bText) {
           resultText = '0';
@@ -74,7 +103,7 @@ export function* applySum(model: AModel): Generator<AModel> {
         }
       }
     } else {
-      continue; // Skip non-combinable pairs
+      continue; // Skip - not compatible for delayed op
     }
 
     const allSourceRefs = [...termA.refs, ...termB.refs];

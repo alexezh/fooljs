@@ -235,7 +235,7 @@ export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
 // ============================================================================
 
 function main(): void {
-  const exprStr = '-4 + 3 * 4 + x + y - 3';
+  const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
   // const exprStr = '4 + 3 * 4';
   const expr = parseExpression(exprStr);
   console.log(`Searching for solution to: ${exprStr}`);
