@@ -101,7 +101,7 @@ function computeDelayedRefs(model: AModel): AModel | null {
   let hasComputed = false;
   const newTokens: ARef[] = [];
 
-  for (const token of model.tokens) {
+  for (const token of model.refs) {
     const computed = computeSingleRef(token);
     if (computed) {
       newTokens.push(computed);
@@ -128,8 +128,8 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
   const startModel = createInitialModel(startTokens);
 
   const heap = new MinHeap<AModel>((a, b) => {
-    const aTotal = a.approxCost + heuristic(a.tokens);
-    const bTotal = b.approxCost + heuristic(b.tokens);
+    const aTotal = a.approxCost + heuristic(a.refs);
+    const bTotal = b.approxCost + heuristic(b.refs);
     return aTotal - bTotal;
   });
 
@@ -149,7 +149,7 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
       }
       visited.add(stateKey);
 
-      if (isGoal(model.tokens)) {
+      if (isGoal(model.refs)) {
         return getModelPath(model);
       }
 
@@ -195,8 +195,8 @@ export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
   const startModel = createInitialModel(startTokens);
 
   const heap = new MinHeap<AModel>((a, b) => {
-    const aTotal = a.approxCost + heuristic(a.tokens);
-    const bTotal = b.approxCost + heuristic(b.tokens);
+    const aTotal = a.approxCost + heuristic(a.refs);
+    const bTotal = b.approxCost + heuristic(b.refs);
     return aTotal - bTotal;
   });
 
@@ -216,7 +216,7 @@ export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
     // Yield current model being explored
     yield model;
 
-    if (isGoal(model.tokens)) {
+    if (isGoal(model.refs)) {
       return;
     }
 
@@ -247,7 +247,7 @@ function main(): void {
   if (result) {
     console.log('Solution found:');
     for (const model of result) {
-      const tokensStr = model.tokens.map(t => getRefText(t)).join(' ');
+      const tokensStr = model.refs.map(t => getRefText(t)).join(' ');
       console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.approxCost})`);
     }
   } else {

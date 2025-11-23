@@ -6,7 +6,7 @@ import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, get
  * Finds all pairs of terms that can be combined and creates a delayed operation for each.
  */
 export function* applySum(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
   const terms = extractTerms(tokens);
 
   // Collect all valid pairs with their costs, then sort by cost

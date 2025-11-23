@@ -8,6 +8,11 @@
 export type RefType = 'digit' | 'variable' | 'expr' | 'op';
 
 /**
+ * Role of a token in an expression - determined during parsing
+ */
+export type TokenRole = 'term' | 'factor' | 'exponent' | 'operator' | 'sign';
+
+/**
  * computed value
  */
 export interface ARef {
@@ -18,6 +23,16 @@ export interface ARef {
   refType: RefType;
   /** For expr type: which variables are contained (e.g., ['x', 'y']) */
   variables?: string[];
+
+  // Term information (set during parsing)
+  /** Role of this token in the expression */
+  role?: TokenRole;
+  /** Sign preceding this term ('+' or '-'), only for terms */
+  sign?: '+' | '-';
+  /** Power/exponent if this is a variable with power (e.g., x^2 has power=2) */
+  power?: number;
+  /** Variable name for variable refs */
+  variableName?: string;
 }
 
 export interface AToken {
@@ -28,7 +43,7 @@ export interface AToken {
 export interface AModel {
   parent?: AModel;
   transform: string;
-  tokens: ARef[];
+  refs: ARef[];
   approxCost: number;
   resultRef?: ARef;  // The ref created by this transform (also in tokens array)
 }
@@ -147,7 +162,7 @@ export function tokensToKey(tokens: ARef[]): string {
 }
 
 export function modelToKey(model: AModel): string {
-  return tokensToKey(model.tokens);
+  return tokensToKey(model.refs);
 }
 
 /**
@@ -157,7 +172,7 @@ export function createInitialModel(tokens: ARef[]): AModel {
   return {
     parent: undefined,
     transform: 'initial',
-    tokens,
+    refs: tokens,
     approxCost: 0
   };
 }
@@ -267,7 +282,7 @@ export function createModel(
   return {
     parent,
     transform,
-    tokens,
+    refs: tokens,
     approxCost: parent.approxCost + cost,
     resultRef
   };

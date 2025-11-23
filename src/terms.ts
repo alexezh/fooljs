@@ -83,119 +83,13 @@ export function calculateMultiplicationCost(leftValue: number, rightValue: numbe
   return maxDigits ** COST.MUL_DIGIT_EXPONENT;
 }
 
-// ============================================================================
-// Term interface
-// ============================================================================
-
-export interface Term {
-  startIdx: number;
-  endIdx: number;      // exclusive
-  refs: ARef[];        // the tokens that make up this term
-  sign: '+' | '-';     // sign preceding this term (first term is '+')
-  isNumber: boolean;
-  isVariable: boolean;
-  isExpr: boolean;     // true if term is a delayed expression (contains variables)
-  variableName?: string;
-  power?: number;
-  numericValue?: number;
-}
-
-/**
- * Extract all terms from token list.
- * A term is a value (number, variable, or expression) separated by + or - operators.
- * Handles operator precedence by treating multiplication chains as single terms.
- */
-export function extractTerms(tokens: ReadonlyArray<ARef>): Term[] {
-  const terms: Term[] = [];
-  let i = 0;
-  let currentSign: '+' | '-' = '+';
-
-  while (i < tokens.length) {
-    const token = tokens[i];
-    const text = getRefText(token);
-
-    // Handle leading sign
-    if (i === 0 && (text === '+' || text === '-')) {
-      currentSign = text as '+' | '-';
-      i++;
-      continue;
-    }
-
-    // Skip operators between terms, capture sign
-    if (text === '+' || text === '-') {
-      currentSign = text as '+' | '-';
-      i++;
-      continue;
-    }
-
-    // Found start of a term - collect it (including any multiplication chain)
-    const startIdx = i;
-    const termRefs: ARef[] = [token];
-    i++;
-
-    // Extend term to include multiplication chains: 3 * x * y
-    while (i < tokens.length - 1 && tokenEquals(tokens[i], '*')) {
-      termRefs.push(tokens[i]);     // the *
-      termRefs.push(tokens[i + 1]); // the operand
-      i += 2;
-    }
-
-    // Also extend for powers: x ^ 2
-    while (i < tokens.length - 1 && tokenEquals(tokens[i], '^')) {
-      termRefs.push(tokens[i]);     // the ^
-      termRefs.push(tokens[i + 1]); // the exponent
-      i += 2;
-    }
-
-    const endIdx = i;
-    const firstRef = termRefs[0];
-
-    // Classify the term based on first ref's type
-    const isDigit = termRefs.length === 1 && (firstRef.refType === 'digit' || isNumber(firstRef));
-    const isSingleVar = termRefs.length === 1 && (firstRef.refType === 'variable' || isVariable(firstRef));
-    const isExprRef = firstRef.refType === 'expr' || (termRefs.length > 1);
-
-    const term: Term = {
-      startIdx,
-      endIdx,
-      refs: termRefs,
-      sign: currentSign,
-      isNumber: isDigit,
-      isVariable: isSingleVar,
-      isExpr: isExprRef
-    };
-
-    if (term.isNumber) {
-      term.numericValue = firstRef.value ?? parseInt(getRefText(firstRef), 10);
-    }
-
-    if (term.isVariable) {
-      term.variableName = getRefText(firstRef);
-      term.power = 1;
-    }
-
-    // Check for variable with power: x ^ 2
-    if (termRefs.length === 3 && isVariable(termRefs[0]) && tokenEquals(termRefs[1], '^') && isNumber(termRefs[2])) {
-      term.isVariable = true;
-      term.isExpr = false;
-      term.variableName = getRefText(termRefs[0]);
-      term.power = parseInt(getRefText(termRefs[2]), 10);
-    }
-
-    terms.push(term);
-    currentSign = '+'; // reset for next term
-  }
-
-  return terms;
-}
-
 /**
  * Check if two terms can be added (are "like terms")
  * - Two digit terms can always be added
  * - Two variables with same name and power can be added
  * - Two expressions are compatible if they have the same variables
  */
-export function canAddTerms(a: Term, b: Term): boolean {
+export function canAddTerms(a: ARef, b: ARef): boolean {
   // Two numbers/digits can always be added
   if (a.isNumber && b.isNumber) {
     return true;

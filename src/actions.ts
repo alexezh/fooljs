@@ -16,7 +16,7 @@ import {
  * Apply division operations - yields AModel with delayed ops
  */
 export function* applyDiv(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
 
   for (let i = 1; i < tokens.length - 1; i++) {
     if (tokenEquals(tokens[i], '/')) {
@@ -72,7 +72,7 @@ export function* applyDiv(model: AModel): Generator<AModel> {
  * Apply cancellation operations - yields AModel
  */
 export function* applyCancel(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
 
   function isPartOfMultiplication(index: number): boolean {
     if (index > 0 && tokenEquals(tokens[index - 1], '*')) return true;
@@ -107,7 +107,7 @@ export function* applyCancel(model: AModel): Generator<AModel> {
  * Apply cleanup operations - yields AModel
  */
 export function* applyCleanup(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
   if (tokens.length === 0) return;
 
   // Remove leading + operator
@@ -128,7 +128,7 @@ export function* applyCleanup(model: AModel): Generator<AModel> {
  * Apply parenthesis removal - yields AModel
  */
 export function* applyParenthesis(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
 
   for (let i = 0; i < tokens.length; i++) {
     if (tokenEquals(tokens[i], '(')) {
@@ -149,7 +149,7 @@ export function* applyParenthesis(model: AModel): Generator<AModel> {
  * Convert subtraction to addition with negatives - yields AModel
  */
 export function* applySubToAdd(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
 
   for (let i = 1; i < tokens.length; i++) {
     if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {

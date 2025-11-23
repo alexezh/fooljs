@@ -8,11 +8,22 @@ export function isGoal(tokens: ARef[]): boolean {
   if (tokens.length === 1) {
     const token = tokens[0];
     const text = getRefText(token);
-    return (
-      isNumber(token) ||
-      isVariable(token) ||
-      /^\d*[a-zA-Z](\^\d+)?$/.test(text)
-    );
+    // Handle plain numbers and variables
+    if (isNumber(token) || isVariable(token)) {
+      return true;
+    }
+    // Handle coefficient*variable patterns: 2x, 2*x, (2*x), 2x^2, etc.
+    // Remove parentheses for checking
+    const cleanText = text.replace(/^\(|\)$/g, '');
+    // Match: optional-number, optional-*, variable, optional-power
+    if (/^\d*\*?[a-zA-Z](\^\d+)?$/.test(cleanText)) {
+      return true;
+    }
+    // Match more complex patterns like 2*x^2
+    if (/^\d+\*[a-zA-Z](\^\d+)?$/.test(cleanText)) {
+      return true;
+    }
+    return false;
   }
 
   // For multiple tokens, check if it's a valid goal expression

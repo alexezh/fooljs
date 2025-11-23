@@ -5,7 +5,7 @@ import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, get
  * Apply multiplication operations - yields AModel with delayed ops
  */
 export function* applyMul(model: AModel): Generator<AModel> {
-  const tokens = model.tokens;
+  const tokens = model.refs;
 
   for (let i = 1; i < tokens.length - 1; i++) {
     if (tokenEquals(tokens[i], '*')) {
