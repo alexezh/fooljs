@@ -1,11 +1,11 @@
-import { ARef, AModel, getRefText, createInitialModel, getModelPath, modelToKey, createAref } from './token.js';
+import { ARef, getRefText, createAref } from './token.js';
 import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
 import { evaluateDelayedOp } from './actions.js';
 import { COST } from './terms.js';
-import { createModel, getApproxCost } from './model.js';
+import { AModel, createInitialModel, createModel, getApproxCost, getModelPath, modelToKey } from './model.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation

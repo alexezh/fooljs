@@ -1,6 +1,6 @@
-import { createModel } from "./model.js";
+import { AModel, createModel } from "./model.js";
 import { calculateMultiplicationCost, COST } from "./terms.js";
-import { AModel, ARef, createAref, createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariable, isVariableRef, splice, tokenEquals } from "./token.js";
+import { ARef, createAref, createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariable, isVariableRef, splice, tokenEquals } from "./token.js";
 
 
 /**

@@ -1,8 +1,9 @@
 
-import { applyCancel, applyCleanup, applyDiv, applyParenthesis, applySubToAdd } from "./actions.js";
+import { applyCancel, applyCleanup, applyParenthesis, applySubToAdd } from "./actions.js";
+import { applyDiv } from "./applyDiv.js";
 import { applyMul } from "./applyMul.js";
 import { applySum } from "./applySum.js";
-import { AModel } from "./token.js";
+import { AModel } from "./model.js";
 
 export type ActionGenerator = (model: AModel) => Generator<AModel>;
 

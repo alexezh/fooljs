@@ -1,6 +1,6 @@
-import { createModel } from "./model.js";
+import { AModel, createModel } from "./model.js";
 import { calculateTermAddCost, canAddTerms } from "./terms.js";
-import { AModel, ARef, createAref, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
+import { ARef, createAref, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
 
 /**
  * Apply sum/subtraction operations - yields AModel with delayed ops.
