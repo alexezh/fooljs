@@ -1,25 +1,35 @@
-import { calculateTermAddCost, canAddTerms, extractTerms, Term } from "./terms.js";
-import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getRefText, areRefsCompatible } from "./token.js";
+import { calculateTermAddCost, canAddTerms } from "./terms.js";
+import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
 
 /**
  * Apply sum/subtraction operations - yields AModel with delayed ops.
- * Finds all pairs of terms that can be combined and creates a delayed operation for each.
+ * Finds all pairs of terms (role='term') that can be combined.
  */
 export function* applySum(model: AModel): Generator<AModel> {
-  const tokens = model.refs;
-  const terms = extractTerms(tokens);
+  const refs = model.refs;
 
-  // Collect all valid pairs with their costs, then sort by cost
-  const pairs: Array<{ i: number; j: number; cost: number }> = [];
+  // Find all term indices (refs with role='term')
+  const termIndices: number[] = [];
+  for (let i = 0; i < refs.length; i++) {
+    if (refs[i].role === 'term') {
+      termIndices.push(i);
+    }
+  }
 
-  // Find all pairs of terms that can be added
-  for (let i = 0; i < terms.length; i++) {
-    for (let j = i + 1; j < terms.length; j++) {
-      if (canAddTerms(terms[i], terms[j])) {
-        // Determine effective operation based on signs
-        const effectiveOp = terms[j].sign;
-        const cost = calculateTermAddCost(terms[i], terms[j], effectiveOp);
-        pairs.push({ i, j, cost });
+  // Collect all valid pairs with their costs
+  const pairs: Array<{ iIdx: number; jIdx: number; iPos: number; jPos: number; cost: number }> = [];
+
+  for (let i = 0; i < termIndices.length; i++) {
+    for (let j = i + 1; j < termIndices.length; j++) {
+      const iPos = termIndices[i];
+      const jPos = termIndices[j];
+      const refA = refs[iPos];
+      const refB = refs[jPos];
+
+      if (canAddTerms(refA, refB)) {
+        const effectiveOp = refB.sign ?? '+';
+        const cost = calculateTermAddCost(refA, refB, effectiveOp);
+        pairs.push({ iIdx: i, jIdx: j, iPos, jPos, cost });
       }
     }
   }
@@ -28,62 +38,56 @@ export function* applySum(model: AModel): Generator<AModel> {
   pairs.sort((a, b) => a.cost - b.cost);
 
   // Yield models for each pair
-  for (const { i, j } of pairs) {
-    const termA = terms[i];
-    const termB = terms[j];
-    const effectiveOp = termB.sign;
+  for (const { iPos, jPos, cost } of pairs) {
+    const refA = refs[iPos];
+    const refB = refs[jPos];
+    const effectiveOp = refB.sign ?? '+';
 
-    // Build the result
     let resultText: string;
     let delayedOp: DelayedOp;
 
-    const refA = termA.refs[0];
-    const refB = termB.refs[0];
-
-    // Only create delayed op when:
-    // 1. Both are digits, OR
-    // 2. Both are expressions/variables with the same variables (and same power for variables)
-
-    if (termA.isNumber && termB.isNumber) {
-      // Case 1: Digit + Digit or Digit - Digit
-      // Both must be digit type (pure numeric)
-      if (refA.refType !== 'digit' || refB.refType !== 'digit') {
-        continue;
-      }
+    // Case 1: Both are digits
+    if (refA.refType === 'digit' && refB.refType === 'digit') {
       delayedOp = effectiveOp === '+'
         ? { kind: 'add', left: refA, right: refB }
         : { kind: 'sub', left: refA, right: refB };
       resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+    }
+    // Case 2: Both are variables (including with power from delayed ops)
+    else if (isVariableRef(refA) && isVariableRef(refB)) {
+      const aVarName = getVariableName(refA);
+      const bVarName = getVariableName(refB);
+      const aPower = getPower(refA);
+      const bPower = getPower(refB);
 
-    } else if (termA.isVariable && termB.isVariable) {
-      // Case 2a: Variable + Variable (same name and power)
-      // Already validated by canAddTerms that variableName and power match
+      // Must have same variable name and power
+      if (aVarName !== bVarName || aPower !== bPower) {
+        continue;
+      }
+
       if (effectiveOp === '+') {
         delayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
-        const powerStr = termA.power !== 1 ? `^${termA.power}` : '';
-        resultText = `(2*${termA.variableName}${powerStr})`;
+        const powerStr = aPower !== 1 ? `^${aPower}` : '';
+        resultText = `(2*${aVarName}${powerStr})`;
       } else {
         // x - x = 0
         delayedOp = { kind: 'sub', left: refA, right: refB };
         resultText = '0';
       }
-
-    } else if ((termA.isExpr || termB.isExpr) && areRefsCompatible(refA, refB)) {
-      // Case 2b: Expression + Expression with same variables
-      // Only combine if refs have identical variable sets
+    }
+    // Case 3: Expressions with compatible variables
+    else if ((refA.refType === 'expr' || refB.refType === 'expr') && areRefsCompatible(refA, refB)) {
       const aVars = refA.variables ?? [];
       const bVars = refB.variables ?? [];
 
-      // Strict check: must have same variables
-      if (aVars.length === 0 && bVars.length === 0) {
-        // Both are digit expressions - ok to combine
-      } else if (aVars.length !== bVars.length) {
-        continue; // Different variable count - skip
-      } else {
-        // Check all variables match
+      // Check variables match
+      if (aVars.length !== bVars.length && !(aVars.length === 0 && bVars.length === 0)) {
+        continue;
+      }
+      if (aVars.length > 0) {
         const aSet = new Set(aVars);
         if (!bVars.every(v => aSet.has(v))) {
-          continue; // Different variables - skip
+          continue;
         }
       }
 
@@ -95,58 +99,44 @@ export function* applySum(model: AModel): Generator<AModel> {
         resultText = `(${aText}+${bText})`;
       } else {
         delayedOp = { kind: 'sub', left: refA, right: refB };
-        // Check if expressions are identical (cancel out)
-        if (aText === bText) {
-          resultText = '0';
-        } else {
-          resultText = `(${aText}-${bText})`;
-        }
+        resultText = aText === bText ? '0' : `(${aText}-${bText})`;
       }
-    } else {
-      continue; // Skip - not compatible for delayed op
+    }
+    else {
+      continue;
     }
 
-    const allSourceRefs = [...termA.refs, ...termB.refs];
-    const resultRef = createDelayedRef(resultText, allSourceRefs, delayedOp);
+    const resultRef = createDelayedRef(resultText, [refA, refB], delayedOp);
 
     // Build new token array:
-    // - Remove term B (and its preceding operator)
-    // - Replace term A with result
-    // We need to handle the operators carefully
+    // - Remove refB and its preceding operator
+    // - Replace refA with result
 
-    // Find the operator before term B (if any)
-    const opBeforeB = termB.startIdx > 0 ? termB.startIdx - 1 : -1;
+    // Find operator before refB (should be at jPos - 1)
+    const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
 
-    // Build new tokens by:
-    // 1. Keep everything before term A
-    // 2. Insert result (with term A's sign if it's not the first term)
-    // 3. Keep everything between term A and operator before B
-    // 4. Skip operator before B and term B
-    // 5. Keep everything after term B
+    let newRefs: ARef[] = [];
 
-    let newTokens: ARef[] = [];
+    // Before refA
+    newRefs.push(...refs.slice(0, iPos));
 
-    // Before term A
-    newTokens.push(...tokens.slice(0, termA.startIdx));
+    // The result
+    newRefs.push(resultRef);
 
-    // The result (keep the sign if term A had one and wasn't first)
-    if (termA.sign === '-' && termA.startIdx > 0) {
-      newTokens.push(createAref('-'));
-    }
-    newTokens.push(resultRef);
-
-    // Between term A end and operator before B
-    if (opBeforeB > termA.endIdx) {
-      newTokens.push(...tokens.slice(termA.endIdx, opBeforeB));
+    // Between refA and operator before refB
+    const startAfterA = iPos + 1;
+    const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
+    if (endBeforeOpB > startAfterA) {
+      newRefs.push(...refs.slice(startAfterA, endBeforeOpB));
     }
 
-    // After term B
-    newTokens.push(...tokens.slice(termB.endIdx));
+    // After refB
+    newRefs.push(...refs.slice(jPos + 1));
 
-    const transformName = termA.isNumber
-      ? `${effectiveOp === '+' ? 'add' : 'sub'}_${termA.startIdx}_${termB.startIdx}`
-      : `combine_${termA.startIdx}_${termB.startIdx}`;
+    const transformName = refA.refType === 'digit'
+      ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
+      : `combine_${iPos}_${jPos}`;
 
-    yield createModel(model, transformName, newTokens, pairs.find(p => p.i === i && p.j === j)!.cost, resultRef);
+    yield createModel(model, transformName, newRefs, cost, resultRef);
   }
 }

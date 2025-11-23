@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, getRefText, isNumber, isVariable, tokenEquals, VariablePowerResult, areRefsCompatible } from "./token.js";
+import { ARef, getRefText, isNumber, isVariable, tokenEquals, areRefsCompatible, getPower, getVariableName, isVariableRef } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -91,58 +91,49 @@ export function calculateMultiplicationCost(leftValue: number, rightValue: numbe
  */
 export function canAddTerms(a: ARef, b: ARef): boolean {
   // Two numbers/digits can always be added
-  if (a.isNumber && b.isNumber) {
+  if (isNumber(a) && isNumber(b)) {
     return true;
   }
 
-  // Two variables with same name and power can be added
-  if (a.isVariable && b.isVariable && a.variableName === b.variableName && a.power === b.power) {
-    return true;
-  }
-
-  // Two expressions can be combined if they have compatible variables
-  if (a.isExpr && b.isExpr) {
-    // Use the first ref from each term to check compatibility
-    return areRefsCompatible(a.refs[0], b.refs[0]);
-  }
-
-  // Expression and variable can be combined if expression contains only that variable
-  if (a.isExpr && b.isVariable) {
-    return areRefsCompatible(a.refs[0], b.refs[0]);
-  }
-  if (a.isVariable && b.isExpr) {
-    return areRefsCompatible(a.refs[0], b.refs[0]);
-  }
-
-  return false;
+  // Use the first ref from each term to check compatibility
+  return areRefsCompatible(a, b);
 }
 
 /**
- * Calculate cost of adding/subtracting two terms.
+ * Calculate cost of adding/subtracting two ARef terms.
  * Cancelling terms (A - A = 0) returns negative cost (reward) to prioritize simplification.
  */
-export function calculateTermAddCost(a: Term, b: Term, op: '+' | '-'): number {
+export function calculateTermAddCost(a: ARef, b: ARef, op: '+' | '-'): number {
   // Number + Number or Number - Number
-  if (a.isNumber && b.isNumber) {
-    const aVal = a.numericValue ?? 0;
-    const bVal = b.numericValue ?? 0;
+  if (a.refType === 'digit' && b.refType === 'digit') {
+    const aVal = (a.value as number) ?? parseInt(getRefText(a), 10) ?? 0;
+    const bVal = (b.value as number) ?? parseInt(getRefText(b), 10) ?? 0;
     return op === '+' ? calculateAdditionCost(aVal, bVal) : calculateSubtractionCost(aVal, bVal);
   }
 
-  // Variable operations
-  if (a.isVariable && b.isVariable) {
+  // Variable operations (including variables with power from delayed ops)
+  if (isVariableRef(a) && isVariableRef(b)) {
+    const aVarName = getVariableName(a);
+    const bVarName = getVariableName(b);
+    const aPower = getPower(a);
+    const bPower = getPower(b);
+
     // Cancelling like terms: x - x = 0 (reward with negative cost)
-    if (op === '-' && a.variableName === b.variableName && a.power === b.power) {
+    if (op === '-' && aVarName === bVarName && aPower === bPower) {
       return COST.VAR_CANCEL_REWARD;
     }
     // Combining like terms: x + x = 2x
-    return COST.VAR_COMBINE_COST;
+    if (aVarName === bVarName && aPower === bPower) {
+      return COST.VAR_COMBINE_COST;
+    }
+    // Different variables or powers - base cost
+    return COST.VAR_BASE_COST;
   }
 
   // Expression operations
-  if (a.isExpr || b.isExpr) {
-    const aText = getRefText(a.refs[0]);
-    const bText = getRefText(b.refs[0]);
+  if (a.refType === 'expr' || b.refType === 'expr') {
+    const aText = getRefText(a);
+    const bText = getRefText(b);
 
     // Cancelling identical expressions: (expr) - (expr) = 0
     if (op === '-' && aText === bText) {
@@ -157,39 +148,4 @@ export function calculateTermAddCost(a: Term, b: Term, op: '+' | '-'): number {
   return COST.VAR_BASE_COST;
 }
 
-export function getBoolAttr(token: ARef, attr: string, tokens: ReadonlyArray<ARef>): boolean {
-  if (attr === 'is_factor') {
-    const idx = tokens.indexOf(token);
-    if (idx > 0 && tokenEquals(tokens[idx - 1], '*')) return true;
-    if (idx < tokens.length - 1 && tokenEquals(tokens[idx + 1], '*')) return true;
-    return false;
-  }
-  if (attr === 'is_term') {
-    const idx = tokens.indexOf(token);
-    if (idx > 0 && tokenEquals(tokens[idx - 1], '*')) return false;
-    if (idx < tokens.length - 1 && tokenEquals(tokens[idx + 1], '*')) return false;
-    return true;
-  }
-  return false;
-}
 
-export function getVariablePower(tokens: ReadonlyArray<ARef>, startIdx: number): VariablePowerResult {
-  if (startIdx >= tokens.length) {
-    return { variable: null, power: null, endIndex: startIdx };
-  }
-
-  if (isVariable(tokens[startIdx])) {
-    const variable = tokens[startIdx];
-    if (
-      startIdx + 2 < tokens.length &&
-      tokenEquals(tokens[startIdx + 1], '^') &&
-      isNumber(tokens[startIdx + 2])
-    ) {
-      const power = parseInt(getRefText(tokens[startIdx + 2]), 10);
-      return { variable, power, endIndex: startIdx + 3 };
-    } else {
-      return { variable, power: 1, endIndex: startIdx + 1 };
-    }
-  }
-  return { variable: null, power: null, endIndex: startIdx };
-}

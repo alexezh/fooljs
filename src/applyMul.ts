@@ -1,5 +1,6 @@
-import { getBoolAttr, getVariablePower, calculateMultiplicationCost, COST } from "./terms.js";
-import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getRefText, isNumber, isVariable, splice, tokenEquals } from "./token.js";
+import { calculateMultiplicationCost, COST } from "./terms.js";
+import { AModel, ARef, createAref, createDelayedRef, createModel, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariable, isVariableRef, splice, tokenEquals } from "./token.js";
+
 
 /**
  * Apply multiplication operations - yields AModel with delayed ops
@@ -12,43 +13,52 @@ export function* applyMul(model: AModel): Generator<AModel> {
       const left = tokens[i - 1];
       const right = tokens[i + 1];
 
-      const leftIsFactor = getBoolAttr(left, 'is_factor', tokens);
-      const rightIsFactor = getBoolAttr(right, 'is_factor', tokens);
-
-      if (!(leftIsFactor && rightIsFactor)) {
-        continue;
-      }
-
       // number * variable -> coefficient-variable with delayed op
-      if (isNumber(left) && isVariable(right)) {
+      if (isNumber(left) && isVariableRef(right)) {
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
-        const combinedText = `${getRefText(left)}${getRefText(right)}`;
+        const varName = getVariableName(right) ?? getRefText(right);
+        const power = getPower(right);
+        const powerStr = power > 1 ? `^${power}` : '';
+        const combinedText = `${getRefText(left)}${varName}${powerStr}`;
         const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
+        resultRef.variableName = varName;
+        resultRef.power = power;
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
-      } else if (isVariable(left) && isNumber(right)) {
-        const delayedOp: DelayedOp = { kind: 'mul', left, right };
-        const combinedText = `${getRefText(right)}${getRefText(left)}`;
+      } else if (isVariableRef(left) && isNumber(right)) {
+        const delayedOp: DelayedOp = { kind: 'mul', left: right, right: left };
+        const varName = getVariableName(left) ?? getRefText(left);
+        const power = getPower(left);
+        const powerStr = power > 1 ? `^${power}` : '';
+        const combinedText = `${getRefText(right)}${varName}${powerStr}`;
         const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
+        resultRef.variableName = varName;
+        resultRef.power = power;
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
       }
 
       // variable * variable (same variable) -> power with delayed op
-      const leftResult = getVariablePower(tokens, i - 1);
-      const rightResult = getVariablePower(tokens, i + 1);
+      if (isVariableRef(left) && isVariableRef(right)) {
+        const leftVarName = getVariableName(left);
+        const rightVarName = getVariableName(right);
 
-      if (leftResult.variable && rightResult.variable) {
-        if (getRefText(leftResult.variable) === getRefText(rightResult.variable)) {
-          const totalPower = (leftResult.power ?? 1) + (rightResult.power ?? 1);
-          const delayedOp: DelayedOp = { kind: 'pow', base: leftResult.variable, exponent: createAref(String(totalPower)) };
+        if (leftVarName && rightVarName && leftVarName === rightVarName) {
+          const leftPower = getPower(left);
+          const rightPower = getPower(right);
+          const totalPower = leftPower + rightPower;
+
+          const baseRef = getBaseVariable(left) ?? left;
+          const delayedOp: DelayedOp = { kind: 'pow', base: baseRef, exponent: createAref(String(totalPower), [], totalPower) };
           const resultText = totalPower === 1
-            ? getRefText(leftResult.variable)
-            : `${getRefText(leftResult.variable)}^${totalPower}`;
+            ? leftVarName
+            : `${leftVarName}^${totalPower}`;
           const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
-          const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
+          resultRef.variableName = leftVarName;
+          resultRef.power = totalPower;
+          const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
           yield createModel(model, `multiply_same_var_${i}`, newTokens, COST.SAME_VAR_MUL, resultRef);
         }

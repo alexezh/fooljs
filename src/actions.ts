@@ -1,4 +1,4 @@
-import { getVariablePower, COST } from './terms.js';
+import { COST } from './terms.js';
 import {
   ARef,
   AModel,
@@ -9,19 +9,23 @@ import {
   createAref,
   DelayedOp,
   createDelayedRef,
-  createModel
+  createModel,
+  getPower,
+  getBaseVariable,
+  getVariableName,
+  isVariableRef
 } from './token.js';
 
 /**
  * Apply division operations - yields AModel with delayed ops
- */
+*/
 export function* applyDiv(model: AModel): Generator<AModel> {
-  const tokens = model.refs;
+  const refs = model.refs;
 
-  for (let i = 1; i < tokens.length - 1; i++) {
-    if (tokenEquals(tokens[i], '/')) {
-      const left = tokens[i - 1];
-      const right = tokens[i + 1];
+  for (let i = 1; i < refs.length - 1; i++) {
+    if (tokenEquals(refs[i], '/')) {
+      const left = refs[i - 1];
+      const right = refs[i + 1];
 
       // number / number
       if (isNumber(left) && isNumber(right)) {
@@ -31,38 +35,47 @@ export function* applyDiv(model: AModel): Generator<AModel> {
           const delayedOp: DelayedOp = { kind: 'div', left, right };
           const resultText = `(${getRefText(left)}/${getRefText(right)})`;
           const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
-          const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
+          const newTokens = splice(refs, i - 1, i + 2, [resultRef]);
 
           yield createModel(model, `divide_numbers_${i}`, newTokens, COST.DIV_COST, resultRef);
         }
       }
 
-      // variable / variable
-      const leftResult = getVariablePower(tokens, i - 1);
-      const rightResult = getVariablePower(tokens, i + 1);
+      // variable / variable (using new helper functions)
+      if (isVariableRef(left) && isVariableRef(right)) {
+        const leftVarName = getVariableName(left);
+        const rightVarName = getVariableName(right);
 
-      if (
-        leftResult.variable &&
-        rightResult.variable &&
-        getRefText(leftResult.variable) === getRefText(rightResult.variable)
-      ) {
-        const powerDiff = (leftResult.power ?? 1) - (rightResult.power ?? 1);
-        const sourceArefs = tokens.slice(i - 1, rightResult.endIndex);
-        const delayedOp: DelayedOp = { kind: 'div', left: leftResult.variable, right: rightResult.variable };
+        if (leftVarName && rightVarName && leftVarName === rightVarName) {
+          const leftPower = getPower(left);
+          const rightPower = getPower(right);
+          const powerDiff = leftPower - rightPower;
 
-        let resultText: string;
-        if (powerDiff === 0) {
-          resultText = '1';
-        } else if (powerDiff === 1) {
-          resultText = getRefText(leftResult.variable);
-        } else {
-          resultText = `${getRefText(leftResult.variable)}^${powerDiff}`;
+          const leftBase = getBaseVariable(left) ?? left;
+          const rightBase = getBaseVariable(right) ?? right;
+          const delayedOp: DelayedOp = { kind: 'div', left: leftBase, right: rightBase };
+
+          let resultText: string;
+          if (powerDiff === 0) {
+            resultText = '1';
+          } else if (powerDiff === 1) {
+            resultText = leftVarName;
+          } else if (powerDiff > 1) {
+            resultText = `${leftVarName}^${powerDiff}`;
+          } else {
+            // Negative power: 1/x^n
+            resultText = `1/${leftVarName}^${-powerDiff}`;
+          }
+
+          const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+          if (powerDiff > 0) {
+            resultRef.variableName = leftVarName;
+            resultRef.power = powerDiff;
+          }
+          const newTokens = splice(refs, i - 1, i + 2, [resultRef]);
+
+          yield createModel(model, `divide_vars_${i}`, newTokens, COST.DIV_COST, resultRef);
         }
-
-        const resultRef = createDelayedRef(resultText, sourceArefs, delayedOp);
-        const newTokens = splice(tokens, i - 1, rightResult.endIndex, [resultRef]);
-
-        yield createModel(model, `divide_vars_${i}`, newTokens, COST.DIV_COST, resultRef);
       }
     }
   }
