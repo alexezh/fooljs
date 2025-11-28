@@ -1,5 +1,5 @@
-import { ARef, tokensToKey } from "./token";
-import { heuristic } from "./weight";
+import { ARef, getRefText } from "./token.js";
+import { heuristic } from "./weight.js";
 
 export interface AModel {
   parent?: AModel;
@@ -17,7 +17,9 @@ export interface AModel {
 }
 
 export function modelToKey(model: AModel): string {
-  return tokensToKey(model.refs);
+
+  return model.refs.map(t => getRefText(t)).join('|');
+  //return tokensToKey(model.refs);
 }
 
 /**

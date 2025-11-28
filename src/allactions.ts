@@ -88,6 +88,11 @@ class MergeHeap {
 export function* getAllActions(model: AModel): Generator<AModel> {
   const mergeHeap = new MergeHeap();
 
+  if (model.pendingOp) {
+    let nextModel = model.pendingOp(model)
+    return nextModel;
+  }
+
   // Initialize heap with first element from each action generator
   for (const actionFn of ALL_ACTIONS) {
     const iterator = actionFn(model);

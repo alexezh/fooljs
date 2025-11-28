@@ -26,6 +26,8 @@ export class ARef {
   */
   variables?: string[];
 
+  depth?: number;
+
   // Term information (set during parsing)
   /** Role of this token in the expression */
   role?: TokenRole;
@@ -141,10 +143,6 @@ export function createRefWithSources(text: string, sourceTokens: ARef[]): ARef {
     refType: inferRefTypeForTokens(sourceTokens),
     value: null
   };
-}
-
-export function tokensToKey(tokens: ARef[]): string {
-  return tokens.map(t => getRefText(t)).join('|');
 }
 
 // ============================================================================

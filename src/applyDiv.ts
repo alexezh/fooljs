@@ -1,6 +1,6 @@
-import { AModel, createModel } from "./model";
-import { COST } from "./terms";
-import { createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariableRef, splice, tokenEquals } from "./token";
+import { AModel, createModel } from "./model.js";
+import { COST } from "./terms.js";
+import { createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariableRef, splice, tokenEquals } from "./token.js";
 
 /**
  * Apply division operations - yields AModel with delayed ops

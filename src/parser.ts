@@ -171,7 +171,31 @@ export function parseExpression(expr: string): ARef[] {
     i++;
   }
 
+  assignDepth(refs);
+
   return assignRoles(refs);
+}
+
+/**
+ * Assign depth to each ref based on parentheses nesting.
+ * Depth starts at 0, +1 for each '(' opened, -1 for each ')' closed.
+ */
+function assignDepth(refs: ARef[]): void {
+  let depth = 0;
+
+  for (const ref of refs) {
+    const text = ref.token.text;
+
+    if (text === '(') {
+      ref.depth = depth;
+      depth++;
+    } else if (text === ')') {
+      depth--;
+      ref.depth = depth;
+    } else {
+      ref.depth = depth;
+    }
+  }
 }
 
 /**

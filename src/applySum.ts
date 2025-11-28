@@ -1,12 +1,22 @@
 import { AModel, createModel } from "./model.js";
-import { calculateTermAddCost, canAddTerms } from "./terms.js";
-import { ARef, createAref, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
+import { calculateTermAddCost, canAddTerms, COST } from "./terms.js";
+import { ARef, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
 
 /**
- * Apply sum/subtraction operations - yields AModel with delayed ops.
- * Finds all pairs of terms (role='term') that can be combined.
+ * Scanned term pair info for pending realization
  */
-export function* applySum(model: AModel): Generator<AModel> {
+interface TermPair {
+  iPos: number;
+  jPos: number;
+  cost: number;
+}
+
+/**
+ * Part 1: Scan for terms and create model with pendingOp.
+ * Scanning cost is proportional to number of terms.
+ * Returns a model with pendingOp that will generate actual pair combinations.
+ */
+export function* applySumScan(model: AModel): Generator<AModel> {
   const refs = model.refs;
 
   // Find all term indices (refs with role='term')
@@ -17,8 +27,13 @@ export function* applySum(model: AModel): Generator<AModel> {
     }
   }
 
+  // Need at least 2 terms to combine
+  if (termIndices.length < 2) {
+    return;
+  }
+
   // Collect all valid pairs with their costs
-  const pairs: Array<{ iIdx: number; jIdx: number; iPos: number; jPos: number; cost: number }> = [];
+  const pairs: TermPair[] = [];
 
   for (let i = 0; i < termIndices.length; i++) {
     for (let j = i + 1; j < termIndices.length; j++) {
@@ -30,114 +45,126 @@ export function* applySum(model: AModel): Generator<AModel> {
       if (canAddTerms(refA, refB)) {
         const effectiveOp = refB.sign ?? '+';
         const cost = calculateTermAddCost(refA, refB, effectiveOp);
-        pairs.push({ iIdx: i, jIdx: j, iPos, jPos, cost });
+        pairs.push({ iPos, jPos, cost });
       }
     }
+  }
+
+  if (pairs.length === 0) {
+    return;
   }
 
   // Sort pairs by cost (lowest first)
   pairs.sort((a, b) => a.cost - b.cost);
 
-  // Yield models for each pair
-  for (const { iPos, jPos, cost } of pairs) {
-    const refA = refs[iPos];
-    const refB = refs[jPos];
-    const effectiveOp = refB.sign ?? '+';
+  // Scan cost: proportional to number of terms
+  const scanCost = termIndices.length * COST.ADD_SINGLE_DIGIT;
 
-    let resultText: string;
-    let delayedOp: DelayedOp;
+  // Create model with pendingOp for each pair
+  for (const pair of pairs) {
+    const pendingModel = {
+      parent: model,
+      transform: `sum_scan_${pair.iPos}_${pair.jPos}`,
+      refs: refs, // Keep same refs - not realized yet
+      approxCost: model.approxCost + scanCost,
+      pendingOp: (m) => realizeSumPair(m, pair),
+      pendingOpCost: pair.cost
+    };
 
-    // Case 1: Both are digits
-    if (refA.refType === 'digit' && refB.refType === 'digit') {
-      delayedOp = effectiveOp === '+'
-        ? { kind: 'add', left: refA, right: refB }
-        : { kind: 'sub', left: refA, right: refB };
-      resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+    yield pendingModel;
+  }
+}
+
+/**
+ * Part 2: Realize a single term pair combination.
+ * Called when search decides to expand a pending sum operation.
+ */
+export function realizeSumPair(model: AModel, pair: TermPair): AModel {
+  const refs = model.refs;
+  const { iPos, jPos, cost } = pair;
+
+  const refA = refs[iPos];
+  const refB = refs[jPos];
+  const effectiveOp = refB.sign ?? '+';
+
+  let resultText: string;
+  let delayedOp: DelayedOp;
+
+  // Case 1: Both are digits
+  if (refA.refType === 'digit' && refB.refType === 'digit') {
+    delayedOp = effectiveOp === '+'
+      ? { kind: 'add', left: refA, right: refB }
+      : { kind: 'sub', left: refA, right: refB };
+    resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+  }
+  // Case 2: Both are variables
+  else if (isVariableRef(refA) && isVariableRef(refB)) {
+    const aVarName = getVariableName(refA)!;
+    const aPower = getPower(refA);
+
+    if (effectiveOp === '+') {
+      delayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
+      const powerStr = aPower !== 1 ? `^${aPower}` : '';
+      resultText = `(2*${aVarName}${powerStr})`;
+    } else {
+      delayedOp = { kind: 'sub', left: refA, right: refB };
+      resultText = '0';
     }
-    // Case 2: Both are variables (including with power from delayed ops)
-    else if (isVariableRef(refA) && isVariableRef(refB)) {
-      const aVarName = getVariableName(refA);
-      const bVarName = getVariableName(refB);
-      const aPower = getPower(refA);
-      const bPower = getPower(refB);
+  }
+  // Case 3: Expressions
+  else {
+    const aText = getRefText(refA);
+    const bText = getRefText(refB);
 
-      // Must have same variable name and power
-      if (aVarName !== bVarName || aPower !== bPower) {
-        continue;
-      }
-
-      if (effectiveOp === '+') {
-        delayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
-        const powerStr = aPower !== 1 ? `^${aPower}` : '';
-        resultText = `(2*${aVarName}${powerStr})`;
-      } else {
-        // x - x = 0
-        delayedOp = { kind: 'sub', left: refA, right: refB };
-        resultText = '0';
-      }
+    if (effectiveOp === '+') {
+      delayedOp = { kind: 'add', left: refA, right: refB };
+      resultText = `(${aText}+${bText})`;
+    } else {
+      delayedOp = { kind: 'sub', left: refA, right: refB };
+      resultText = aText === bText ? '0' : `(${aText}-${bText})`;
     }
-    // Case 3: Expressions with compatible variables
-    else if ((refA.refType === 'expr' || refB.refType === 'expr') && areRefsCompatible(refA, refB)) {
-      const aVars = refA.variables ?? [];
-      const bVars = refB.variables ?? [];
+  }
 
-      // Check variables match
-      if (aVars.length !== bVars.length && !(aVars.length === 0 && bVars.length === 0)) {
-        continue;
-      }
-      if (aVars.length > 0) {
-        const aSet = new Set(aVars);
-        if (!bVars.every(v => aSet.has(v))) {
-          continue;
-        }
-      }
+  const resultRef = createDelayedRef(resultText, [refA, refB], delayedOp);
 
-      const aText = getRefText(refA);
-      const bText = getRefText(refB);
+  // Build new refs array
+  const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
 
-      if (effectiveOp === '+') {
-        delayedOp = { kind: 'add', left: refA, right: refB };
-        resultText = `(${aText}+${bText})`;
-      } else {
-        delayedOp = { kind: 'sub', left: refA, right: refB };
-        resultText = aText === bText ? '0' : `(${aText}-${bText})`;
-      }
+  let newRefs: ARef[] = [];
+
+  // Before refA
+  newRefs.push(...refs.slice(0, iPos));
+
+  // The result
+  newRefs.push(resultRef);
+
+  // Between refA and operator before refB
+  const startAfterA = iPos + 1;
+  const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
+  if (endBeforeOpB > startAfterA) {
+    newRefs.push(...refs.slice(startAfterA, endBeforeOpB));
+  }
+
+  // After refB
+  newRefs.push(...refs.slice(jPos + 1));
+
+  const transformName = refA.refType === 'digit'
+    ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
+    : `combine_${iPos}_${jPos}`;
+
+  return createModel(model, transformName, newRefs, cost, resultRef);
+}
+
+/**
+ * Legacy: Direct sum application without pending ops.
+ * Use applySumScan for lazy evaluation.
+ */
+export function* applySum(model: AModel): Generator<AModel> {
+  for (const pendingModel of applySumScan(model)) {
+    if (pendingModel.pendingOp) {
+      yield pendingModel.pendingOp(pendingModel);
+    } else {
+      yield pendingModel;
     }
-    else {
-      continue;
-    }
-
-    const resultRef = createDelayedRef(resultText, [refA, refB], delayedOp);
-
-    // Build new token array:
-    // - Remove refB and its preceding operator
-    // - Replace refA with result
-
-    // Find operator before refB (should be at jPos - 1)
-    const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
-
-    let newRefs: ARef[] = [];
-
-    // Before refA
-    newRefs.push(...refs.slice(0, iPos));
-
-    // The result
-    newRefs.push(resultRef);
-
-    // Between refA and operator before refB
-    const startAfterA = iPos + 1;
-    const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
-    if (endBeforeOpB > startAfterA) {
-      newRefs.push(...refs.slice(startAfterA, endBeforeOpB));
-    }
-
-    // After refB
-    newRefs.push(...refs.slice(jPos + 1));
-
-    const transformName = refA.refType === 'digit'
-      ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
-      : `combine_${iPos}_${jPos}`;
-
-    yield createModel(model, transformName, newRefs, cost, resultRef);
   }
 }

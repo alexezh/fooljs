@@ -189,52 +189,6 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
   return null;
 }
 
-/**
- * Iterator-based search that yields models as they are explored
- */
-export function* searchIterator(startTokens: ARef[]): Generator<AModel> {
-  const startModel = createInitialModel(startTokens);
-
-  const heap = new MinHeap<AModel>((a, b) => {
-    const aTotal = getApproxCost(a);
-    const bTotal = getApproxCost(b);
-    return aTotal - bTotal;
-  });
-
-  heap.push(startModel);
-
-  const visited = new Set<string>();
-
-  // we want to split op into plan and compute
-  // there has to be non-zero cost for looking terms far apart
-  // then if we found an entry, we spent cost X and have planned cost Y with complexity reduction Z
-  // 
-  while (heap.length > 0) {
-    const model = heap.pop()!;
-
-    const stateKey = modelToKey(model);
-    if (visited.has(stateKey)) {
-      continue;
-    }
-    visited.add(stateKey);
-
-    // Yield current model being explored
-    yield model;
-
-    if (isGoal(model.refs)) {
-      return;
-    }
-
-    // Get all possible next states using generators
-    for (const nextModel of getAllActions(model)) {
-      const nextKey = modelToKey(nextModel);
-      if (!visited.has(nextKey)) {
-        heap.push(nextModel);
-      }
-    }
-  }
-}
-
 // ============================================================================
 // Example usage (main)
 // ============================================================================
