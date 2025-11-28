@@ -1,11 +1,10 @@
 import { ARef, getRefText, createAref } from './token.js';
-import { heuristic } from './weight.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
 import { evaluateDelayedOp } from './actions.js';
 import { COST } from './terms.js';
-import { AModel, createInitialModel, createModel, getApproxCost, getModelPath, modelToKey } from './model.js';
+import { AModel, createInitialModel, createModel, getModelPath, modelToKey } from './model.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -129,8 +128,8 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
   const startModel = createInitialModel(startTokens);
 
   const heap = new MinHeap<AModel>((a, b) => {
-    const aTotal = a.approxCost + heuristic(a.refs);
-    const bTotal = b.approxCost + heuristic(b.refs);
+    const aTotal = a.remainCost;
+    const bTotal = b.remainCost;
     return aTotal - bTotal;
   });
 
@@ -155,12 +154,29 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
       }
 
       // Get all possible next states using generators
+      // For each action type, get models while remainCost is improving
       let isEnd = true;
-      for (const nextModel of getAllActions(model)) {
+      for (const actionResult of getAllActions(model)) {
+        const { action, model: nextModel, next } = actionResult;
         const nextKey = modelToKey(nextModel);
+
         if (!visited.has(nextKey)) {
           heap.push(nextModel);
           isEnd = false;
+
+          // Continue getting models from this action while remainCost improves
+          let prevRemainCost = nextModel.remainCost;
+          for (const furtherModel of next) {
+            if (furtherModel.remainCost >= prevRemainCost) {
+              break; // Cost is not improving, stop this action
+            }
+
+            const furtherKey = modelToKey(furtherModel);
+            if (!visited.has(furtherKey)) {
+              heap.push(furtherModel);
+              prevRemainCost = furtherModel.remainCost;
+            }
+          }
         }
       }
 
@@ -207,7 +223,7 @@ function main(): void {
     console.log('Solution found:');
     for (const model of result) {
       const tokensStr = model.refs.map(t => getRefText(t)).join(' ');
-      console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.approxCost})`);
+      console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.totalApproxCost})`);
     }
   } else {
     console.log('No solution found');

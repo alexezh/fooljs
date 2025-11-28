@@ -62,14 +62,14 @@ export function* applySumScan(model: AModel): Generator<AModel> {
 
   // Create model with pendingOp for each pair
   for (const pair of pairs) {
-    const pendingModel = {
+    const pendingModel = new AModel({
       parent: model,
       transform: `sum_scan_${pair.iPos}_${pair.jPos}`,
       refs: refs, // Keep same refs - not realized yet
-      approxCost: model.approxCost + scanCost,
+      totalApproxCost: model.totalApproxCost + scanCost,
       pendingOp: (m) => realizeSumPair(m, pair),
       pendingOpCost: pair.cost
-    };
+    });
 
     yield pendingModel;
   }
