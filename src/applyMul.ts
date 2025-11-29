@@ -1,6 +1,6 @@
 import { AModel, createModel } from "./model.js";
 import { calculateMultiplicationCost, COST } from "./terms.js";
-import { ARef, createAref, createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isVariableRef, splice, tokenEquals } from "./token.js";
+import { ARef, createAref, createDelayedRef, DelayedOp, getRefText, splice, tokenEquals } from "./token.js";
 
 
 /**
@@ -15,27 +15,25 @@ export function* applyMul(model: AModel): Generator<AModel> {
       const right = tokens[i + 1];
 
       // number * variable -> coefficient-variable with delayed op
-      if (left.isNumber && isVariableRef(right)) {
+      if (left.isNumber && right.isSymbol) {
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
         const varName = getVariableName(right) ?? getRefText(right);
         const power = getPower(right);
         const powerStr = power > 1 ? `^${power}` : '';
         const combinedText = `${getRefText(left)}${varName}${powerStr}`;
-        const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
-        resultRef.variableName = varName;
-        resultRef.power = power;
+        const op = tokens[i];
+        const resultRef = createDelayedRef(combinedText, [left, op, right], delayedOp);
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
-      } else if (isVariableRef(left) && right.isNumber) {
+      } else if (left.isSymbol() && right.isNumber) {
         const delayedOp: DelayedOp = { kind: 'mul', left: right, right: left };
-        const varName = getVariableName(left) ?? getRefText(left);
-        const power = getPower(left);
+        const varName = left.getBase().getVariableName();
+        const power = left.getPower();
         const powerStr = power > 1 ? `^${power}` : '';
         const combinedText = `${getRefText(right)}${varName}${powerStr}`;
-        const resultRef = createDelayedRef(combinedText, [left, right], delayedOp);
-        resultRef.variableName = varName;
-        resultRef.power = power;
+        const op = tokens[i];
+        const resultRef = createDelayedRef(combinedText, [left, op, right], delayedOp);
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
@@ -56,9 +54,8 @@ export function* applyMul(model: AModel): Generator<AModel> {
           const resultText = totalPower === 1
             ? leftVarName
             : `${leftVarName}^${totalPower}`;
-          const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
-          resultRef.variableName = leftVarName;
-          resultRef.power = totalPower;
+          const op = tokens[i];
+          const resultRef = createDelayedRef(resultText, [left, op, right], delayedOp);
           const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
           yield createModel(model, `multiply_same_var_${i}`, newTokens, COST.SAME_VAR_MUL, resultRef);

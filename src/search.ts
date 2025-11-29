@@ -99,7 +99,10 @@ function executeDelayedOp(model: AModel): AModel | null {
 
       const refA = targetRefs[iPos];
       const refB = targetRefs[jPos];
-      const effectiveOp = refB.sign ?? '+';
+
+      // Determine operation by checking operator before refB
+      const opBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? targetRefs[jPos - 1] : null;
+      const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
 
       let resultText: string;
       let refDelayedOp: DelayedOp;
@@ -156,7 +159,7 @@ function executeDelayedOp(model: AModel): AModel | null {
       if (computedValue !== null) {
         // We computed a numeric value - create a digit ref with the value
         resultRef = createAref(String(computedValue), [refA, refB], computedValue);
-        resultRef.refType = 'digit';
+        resultRef.refType = 'number';
       } else if (isVariableRef(refA) && isVariableRef(refB) && getVariableName(refA) === getVariableName(refB)) {
         const varName = getVariableName(refA)!;
         const power = getPower(refA);
@@ -164,14 +167,12 @@ function executeDelayedOp(model: AModel): AModel | null {
         if (effectiveOp === '-') {
           // Variables cancelled out (x - x = 0)
           resultRef = createAref('0', [refA, refB], 0);
-          resultRef.refType = 'digit';
+          resultRef.refType = 'number';
         } else {
           // Variables combined (x + x = 2x)
           const powerStr = power !== 1 ? `^${power}` : '';
           resultRef = createDelayedRef(`(2*${varName}${powerStr})`, [refA, refB], refDelayedOp);
           resultRef.refType = 'expr';  // 2x is an expression
-          resultRef.variableName = varName;
-          resultRef.power = power;
           resultRef.variables = [varName];
         }
       } else if (refA.refType === 'expr' && refB.refType === 'expr' && getRefText(refA) === getRefText(refB)) {
@@ -179,7 +180,7 @@ function executeDelayedOp(model: AModel): AModel | null {
         if (effectiveOp === '-') {
           // Expressions cancelled out (expr - expr = 0)
           resultRef = createAref('0', [refA, refB], 0);
-          resultRef.refType = 'digit';
+          resultRef.refType = 'number';
         } else {
           // Expressions combined (expr + expr = 2*expr)
           resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
@@ -194,10 +195,9 @@ function executeDelayedOp(model: AModel): AModel | null {
       }
 
       resultRef.role = 'term';
-      resultRef.sign = refA.sign;
 
       // Build new refs array
-      const opBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
+      const opIndexBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
 
       let newRefs: ARef[] = [];
 
@@ -209,7 +209,7 @@ function executeDelayedOp(model: AModel): AModel | null {
 
       // Between refA and operator before refB
       const startAfterA = iPos + 1;
-      const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
+      const endBeforeOpB = opIndexBeforeB > 0 ? opIndexBeforeB : jPos;
       if (endBeforeOpB > startAfterA) {
         newRefs.push(...targetRefs.slice(startAfterA, endBeforeOpB));
       }
@@ -233,10 +233,7 @@ function executeDelayedOp(model: AModel): AModel | null {
           refType: parent.refType,
           variables: parent.variables,
           depth: parent.depth,
-          role: parent.role,
-          sign: parent.sign,
-          power: parent.power,
-          variableName: parent.variableName
+          role: parent.role
         });
 
         // Find and replace parent in model.refs

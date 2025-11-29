@@ -5,23 +5,25 @@
  * - 'expr': expression containing variables (e.g., 2x, x+y, x^2)
  * - 'op': operator (+, -, *, /, ^)
  */
-export type RefType = 'digit' | 'variable' | 'expr' | 'op';
+export type RefType = 'number' | 'symbol' | 'expr' | 'op';
 
 /**
  * Role of a token in an expression - determined during parsing
  */
-export type TokenRole = 'term' | 'factor' | 'exponent' | 'operator' | 'sign';
+export type TokenRole = 'term' | 'operator' | 'sign';
 
 /**
  * computed value
  */
 export class ARef {
-  token: AToken;
-  arefs: ReadonlyArray<ARef>;
   /**
    * for digits - value, for variables - name
    */
   value: any;
+  symbol: string;
+
+  token: AToken;
+  arefs: ReadonlyArray<ARef>;
   delayedOp?: DelayedOp;
   refType: RefType;
   /** For expr type: which variables are contained (e.g., ['x', 'y'])
@@ -34,10 +36,6 @@ export class ARef {
   // Term information (set during parsing)
   /** Role of this token in the expression */
   role?: TokenRole;
-  /** Sign preceding this term ('+' or '-'), only for terms */
-  // sign?: '+' | '-';
-  /** Power/exponent if this is a variable with power (e.g., x^2 has power=2) */
-  // power?: number;
 
   constructor(params: {
     token: AToken;
@@ -48,9 +46,6 @@ export class ARef {
     variables?: string[];
     depth?: number;
     role?: TokenRole;
-    sign?: '+' | '-';
-    power?: number;
-    variableName?: string;
   }) {
     this.token = params.token;
     this.arefs = params.arefs ?? [];
@@ -60,21 +55,37 @@ export class ARef {
     this.variables = params.variables;
     this.depth = params.depth;
     this.role = params.role;
-    this.sign = params.sign;
-    this.power = params.power;
-    this.variableName = params.variableName;
   }
 
   get isNumber(): boolean {
-    return this.refType === 'digit';
+    return this.refType === 'number';
   }
 
-  get isVariable(): boolean {
-    return this.refType === 'variable';
+  get isSymbol(): boolean {
+    return this.refType === 'symbol';
   }
 
   get isExpr(): boolean {
     return this.refType === 'expr';
+  }
+
+  isExp(): boolean {
+    return this.arefs?.length >= 2 && this.arefs[1].token.text === '^';
+  }
+
+  getVariableName(): string {
+    return this.value as string;
+  }
+
+  getBase(): ARef {
+    return (this.isExp()) ? this.arefs[0] : this;
+  }
+  getPower(): ARef {
+    return (this.isExp()) ? this.arefs[2] : new ARef({
+      token: createToken('1'),
+      refType: 'digit',
+      value: 1
+    });
   }
 }
 
@@ -101,7 +112,7 @@ export function inferRefType(text: string): RefType {
   }
   // Pure number (including negative)
   if (/^-?\d+$/.test(text)) {
-    return 'digit';
+    return 'number';
   }
   // Single variable
   if (/^[a-zA-Z]$/.test(text)) {
@@ -256,54 +267,4 @@ export function createDelayedRef(
     refType,
     variables
   });
-}
-
-/**
- * Get power from an ARef. Checks:
- * 1. If ref has a delayed 'pow' op, extracts exponent value
- * 2. Falls back to ref.power property
- * 3. Default is 1
- */
-export function getPower(ref: ARef): number {
-  // Fall back to power property or default 1
-  return ref.power ?? 1;
-}
-
-/**
- * Get the base variable from an ARef. Handles:
- * 1. If ref has delayed 'pow' op, returns the base
- * 2. If ref is a variable, returns the ref itself
- * 3. Returns null if not a variable
- */
-export function getBaseVariable(ref: ARef): ARef | null {
-  if (ref.refType === 'variable') {
-    return ref;
-  }
-  // Check if it's an expr with a variable name (from pow)
-  if (ref.variableName) {
-    return ref;
-  }
-  return null;
-}
-
-/**
- * Get variable name from an ARef
- */
-export function getVariableName(ref: ARef): string | null {
-  if (ref.variableName) {
-    return ref.variableName;
-  }
-  if (ref.refType === 'variable') {
-    return getRefText(ref);
-  }
-  return null;
-}
-
-/**
- * Check if ref represents a variable (possibly with power)
- */
-export function isVariableRef(ref: ARef): boolean {
-  if (ref.refType === 'variable') return true;
-  if (ref.variableName) return true;
-  return false;
 }

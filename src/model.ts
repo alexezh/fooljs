@@ -1,5 +1,5 @@
 import { isGoal } from "./goal.js";
-import { ARef, getRefText, isVariableRef, getVariableName, getPower } from "./token.js";
+import { ARef, getRefText } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
 
 /**
@@ -13,6 +13,33 @@ export interface ModelDelayedOp {
   operation: any;    // Operation-specific data
   cost: number;      // Cost to execute this operation
   compute: (model: AModel, operation: any) => AModel;  // Function to perform the computation
+}
+
+class AModelInternalVars {
+  /**
+ * Cache mapping aref[] to internal variable names (e.g., ?1, ?2, ?3)
+ * Key: serialized aref array (using getRefText)
+ * Value: internal variable name
+ */
+  cache: Map<string, string> = new Map();
+  private nextInternalVarNum: number = 1;
+
+  /**
+   * Get or create an internal variable for the given arefs
+   */
+  getInternalVar(arefs: ARef[]): string {
+    const key = arefs.map(r => getRefText(r)).join('|');
+
+    if (this.cache.has(key)) {
+      return this.cache.get(key)!;
+    }
+
+    const varName = `?${this.nextInternalVarNum}`;
+    this.cache.set(key, varName);
+    this.nextInternalVarNum++;
+
+    return varName;
+  }
 }
 
 export class AModel {
@@ -29,6 +56,7 @@ export class AModel {
    */
   totalApproxCost: number;
   resultRef?: ARef;  // The ref created by this transform (also in tokens array)
+  cache: AModelInternalVars;
 
   constructor(params: {
     parent?: AModel;
@@ -37,6 +65,7 @@ export class AModel {
     delayedOp?: ModelDelayedOp;
     totalApproxCost?: number;
     resultRef?: ARef;
+    nextInternalVarNum?: number;
   }) {
     this.parent = params.parent;
     this.transform = params.transform;
@@ -45,6 +74,13 @@ export class AModel {
     this.remainCost = getApproxCost(this);
     this.totalApproxCost = params.totalApproxCost ?? 0;
     this.resultRef = params.resultRef;
+
+    // Inherit cache from parent or create new
+    if (params.parent) {
+      this.cache = params.parent.cache;
+    } else {
+      this.cache = new AModelInternalVars();
+    }
   }
 }
 
@@ -112,9 +148,9 @@ function getApproxCost(a: AModel): number {
     let key: string;
     if (term.refType === 'digit') {
       key = 'digit';
-    } else if (isVariableRef(term)) {
+    } else if (term.isVariableRef(term)) {
       const varName = getVariableName(term) || '';
-      const power = getPower(term);
+      const power = term.getPower();
       key = `${varName}^${power}`;
     } else {
       // For expressions, use the text as key (simplified)
@@ -180,6 +216,8 @@ export function createModel(
     transform,
     refs: tokens,
     totalApproxCost: parent.totalApproxCost + cost,
-    resultRef
+    resultRef,
+    cache: parent.cache,
+    nextInternalVarNum: parent.nextInternalVarNum
   });
 }

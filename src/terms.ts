@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, getRefText, areRefsCompatible, getPower, getVariableName, isVariableRef } from "./token.js";
+import { ARef, getRefText, areRefsCompatible } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -105,14 +105,14 @@ export function canAddTerms(a: ARef, b: ARef): boolean {
  */
 export function calculateTermAddCost(a: ARef, b: ARef, op: '+' | '-'): number {
   // Number + Number or Number - Number
-  if (a.refType === 'digit' && b.refType === 'digit') {
+  if (a.isNumber && b.isNumber) {
     const aVal = (a.value as number) ?? parseInt(getRefText(a), 10) ?? 0;
     const bVal = (b.value as number) ?? parseInt(getRefText(b), 10) ?? 0;
     return op === '+' ? calculateAdditionCost(aVal, bVal) : calculateSubtractionCost(aVal, bVal);
   }
 
   // Variable operations (including variables with power from delayed ops)
-  if (isVariableRef(a) && isVariableRef(b)) {
+  if (a.isSymbol && b.isSymbol) {
     const aVarName = getVariableName(a);
     const bVarName = getVariableName(b);
     const aPower = getPower(a);

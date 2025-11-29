@@ -14,9 +14,6 @@ function createRef(
   options?: {
     value?: number;
     role?: TokenRole;
-    sign?: '+' | '-';
-    power?: number;
-    variableName?: string;
   }
 ): ARef {
   return new ARef({
@@ -24,10 +21,7 @@ function createRef(
     arefs: [],
     refType,
     value: options?.value ?? null,
-    role: options?.role,
-    sign: options?.sign,
-    power: options?.power,
-    variableName: options?.variableName
+    role: options?.role
   });
 }
 
@@ -37,9 +31,6 @@ function createRefFromText(
   options?: {
     value?: number;
     role?: TokenRole;
-    sign?: '+' | '-';
-    power?: number;
-    variableName?: string;
   }
 ): ARef {
   return createRef(createToken(text), refType, options);
@@ -55,7 +46,7 @@ function getTokenText(token: TokenLike): string {
   return token.token.text;
 }
 
-function isDigitToken(token: TokenLike): boolean {
+function isNumberToken(token: TokenLike): boolean {
   const text = getTokenText(token);
   return /^\d+$/.test(text);
 }
@@ -128,11 +119,11 @@ export function parseExpression(expr: string): ARef[] {
     const text = token.text;
 
     // Insert implicit * between number and variable (2x -> 2 * x)
-    if (i + 1 < rawTokens.length && isDigitToken(token) && isVariableToken(rawTokens[i + 1])) {
+    if (i + 1 < rawTokens.length && isNumberToken(token) && isVariableToken(rawTokens[i + 1])) {
       const value = parseInt(text, 10);
       refs.push(createRef(token, 'digit', { value }));
       refs.push(createRefFromText('*', 'op'));
-      refs.push(createRef(rawTokens[i + 1], 'variable', { variableName: rawTokens[i + 1].text }));
+      refs.push(createRef(rawTokens[i + 1], 'variable'));
       i += 2;
       continue;
     }
@@ -141,7 +132,7 @@ export function parseExpression(expr: string): ARef[] {
     if (text === ')' && i + 1 < rawTokens.length) {
       const nextText = rawTokens[i + 1].text;
       refs.push(createRef(token, 'op'));
-      if (nextText === '(' || isDigitToken(rawTokens[i + 1]) || isVariableToken(rawTokens[i + 1])) {
+      if (nextText === '(' || isNumberToken(rawTokens[i + 1]) || isVariableToken(rawTokens[i + 1])) {
         refs.push(createRefFromText('*', 'op'));
       }
       i++;
@@ -149,11 +140,11 @@ export function parseExpression(expr: string): ARef[] {
     }
 
     // Insert implicit * between number/variable and (
-    if ((isDigitToken(token) || isVariableToken(token)) && i + 1 < rawTokens.length && rawTokens[i + 1].text === '(') {
-      if (isDigitToken(token)) {
-        refs.push(createRef(token, 'digit', { value: parseInt(text, 10) }));
+    if ((isNumberToken(token) || isVariableToken(token)) && i + 1 < rawTokens.length && rawTokens[i + 1].text === '(') {
+      if (isNumberToken(token)) {
+        refs.push(createRef(token, 'number', { value: parseInt(text, 10) }));
       } else {
-        refs.push(createRef(token, 'variable', { variableName: text }));
+        refs.push(createRef(token, 'symbol'));
       }
       refs.push(createRefFromText('*', 'op'));
       i++;
@@ -161,10 +152,10 @@ export function parseExpression(expr: string): ARef[] {
     }
 
     // Regular token
-    if (isDigitToken(token)) {
-      refs.push(createRef(token, 'digit', { value: parseInt(text, 10) }));
+    if (isNumberToken(token)) {
+      refs.push(createRef(token, 'number', { value: parseInt(text, 10) }));
     } else if (isVariableToken(token)) {
-      refs.push(createRef(token, 'variable', { variableName: text }));
+      refs.push(createRef(token, 'symbol'));
     } else {
       refs.push(createRef(token, inferRefType(text)));
     }
@@ -249,15 +240,12 @@ function collapsePower(refs: ARef[]): ARef[] {
 
     // Check for power pattern: <base> ^ <exponent>
     if (nextRef && nextRef.token.text === '^' && expRef) {
-      const varName = ref.variableName || ref.token.text;
+      const varName = getRefText(ref);
       const power = expRef.refType === 'digit' ? (expRef.value as number) : 2;
 
-      // Create delayed pow op
+      // Create delayed pow op - include operator in arefs
       const delayedOp: DelayedOp = { kind: 'pow', base: ref, exponent: expRef };
-      const powerNode = createDelayedRef(`${varName}^${power}`, [ref, expRef], delayedOp);
-      powerNode.variableName = varName;
-      powerNode.power = power;
-      powerNode.arefs = [ref, expRef];
+      const powerNode = createDelayedRef(`${varName}^${power}`, [ref, nextRef, expRef], delayedOp);
 
       result.push(powerNode);
       i += 3;
@@ -381,36 +369,27 @@ function assignTermRoles(refs: ARef[]): ARef[] {
         const negValue = -origValue;
         termRef = createRefFromText(String(negValue), 'digit', {
           value: negValue,
-          role: 'term',
-          sign: '-'
+          role: 'term'
         });
-        // Copy arefs if present
-        if (ref.arefs && ref.arefs.length > 0) {
-          termRef.arefs = ref.arefs;
-        }
+        // Store original ref in arefs
+        termRef.arefs = [ref];
       } else {
-        // Create negate delayed op
+        // Create negate delayed op with -1 * ref
         const refText = getRefText(ref);
+        const minusOne = createRefFromText('-1', 'digit', { value: -1 });
+        const mulOp = createRefFromText('*', 'op');
         const delayedOp: DelayedOp = {
           kind: 'mul',
-          left: createRefFromText('-1', 'digit', { value: -1 }),
+          left: minusOne,
           right: ref
         };
-        termRef = createDelayedRef(`(-${refText})`, [ref], delayedOp);
+        termRef = createDelayedRef(`(-${refText})`, [minusOne, mulOp, ref], delayedOp);
         termRef.role = 'term';
-        termRef.sign = '-';
-        if (ref.variableName) termRef.variableName = ref.variableName;
-        if (ref.power) termRef.power = ref.power;
-        // Preserve arefs for tree nodes
-        if (ref.arefs && ref.arefs.length > 0) {
-          termRef.arefs = ref.arefs;
-        }
       }
       currentSign = '+';
     } else {
       // Positive term
       termRef.role = 'term';
-      termRef.sign = '+';
     }
 
     result.push(termRef);

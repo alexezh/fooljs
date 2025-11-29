@@ -9,7 +9,7 @@ export function isGoal(tokens: ARef[]): boolean {
     const token = tokens[0];
     const text = getRefText(token);
     // Handle plain numbers and variables
-    if (token.isNumber || token.isVariable) {
+    if (token.isNumber || token.isSymbol) {
       return true;
     }
     // Handle coefficient*variable patterns: 2x, 2*x, (2*x), 2x^2, etc.
@@ -48,7 +48,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
     if (tokenEquals(op, '/')) {
       if (
         (left.isNumber && right.isNumber) ||
-        (left.isVariable && right.isVariable)
+        (left.isSymbol && right.isSymbol)
       ) {
         return true;
       }
@@ -57,8 +57,8 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
     // Addition: only different variables, not numbers, not same variables
     if (tokenEquals(op, '+')) {
       if (
-        left.isVariable &&
-        right.isVariable &&
+        left.isSymbol &&
+        right.isSymbol &&
         getRefText(left) !== getRefText(right)
       ) {
         return true;
@@ -69,8 +69,8 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       }
       // Same variables should not be goals (x + x -> 2*x)
       if (
-        left.isVariable &&
-        right.isVariable &&
+        left.isSymbol &&
+        right.isSymbol &&
         getRefText(left) === getRefText(right)
       ) {
         return false;
@@ -81,18 +81,18 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
     if (tokenEquals(op, '-')) {
       // Different variables are valid goals (x - y)
       if (
-        left.isVariable &&
-        right.isVariable &&
+        left.isSymbol &&
+        right.isSymbol &&
         getRefText(left) !== getRefText(right)
       ) {
         return true;
       }
       // Variable - number is valid goal (x - 5)
-      if (left.isVariable && right.isNumber) {
+      if (left.isSymbol && right.isNumber) {
         return true;
       }
       // Number - variable is valid goal (5 - x)
-      if (left.isNumber && right.isVariable) {
+      if (left.isNumber && right.isSymbol) {
         return true;
       }
       // Numbers with subtraction should not be goals (need simplification)
@@ -101,8 +101,8 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       }
       // Same variables should not be goals (x - x -> 0)
       if (
-        left.isVariable &&
-        right.isVariable &&
+        left.isSymbol &&
+        right.isSymbol &&
         getRefText(left) === getRefText(right)
       ) {
         return false;
@@ -119,13 +119,13 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       }
       // Number * variable should become coefficient-variable
       if (
-        (left.isNumber && right.isVariable) ||
-        (left.isVariable && right.isNumber)
+        (left.isNumber && right.isSymbol) ||
+        (left.isSymbol && right.isNumber)
       ) {
         return false;
       }
       // Variable * variable should become power or remain separate for different variables
-      if (left.isVariable && right.isVariable) {
+      if (left.isSymbol && right.isSymbol) {
         if (getRefText(left) === getRefText(right)) {
           return false; // x * x -> x^2
         } else {
@@ -154,7 +154,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
 
   while (i < tokens.length) {
     // Expect variable
-    if (i >= tokens.length || !tokens[i].isVariable) {
+    if (i >= tokens.length || !tokens[i].isSymbol) {
       return false;
     }
     hasVariable = true;

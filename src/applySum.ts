@@ -43,7 +43,9 @@ export function* applySumScan(model: AModel): Generator<AModel> {
       const refB = refs[jPos];
 
       if (canAddTerms(refA, refB)) {
-        const effectiveOp = refB.sign ?? '+';
+        // Determine operation by checking operator before refB
+        const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
+        const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
         const cost = calculateTermAddCost(refA, refB, effectiveOp);
         pairs.push({ iPos, jPos, cost });
       }
@@ -92,7 +94,10 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
 
   const refA = refs[iPos];
   const refB = refs[jPos];
-  const effectiveOp = refB.sign ?? '+';
+
+  // Determine operation by checking operator before refB
+  const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
+  const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
 
   let resultText: string;
   let delayedOp: DelayedOp;
@@ -135,7 +140,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
   const resultRef = createDelayedRef(resultText, [refA, refB], delayedOp);
 
   // Build new refs array
-  const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
+  const opIndexBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
 
   let newRefs: ARef[] = [];
 
@@ -147,7 +152,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
 
   // Between refA and operator before refB
   const startAfterA = iPos + 1;
-  const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
+  const endBeforeOpB = opIndexBeforeB > 0 ? opIndexBeforeB : jPos;
   if (endBeforeOpB > startAfterA) {
     newRefs.push(...refs.slice(startAfterA, endBeforeOpB));
   }
