@@ -2,7 +2,6 @@ import { AModel, createModel } from './model.js';
 import {
   ARef,
   tokenEquals,
-  isNumber,
   getRefText,
   splice,
   createAref
@@ -57,7 +56,7 @@ export function* applyCleanup(model: AModel): Generator<AModel> {
   }
 
   // Remove leading - operator and negate
-  if (tokenEquals(tokens[0], '-') && tokens.length > 1 && isNumber(tokens[1])) {
+  if (tokenEquals(tokens[0], '-') && tokens.length > 1 && tokens[1].isNumber) {
     const resultRef = createAref('-' + getRefText(tokens[1]), [tokens[1]]);
     const newTokens = splice(tokens, 0, 2, [resultRef]);
     yield createModel(model, 'negate_leading', newTokens, 1, resultRef);
@@ -94,7 +93,7 @@ export function* applySubToAdd(model: AModel): Generator<AModel> {
   for (let i = 1; i < tokens.length; i++) {
     if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
       const nextToken = tokens[i + 1];
-      if (isNumber(nextToken)) {
+      if (nextToken.isNumber) {
         const plusRef = createAref('+');
         const resultRef = createAref('-' + getRefText(nextToken), [nextToken]);
         const newTokens = splice(tokens, i, i + 2, [plusRef, resultRef]);

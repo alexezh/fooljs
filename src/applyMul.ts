@@ -1,6 +1,6 @@
 import { AModel, createModel } from "./model.js";
 import { calculateMultiplicationCost, COST } from "./terms.js";
-import { ARef, createAref, createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariable, isVariableRef, splice, tokenEquals } from "./token.js";
+import { ARef, createAref, createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isVariableRef, splice, tokenEquals } from "./token.js";
 
 
 /**
@@ -15,7 +15,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
       const right = tokens[i + 1];
 
       // number * variable -> coefficient-variable with delayed op
-      if (isNumber(left) && isVariableRef(right)) {
+      if (left.isNumber && isVariableRef(right)) {
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
         const varName = getVariableName(right) ?? getRefText(right);
         const power = getPower(right);
@@ -27,7 +27,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
-      } else if (isVariableRef(left) && isNumber(right)) {
+      } else if (isVariableRef(left) && right.isNumber) {
         const delayedOp: DelayedOp = { kind: 'mul', left: right, right: left };
         const varName = getVariableName(left) ?? getRefText(left);
         const power = getPower(left);
@@ -66,7 +66,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
       }
 
       // number * number -> delayed multiplication
-      if (isNumber(left) && isNumber(right)) {
+      if (left.isNumber && right.isNumber) {
         const leftValue = left.value ?? parseInt(getRefText(left), 10);
         const rightValue = right.value ?? parseInt(getRefText(right), 10);
         const cost = calculateMultiplicationCost(leftValue, rightValue);

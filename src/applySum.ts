@@ -66,7 +66,8 @@ export function* applySumScan(model: AModel): Generator<AModel> {
       kind: 'add',
       indexes: [pair.iPos, pair.jPos],
       operation: pair,
-      cost: pair.cost
+      cost: pair.cost,
+      compute: (m: AModel, op: any) => realizeSumPair(m, op as TermPair)
     };
 
     const pendingModel = new AModel({

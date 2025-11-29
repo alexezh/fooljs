@@ -1,6 +1,6 @@
 import { AModel, createModel } from "./model.js";
 import { COST } from "./terms.js";
-import { createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isNumber, isVariableRef, splice, tokenEquals } from "./token.js";
+import { createDelayedRef, DelayedOp, getBaseVariable, getPower, getRefText, getVariableName, isVariableRef, splice, tokenEquals } from "./token.js";
 
 /**
  * Apply division operations - yields AModel with delayed ops
@@ -14,7 +14,7 @@ export function* applyDiv(model: AModel): Generator<AModel> {
       const right = refs[i + 1];
 
       // number / number
-      if (isNumber(left) && isNumber(right)) {
+      if (left.isNumber && right.isNumber) {
         const rightVal = parseInt(getRefText(right), 10);
         const leftVal = parseInt(getRefText(left), 10);
         if (rightVal !== 0 && leftVal % rightVal === 0) {

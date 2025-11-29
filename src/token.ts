@@ -18,9 +18,13 @@ export type TokenRole = 'term' | 'factor' | 'exponent' | 'operator' | 'sign';
 export class ARef {
   token: AToken;
   arefs: ReadonlyArray<ARef>;
+  /**
+   * for digits - value, for variables - name
+   */
   value: any;
+  delayedOp?: DelayedOp;
   refType: RefType;
-  /** For expr type: which variables are contained (e.g., ['x', 'y']) 
+  /** For expr type: which variables are contained (e.g., ['x', 'y'])
    * assume that names are sorted
   */
   variables?: string[];
@@ -31,11 +35,47 @@ export class ARef {
   /** Role of this token in the expression */
   role?: TokenRole;
   /** Sign preceding this term ('+' or '-'), only for terms */
-  sign?: '+' | '-';
+  // sign?: '+' | '-';
   /** Power/exponent if this is a variable with power (e.g., x^2 has power=2) */
-  power?: number;
-  /** Variable name for variable refs */
-  variableName?: string;
+  // power?: number;
+
+  constructor(params: {
+    token: AToken;
+    arefs?: ReadonlyArray<ARef>;
+    value?: any;
+    delayedOp?: DelayedOp;
+    refType: RefType;
+    variables?: string[];
+    depth?: number;
+    role?: TokenRole;
+    sign?: '+' | '-';
+    power?: number;
+    variableName?: string;
+  }) {
+    this.token = params.token;
+    this.arefs = params.arefs ?? [];
+    this.value = params.value ?? null;
+    this.delayedOp = params.delayedOp;
+    this.refType = params.refType;
+    this.variables = params.variables;
+    this.depth = params.depth;
+    this.role = params.role;
+    this.sign = params.sign;
+    this.power = params.power;
+    this.variableName = params.variableName;
+  }
+
+  get isNumber(): boolean {
+    return this.refType === 'digit';
+  }
+
+  get isVariable(): boolean {
+    return this.refType === 'variable';
+  }
+
+  get isExpr(): boolean {
+    return this.refType === 'expr';
+  }
 }
 
 export interface AToken {
@@ -102,13 +142,13 @@ export function createAref(text: string, sourceArefs?: ARef[], value?: number | 
       ? (sourceArefs ? collectVariables(sourceArefs) : extractVariables(text))
       : undefined;
 
-  return {
+  return new ARef({
     token: createToken(text),
     arefs: sourceArefs ?? [],
     value: value ?? null,
     refType,
     variables
-  };
+  });
 }
 
 export function getRefText(ref: ARef): string {
@@ -117,18 +157,6 @@ export function getRefText(ref: ARef): string {
     return ref.arefs.map(child => getRefText(child)).join(' ');
   }
   return ref.token.text;
-}
-
-export function isNumber(ref: ARef): boolean {
-  return ref.refType === 'digit';
-}
-
-export function isVariable(ref: ARef): boolean {
-  return ref.refType === 'variable';
-}
-
-export function isExpr(ref: ARef): boolean {
-  return ref.refType === 'expr';
 }
 
 export function tokenEquals(token: ARef, str: string): boolean {
@@ -140,12 +168,12 @@ export function splice(tokens: ReadonlyArray<ARef>, start: number, end: number, 
 }
 
 export function createRefWithSources(text: string, sourceTokens: ARef[]): ARef {
-  return {
+  return new ARef({
     token: createToken(text),
     arefs: sourceTokens,
     refType: inferRefTypeForTokens(sourceTokens),
     value: null
-  };
+  });
 }
 
 // ============================================================================
@@ -220,13 +248,14 @@ export function createDelayedRef(
   const refType = inferRefTypeForTokens(sourceArefs);
   const variables = refType === 'expr' ? collectVariables(sourceArefs) : undefined;
 
-  return {
+  return new ARef({
     token: createToken(text),
     arefs: sourceArefs,
     value: null,
+    delayedOp,
     refType,
     variables
-  };
+  });
 }
 
 /**

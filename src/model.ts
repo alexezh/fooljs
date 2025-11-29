@@ -12,6 +12,7 @@ export interface ModelDelayedOp {
   indexes: number[]; // Indexes within parentRef.arefs (or model.refs if no parentRef)
   operation: any;    // Operation-specific data
   cost: number;      // Cost to execute this operation
+  compute: (model: AModel, operation: any) => AModel;  // Function to perform the computation
 }
 
 export class AModel {
@@ -49,7 +50,8 @@ export class AModel {
 
 export function modelToKey(model: AModel): string {
 
-  return model.refs.map(t => getRefText(t)).join('|');
+  const refs = model.refs.map(t => getRefText(t)).join('|');
+  return (model.delayedOp) ? "?" + refs : refs;
   //return tokensToKey(model.refs);
 }
 

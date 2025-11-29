@@ -19,7 +19,7 @@ function createRef(
     variableName?: string;
   }
 ): ARef {
-  return {
+  return new ARef({
     token,
     arefs: [],
     refType,
@@ -28,7 +28,7 @@ function createRef(
     sign: options?.sign,
     power: options?.power,
     variableName: options?.variableName
-  };
+  });
 }
 
 function createRefFromText(

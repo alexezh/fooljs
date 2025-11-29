@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, getRefText, isNumber, isVariable, tokenEquals, areRefsCompatible, getPower, getVariableName, isVariableRef } from "./token.js";
+import { ARef, getRefText, areRefsCompatible, getPower, getVariableName, isVariableRef } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -91,7 +91,7 @@ export function calculateMultiplicationCost(leftValue: number, rightValue: numbe
  */
 export function canAddTerms(a: ARef, b: ARef): boolean {
   // Two numbers/digits can always be added
-  if (isNumber(a) && isNumber(b)) {
+  if (a.isNumber && b.isNumber) {
     return true;
   }
 

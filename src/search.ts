@@ -1,4 +1,4 @@
-import { ARef, getRefText, createAref, createDelayedRef, DelayedOp, isVariableRef, getVariableName, getPower } from './token.js';
+import { ARef, getRefText, createDelayedRef, DelayedOp, isVariableRef, getVariableName, getPower, createAref } from './token.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
@@ -80,6 +80,13 @@ function executeDelayedOp(model: AModel): AModel | null {
   }
 
   const modelDelayedOp = model.delayedOp;
+
+  // If compute function is provided, use it
+  if (modelDelayedOp.compute) {
+    return modelDelayedOp.compute(model, modelDelayedOp.operation);
+  }
+
+  // Fallback: manual execution for operations without compute function
   const targetRefs = modelDelayedOp.parentRef ? modelDelayedOp.parentRef.arefs as ARef[] : model.refs;
 
   // Execute based on operation kind
@@ -132,7 +139,60 @@ function executeDelayedOp(model: AModel): AModel | null {
         }
       }
 
-      const resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
+      // Try to compute the value immediately if both operands are numeric
+      let resultRef: ARef;
+      let computedValue: number | null = null;
+
+      if (refA.refType === 'digit' && refB.refType === 'digit') {
+        // Both are digits - compute directly
+        const aVal = refA.value as number;
+        const bVal = refB.value as number;
+
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          computedValue = effectiveOp === '+' ? aVal + bVal : aVal - bVal;
+        }
+      }
+
+      if (computedValue !== null) {
+        // We computed a numeric value - create a digit ref with the value
+        resultRef = createAref(String(computedValue), [refA, refB], computedValue);
+        resultRef.refType = 'digit';
+      } else if (isVariableRef(refA) && isVariableRef(refB) && getVariableName(refA) === getVariableName(refB)) {
+        const varName = getVariableName(refA)!;
+        const power = getPower(refA);
+
+        if (effectiveOp === '-') {
+          // Variables cancelled out (x - x = 0)
+          resultRef = createAref('0', [refA, refB], 0);
+          resultRef.refType = 'digit';
+        } else {
+          // Variables combined (x + x = 2x)
+          const powerStr = power !== 1 ? `^${power}` : '';
+          resultRef = createDelayedRef(`(2*${varName}${powerStr})`, [refA, refB], refDelayedOp);
+          resultRef.refType = 'expr';  // 2x is an expression
+          resultRef.variableName = varName;
+          resultRef.power = power;
+          resultRef.variables = [varName];
+        }
+      } else if (refA.refType === 'expr' && refB.refType === 'expr' && getRefText(refA) === getRefText(refB)) {
+        // Identical expressions
+        if (effectiveOp === '-') {
+          // Expressions cancelled out (expr - expr = 0)
+          resultRef = createAref('0', [refA, refB], 0);
+          resultRef.refType = 'digit';
+        } else {
+          // Expressions combined (expr + expr = 2*expr)
+          resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
+          resultRef.refType = 'expr';
+          if (refA.variables) {
+            resultRef.variables = refA.variables;
+          }
+        }
+      } else {
+        // Create delayed ref for later evaluation
+        resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
+      }
+
       resultRef.role = 'term';
       resultRef.sign = refA.sign;
 
@@ -164,8 +224,20 @@ function executeDelayedOp(model: AModel): AModel | null {
       // If operating on a parentRef, update it and return model with updated tree
       if (modelDelayedOp.parentRef) {
         // Need to update the parent ref's children and rebuild model
-        const updatedParent = { ...modelDelayedOp.parentRef };
-        updatedParent.arefs = newRefs;
+        const parent = modelDelayedOp.parentRef;
+        const updatedParent = new ARef({
+          token: parent.token,
+          arefs: newRefs,
+          value: parent.value,
+          delayedOp: parent.delayedOp,
+          refType: parent.refType,
+          variables: parent.variables,
+          depth: parent.depth,
+          role: parent.role,
+          sign: parent.sign,
+          power: parent.power,
+          variableName: parent.variableName
+        });
 
         // Find and replace parent in model.refs
         const newModelRefs = model.refs.map(ref =>
