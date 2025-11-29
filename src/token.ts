@@ -19,7 +19,6 @@ export class ARef {
   token: AToken;
   arefs: ReadonlyArray<ARef>;
   value: any;
-  delayedOp?: DelayedOp;
   refType: RefType;
   /** For expr type: which variables are contained (e.g., ['x', 'y']) 
    * assume that names are sorted
@@ -113,6 +112,10 @@ export function createAref(text: string, sourceArefs?: ARef[], value?: number | 
 }
 
 export function getRefText(ref: ARef): string {
+  // If this is a tree node with children, build text from children
+  if (ref.arefs && ref.arefs.length > 0 && ref.token.text === '(...)') {
+    return ref.arefs.map(child => getRefText(child)).join(' ');
+  }
   return ref.token.text;
 }
 
@@ -221,7 +224,6 @@ export function createDelayedRef(
     token: createToken(text),
     arefs: sourceArefs,
     value: null,
-    delayedOp,
     refType,
     variables
   };
@@ -234,19 +236,6 @@ export function createDelayedRef(
  * 3. Default is 1
  */
 export function getPower(ref: ARef): number {
-  // Check for delayed pow op
-  if (ref.delayedOp && ref.delayedOp.kind === 'pow') {
-    const expRef = ref.delayedOp.exponent;
-    if (expRef.value !== null && typeof expRef.value === 'number') {
-      return expRef.value;
-    }
-    // Try parsing from text
-    const expText = getRefText(expRef);
-    const parsed = parseInt(expText, 10);
-    if (!isNaN(parsed)) {
-      return parsed;
-    }
-  }
   // Fall back to power property or default 1
   return ref.power ?? 1;
 }
@@ -258,9 +247,6 @@ export function getPower(ref: ARef): number {
  * 3. Returns null if not a variable
  */
 export function getBaseVariable(ref: ARef): ARef | null {
-  if (ref.delayedOp && ref.delayedOp.kind === 'pow') {
-    return ref.delayedOp.base;
-  }
   if (ref.refType === 'variable') {
     return ref;
   }
@@ -278,10 +264,6 @@ export function getVariableName(ref: ARef): string | null {
   if (ref.variableName) {
     return ref.variableName;
   }
-  if (ref.delayedOp && ref.delayedOp.kind === 'pow') {
-    const base = ref.delayedOp.base;
-    return base.variableName ?? getRefText(base);
-  }
   if (ref.refType === 'variable') {
     return getRefText(ref);
   }
@@ -293,7 +275,6 @@ export function getVariableName(ref: ARef): string | null {
  */
 export function isVariableRef(ref: ARef): boolean {
   if (ref.refType === 'variable') return true;
-  if (ref.delayedOp && ref.delayedOp.kind === 'pow') return true;
   if (ref.variableName) return true;
   return false;
 }

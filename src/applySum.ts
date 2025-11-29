@@ -1,4 +1,4 @@
-import { AModel, createModel } from "./model.js";
+import { AModel, createModel, ModelDelayedOp } from "./model.js";
 import { calculateTermAddCost, canAddTerms, COST } from "./terms.js";
 import { ARef, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
 
@@ -60,15 +60,21 @@ export function* applySumScan(model: AModel): Generator<AModel> {
   // Scan cost: proportional to number of terms
   const scanCost = termIndices.length * COST.ADD_SINGLE_DIGIT;
 
-  // Create model with pendingOp for each pair
+  // Create model with delayedOp for each pair
   for (const pair of pairs) {
+    const delayedOp: ModelDelayedOp = {
+      kind: 'add',
+      indexes: [pair.iPos, pair.jPos],
+      operation: pair,
+      cost: pair.cost
+    };
+
     const pendingModel = new AModel({
       parent: model,
       transform: `sum_scan_${pair.iPos}_${pair.jPos}`,
       refs: refs, // Keep same refs - not realized yet
       totalApproxCost: model.totalApproxCost + scanCost,
-      pendingOp: (m) => realizeSumPair(m, pair),
-      pendingOpCost: pair.cost
+      delayedOp
     });
 
     yield pendingModel;
@@ -156,13 +162,13 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
 }
 
 /**
- * Legacy: Direct sum application without pending ops.
- * Use applySumScan for lazy evaluation.
+ * Direct sum application - executes delayed operations immediately.
  */
 export function* applySum(model: AModel): Generator<AModel> {
   for (const pendingModel of applySumScan(model)) {
-    if (pendingModel.pendingOp) {
-      yield pendingModel.pendingOp(pendingModel);
+    if (pendingModel.delayedOp) {
+      const pair = pendingModel.delayedOp.operation as TermPair;
+      yield realizeSumPair(pendingModel, pair);
     } else {
       yield pendingModel;
     }

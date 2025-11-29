@@ -119,11 +119,6 @@ function getRefValue(ref: ARef): number | null {
     return ref.value;
   }
 
-  // If ref has a delayed op, evaluate it recursively
-  if (ref.delayedOp) {
-    return evaluateDelayedOp(ref);
-  }
-
   // Try to parse as number from text
   const text = getRefText(ref);
   if (/^-?\d+$/.test(text)) {
@@ -133,61 +128,3 @@ function getRefValue(ref: ARef): number | null {
   // Can't evaluate (contains variables or invalid)
   return null;
 }
-
-/**
- * Evaluate a delayed operation recursively.
- * If operands have delayed ops, they are evaluated first.
- */
-export function evaluateDelayedOp(ref: ARef): number | null {
-  if (!ref.delayedOp) {
-    return ref.value;
-  }
-
-  const op = ref.delayedOp;
-  switch (op.kind) {
-    case 'add': {
-      const leftVal = getRefValue(op.left);
-      const rightVal = getRefValue(op.right);
-      if (leftVal === null || rightVal === null) return null;
-      return leftVal + rightVal;
-    }
-    case 'sub': {
-      const leftVal = getRefValue(op.left);
-      const rightVal = getRefValue(op.right);
-      if (leftVal === null || rightVal === null) return null;
-      return leftVal - rightVal;
-    }
-    case 'mul': {
-      const leftVal = getRefValue(op.left);
-      const rightVal = getRefValue(op.right);
-      if (leftVal === null || rightVal === null) return null;
-      return leftVal * rightVal;
-    }
-    case 'div': {
-      const leftVal = getRefValue(op.left);
-      const rightVal = getRefValue(op.right);
-      if (leftVal === null || rightVal === null) return null;
-      if (rightVal === 0) return null;
-      return Math.floor(leftVal / rightVal);
-    }
-    case 'pow': {
-      const baseVal = getRefValue(op.base);
-      const expVal = getRefValue(op.exponent);
-      if (baseVal === null || expVal === null) return null;
-      return Math.pow(baseVal, expVal);
-    }
-    case 'combine': {
-      // Combine terms - sum all numeric values
-      let sum = 0;
-      for (const term of op.terms) {
-        const val = getRefValue(term);
-        if (val === null) return null;
-        sum += val;
-      }
-      return sum;
-    }
-    default:
-      return null;
-  }
-}
-

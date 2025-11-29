@@ -1,4 +1,4 @@
-import { AToken, ARef, RefType, TokenRole, inferRefType, createDelayedRef, DelayedOp } from './token.js';
+import { AToken, ARef, RefType, TokenRole, inferRefType, createDelayedRef, DelayedOp, getRefText } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -171,236 +171,249 @@ export function parseExpression(expr: string): ARef[] {
     i++;
   }
 
-  assignDepth(refs);
-
-  return assignRoles(refs);
+  return buildTermTree(refs);
 }
 
 /**
- * Assign depth to each ref based on parentheses nesting.
- * Depth starts at 0, +1 for each '(' opened, -1 for each ')' closed.
+ * Build a term tree from refs.
+ * Top level contains addition/subtraction operations (terms).
+ * Multiplication, division, power, and parentheses create nested tree nodes.
  */
-function assignDepth(refs: ARef[]): void {
-  let depth = 0;
+function buildTermTree(refs: ARef[]): ARef[] {
+  // First pass: handle parentheses
+  const withoutParens = collapseParentheses(refs);
 
-  for (const ref of refs) {
-    const text = ref.token.text;
+  // Second pass: handle power (highest precedence after parens)
+  const withoutPower = collapsePower(withoutParens);
 
-    if (text === '(') {
-      ref.depth = depth;
-      depth++;
-    } else if (text === ')') {
-      depth--;
-      ref.depth = depth;
+  // Third pass: handle multiplication/division
+  const withoutMulDiv = collapseMulDiv(withoutPower);
+
+  // Fourth pass: assign roles and signs for addition/subtraction
+  return assignTermRoles(withoutMulDiv);
+}
+
+/**
+ * Collapse parentheses into tree nodes
+ */
+function collapseParentheses(refs: ARef[]): ARef[] {
+  const result: ARef[] = [];
+  let i = 0;
+
+  while (i < refs.length) {
+    const ref = refs[i];
+
+    if (ref.token.text === '(') {
+      // Find matching closing paren
+      let depth = 1;
+      let j = i + 1;
+
+      while (j < refs.length && depth > 0) {
+        if (refs[j].token.text === '(') depth++;
+        else if (refs[j].token.text === ')') depth--;
+        j++;
+      }
+
+      // Extract content between parens (exclusive)
+      const innerRefs = refs.slice(i + 1, j - 1);
+
+      // Recursively process inner content
+      const processedInner = buildTermTree(innerRefs);
+
+      // Create a node for the parenthesized expression
+      const parenNode = createRefFromText(`(...)`, 'expr');
+      parenNode.arefs = processedInner;
+      result.push(parenNode);
+
+      i = j;
     } else {
-      ref.depth = depth;
+      result.push(ref);
+      i++;
     }
   }
+
+  return result;
 }
 
 /**
- * Pass 3: Assign roles and create delayed ops for signs and powers.
- * Returns a new array of refs where:
- * - Unary signs are removed and converted to delayed negate ops on the following term
- * - Power expressions (x^2) are collapsed into a single delayed pow ref
+ * Collapse power operations into tree nodes
  */
-function assignRoles(refs: ARef[]): ARef[] {
+function collapsePower(refs: ARef[]): ARef[] {
+  const result: ARef[] = [];
+  let i = 0;
+
+  while (i < refs.length) {
+    const ref = refs[i];
+    const nextRef = refs[i + 1];
+    const expRef = refs[i + 2];
+
+    // Check for power pattern: <base> ^ <exponent>
+    if (nextRef && nextRef.token.text === '^' && expRef) {
+      const varName = ref.variableName || ref.token.text;
+      const power = expRef.refType === 'digit' ? (expRef.value as number) : 2;
+
+      // Create delayed pow op
+      const delayedOp: DelayedOp = { kind: 'pow', base: ref, exponent: expRef };
+      const powerNode = createDelayedRef(`${varName}^${power}`, [ref, expRef], delayedOp);
+      powerNode.variableName = varName;
+      powerNode.power = power;
+      powerNode.arefs = [ref, expRef];
+
+      result.push(powerNode);
+      i += 3;
+    } else {
+      result.push(ref);
+      i++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Collapse multiplication/division into tree nodes
+ */
+function collapseMulDiv(refs: ARef[]): ARef[] {
+  const result: ARef[] = [];
+  let i = 0;
+
+  while (i < refs.length) {
+    const ref = refs[i];
+
+    // Skip if this is an add/sub operator - those stay at top level
+    if (ref.token.text === '+' || ref.token.text === '-') {
+      result.push(ref);
+      i++;
+      continue;
+    }
+
+    // Collect a sequence of multiplication/division operations
+    const factors: ARef[] = [ref];
+    const ops: ARef[] = [];
+    let j = i + 1;
+
+    while (j < refs.length) {
+      const opRef = refs[j];
+
+      // Stop at add/sub operators
+      if (opRef.token.text === '+' || opRef.token.text === '-') {
+        break;
+      }
+
+      // Check for mul/div operator
+      if (isMulDivOp(opRef.token.text)) {
+        const nextFactor = refs[j + 1];
+        if (nextFactor) {
+          ops.push(opRef);
+          factors.push(nextFactor);
+          j += 2;
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    }
+
+    // If we collected mul/div operations, create a tree node
+    if (factors.length > 1) {
+      // Create expression node containing the factors
+      const exprNode = createRefFromText('(...)', 'expr');
+
+      // Interleave factors and operators
+      const children: ARef[] = [];
+      for (let k = 0; k < factors.length; k++) {
+        children.push(factors[k]);
+        if (k < ops.length) {
+          children.push(ops[k]);
+        }
+      }
+
+      exprNode.arefs = children;
+      result.push(exprNode);
+      i = j;
+    } else {
+      result.push(ref);
+      i++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Assign term roles and signs to top-level addition/subtraction
+ */
+function assignTermRoles(refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let currentSign: '+' | '-' = '+';
-  let prevWasMulDiv = false;
-  let prevWasAddSub = true; // Start as true to handle leading sign
-  let prevWasOpenParen = false;
   let i = 0;
 
   while (i < refs.length) {
     const ref = refs[i];
     const text = ref.token.text;
-    const nextRef = refs[i + 1];
 
-    if (ref.refType === 'op') {
-      if (isAddSubOp(text)) {
-        // Check if unary (sign) or binary (operator)
-        const isUnary = result.length === 0 || prevWasAddSub || prevWasOpenParen;
-
-        if (isUnary) {
-          // This is a sign - capture for next term, don't emit
-          currentSign = text as '+' | '-';
-          prevWasAddSub = true;
-          i++;
-          continue;
-        } else {
-          // Binary operator - emit it
-          const opRef = createRefFromText(text, 'op', { role: 'operator' });
-          result.push(opRef);
-          currentSign = text as '+' | '-';
-          prevWasAddSub = true;
-          prevWasMulDiv = false;
-        }
-      }
-      else if (isMulDivOp(text)) {
-        const opRef = createRefFromText(text, 'op', { role: 'operator' });
-        result.push(opRef);
-        prevWasMulDiv = true;
-        prevWasAddSub = false;
-      }
-      else if (text === '^') {
-        // Power operator - will be handled when we see the variable
-        // Skip it here, it's consumed with the variable
-        const opRef = createRefFromText(text, 'op', { role: 'operator' });
-        result.push(opRef);
-        prevWasMulDiv = false;
-        prevWasAddSub = false;
-      }
-      else if (text === '(') {
-        const opRef = createRefFromText(text, 'op', { role: 'operator' });
-        result.push(opRef);
-        prevWasOpenParen = true;
-        prevWasAddSub = true;
-        prevWasMulDiv = false;
-      }
-      else if (text === ')') {
-        const opRef = createRefFromText(text, 'op', { role: 'operator' });
-        result.push(opRef);
-        prevWasOpenParen = false;
-        prevWasAddSub = false;
-        prevWasMulDiv = false;
-      }
-      i++;
-      continue;
-    }
-
-    // Handle digit
-    if (ref.refType === 'digit') {
-      let newRef: ARef;
-
-      // Check if this is an exponent (preceded by ^)
-      const prevResult = result[result.length - 1];
-      if (prevResult && prevResult.token.text === '^') {
-        // This is an exponent - mark it
-        newRef = createRefFromText(text, 'digit', {
-          value: ref.value as number,
-          role: 'exponent'
-        });
-      } else if (prevWasMulDiv) {
-        // Factor in multiplication
-        newRef = createRefFromText(text, 'digit', {
-          value: ref.value as number,
-          role: 'factor'
-        });
+    // Handle add/sub operators
+    if (isAddSubOp(text)) {
+      // Check if this is a unary sign (at start or after operator)
+      if (result.length === 0 || result[result.length - 1].refType === 'op') {
+        currentSign = text as '+' | '-';
+        i++;
+        continue;
       } else {
-        // Term - apply sign if negative
-        if (currentSign === '-') {
-          // Create delayed negate op
-          const delayedOp: DelayedOp = { kind: 'mul', left: createRefFromText('-1', 'digit', { value: -1 }), right: ref };
-          newRef = createDelayedRef(`(-${text})`, [ref], delayedOp);
-          newRef.role = 'term';
-          newRef.sign = '-';
-        } else {
-          newRef = createRefFromText(text, 'digit', {
-            value: ref.value as number,
-            role: 'term',
-            sign: '+'
-          });
-        }
-        currentSign = '+';
+        // Binary operator - keep it
+        const opRef = createRefFromText(text, 'op', { role: 'operator' });
+        result.push(opRef);
+        currentSign = text as '+' | '-';
+        i++;
+        continue;
       }
-
-      result.push(newRef);
-      prevWasAddSub = false;
-      prevWasMulDiv = false;
-      prevWasOpenParen = false;
-      i++;
-      continue;
     }
 
-    // Handle variable
-    if (ref.refType === 'variable') {
-      const varName = ref.variableName ?? text;
+    // For all other refs (terms), apply the current sign
+    let termRef = ref;
 
-      // Check if followed by ^ for power
-      let power = 1;
-      let skipCount = 1; // How many tokens to skip
-
-      if (nextRef && nextRef.token.text === '^') {
-        const expRef = refs[i + 2];
-        if (expRef && expRef.refType === 'digit') {
-          power = expRef.value as number;
-          skipCount = 3; // Skip variable, ^, and exponent
-        }
-      }
-
-      let newRef: ARef;
-      const prevResult = result[result.length - 1];
-
-      // Determine role
-      const isFactor = prevWasMulDiv || (prevResult && prevResult.refType === 'digit' && prevResult.role === 'factor');
-
-      if (power > 1) {
-        // Create delayed pow op: x^2 -> pow(x, 2)
-        const baseRef = createRefFromText(varName, 'variable', { variableName: varName, power: 1 });
-        const expRef = createRefFromText(String(power), 'digit', { value: power });
-        const delayedOp: DelayedOp = { kind: 'pow', base: baseRef, exponent: expRef };
-
-        const resultText = `${varName}^${power}`;
-        newRef = createDelayedRef(resultText, [baseRef, expRef], delayedOp);
-        newRef.variableName = varName;
-        newRef.power = power;
-        newRef.role = isFactor ? 'factor' : 'term';
-
-        if (!isFactor) {
-          if (currentSign === '-') {
-            // Wrap in negate
-            const negDelayedOp: DelayedOp = { kind: 'mul', left: createRefFromText('-1', 'digit', { value: -1 }), right: newRef };
-            const negRef = createDelayedRef(`(-${resultText})`, [newRef], negDelayedOp);
-            negRef.role = 'term';
-            negRef.sign = '-';
-            negRef.variableName = varName;
-            negRef.power = power;
-            newRef = negRef;
-          } else {
-            newRef.sign = '+';
-          }
-          currentSign = '+';
-        }
-
-        // Remove the ^ operator we already added
-        if (result.length > 0 && result[result.length - 1].token.text === '^') {
-          result.pop();
+    // Apply sign to create term
+    if (currentSign === '-' && ref.refType !== 'op') {
+      // Negate the term
+      if (ref.refType === 'digit') {
+        const origValue = ref.value as number;
+        const negValue = -origValue;
+        termRef = createRefFromText(String(negValue), 'digit', {
+          value: negValue,
+          role: 'term',
+          sign: '-'
+        });
+        // Copy arefs if present
+        if (ref.arefs && ref.arefs.length > 0) {
+          termRef.arefs = ref.arefs;
         }
       } else {
-        // Simple variable
-        newRef = createRefFromText(varName, 'variable', {
-          variableName: varName,
-          power: 1,
-          role: isFactor ? 'factor' : 'term'
-        });
-
-        if (!isFactor) {
-          if (currentSign === '-') {
-            // Create delayed negate
-            const delayedOp: DelayedOp = { kind: 'mul', left: createRefFromText('-1', 'digit', { value: -1 }), right: newRef };
-            const negRef = createDelayedRef(`(-${varName})`, [newRef], delayedOp);
-            negRef.role = 'term';
-            negRef.sign = '-';
-            negRef.variableName = varName;
-            newRef = negRef;
-          } else {
-            newRef.sign = '+';
-          }
-          currentSign = '+';
+        // Create negate delayed op
+        const refText = getRefText(ref);
+        const delayedOp: DelayedOp = {
+          kind: 'mul',
+          left: createRefFromText('-1', 'digit', { value: -1 }),
+          right: ref
+        };
+        termRef = createDelayedRef(`(-${refText})`, [ref], delayedOp);
+        termRef.role = 'term';
+        termRef.sign = '-';
+        if (ref.variableName) termRef.variableName = ref.variableName;
+        if (ref.power) termRef.power = ref.power;
+        // Preserve arefs for tree nodes
+        if (ref.arefs && ref.arefs.length > 0) {
+          termRef.arefs = ref.arefs;
         }
       }
-
-      result.push(newRef);
-      prevWasAddSub = false;
-      prevWasMulDiv = false;
-      prevWasOpenParen = false;
-      i += skipCount;
-      continue;
+      currentSign = '+';
+    } else {
+      // Positive term
+      termRef.role = 'term';
+      termRef.sign = '+';
     }
 
-    // Fallback - just copy the ref
-    result.push(ref);
+    result.push(termRef);
     i++;
   }
 

@@ -1,10 +1,9 @@
-import { ARef, getRefText, createAref } from './token.js';
+import { ARef, getRefText, createAref, createDelayedRef, DelayedOp, isVariableRef, getVariableName, getPower } from './token.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
-import { evaluateDelayedOp } from './actions.js';
-import { COST } from './terms.js';
 import { AModel, createInitialModel, createModel, getModelPath, modelToKey } from './model.js';
+import { COST } from './terms.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -71,53 +70,119 @@ class MinHeap<T> {
 // ============================================================================
 
 /**
- * Evaluate a single delayed ref and return a new ref with computed value.
- * Returns null if the ref has no delayed op or can't be computed (e.g., contains variables).
+ * Execute a model's delayed operation if present.
+ * Updates the refs at the specified indexes within the parent or root.
+ * Returns a new model with the operation executed, or null if no delayed op.
  */
-function computeSingleRef(ref: ARef): ARef | null {
-  if (!ref.delayedOp) {
+function executeDelayedOp(model: AModel): AModel | null {
+  if (!model.delayedOp) {
     return null;
   }
 
-  // Only compute if result is a digit type (pure numeric)
-  if (ref.refType !== 'digit') {
-    return null;
-  }
+  const modelDelayedOp = model.delayedOp;
+  const targetRefs = modelDelayedOp.parentRef ? modelDelayedOp.parentRef.arefs as ARef[] : model.refs;
 
-  const value = evaluateDelayedOp(ref);
-  if (value === null) {
-    return null;
-  }
+  // Execute based on operation kind
+  switch (modelDelayedOp.kind) {
+    case 'add':
+    case 'sub': {
+      // Get the operation data (TermPair)
+      const pair = modelDelayedOp.operation;
+      const [iPos, jPos] = modelDelayedOp.indexes;
 
-  // Create new ref with computed value
-  return createAref(String(value), ref.arefs as ARef[], value);
-}
+      const refA = targetRefs[iPos];
+      const refB = targetRefs[jPos];
+      const effectiveOp = refB.sign ?? '+';
 
-/**
- * Compute all delayed refs in a model's tokens.
- * Returns a new model with computed values, or null if nothing was computed.
- */
-function computeDelayedRefs(model: AModel): AModel | null {
-  let hasComputed = false;
-  const newTokens: ARef[] = [];
+      let resultText: string;
+      let refDelayedOp: DelayedOp;
 
-  for (const token of model.refs) {
-    const computed = computeSingleRef(token);
-    if (computed) {
-      newTokens.push(computed);
-      hasComputed = true;
-    } else {
-      newTokens.push(token);
+      // Case 1: Both are digits
+      if (refA.refType === 'digit' && refB.refType === 'digit') {
+        refDelayedOp = effectiveOp === '+'
+          ? { kind: 'add', left: refA, right: refB }
+          : { kind: 'sub', left: refA, right: refB };
+        resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+      }
+      // Case 2: Both are variables
+      else if (isVariableRef(refA) && isVariableRef(refB)) {
+        const aVarName = getVariableName(refA)!;
+        const aPower = getPower(refA);
+
+        if (effectiveOp === '+') {
+          refDelayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
+          const powerStr = aPower !== 1 ? `^${aPower}` : '';
+          resultText = `(2*${aVarName}${powerStr})`;
+        } else {
+          refDelayedOp = { kind: 'sub', left: refA, right: refB };
+          resultText = '0';
+        }
+      }
+      // Case 3: Expressions
+      else {
+        const aText = getRefText(refA);
+        const bText = getRefText(refB);
+
+        if (effectiveOp === '+') {
+          refDelayedOp = { kind: 'add', left: refA, right: refB };
+          resultText = `(${aText}+${bText})`;
+        } else {
+          refDelayedOp = { kind: 'sub', left: refA, right: refB };
+          resultText = aText === bText ? '0' : `(${aText}-${bText})`;
+        }
+      }
+
+      const resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
+      resultRef.role = 'term';
+      resultRef.sign = refA.sign;
+
+      // Build new refs array
+      const opBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
+
+      let newRefs: ARef[] = [];
+
+      // Before refA
+      newRefs.push(...targetRefs.slice(0, iPos));
+
+      // The result
+      newRefs.push(resultRef);
+
+      // Between refA and operator before refB
+      const startAfterA = iPos + 1;
+      const endBeforeOpB = opBeforeB > 0 ? opBeforeB : jPos;
+      if (endBeforeOpB > startAfterA) {
+        newRefs.push(...targetRefs.slice(startAfterA, endBeforeOpB));
+      }
+
+      // After refB
+      newRefs.push(...targetRefs.slice(jPos + 1));
+
+      const transformName = refA.refType === 'digit'
+        ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
+        : `combine_${iPos}_${jPos}`;
+
+      // If operating on a parentRef, update it and return model with updated tree
+      if (modelDelayedOp.parentRef) {
+        // Need to update the parent ref's children and rebuild model
+        const updatedParent = { ...modelDelayedOp.parentRef };
+        updatedParent.arefs = newRefs;
+
+        // Find and replace parent in model.refs
+        const newModelRefs = model.refs.map(ref =>
+          ref === modelDelayedOp.parentRef ? updatedParent : ref
+        );
+
+        return createModel(model, transformName, newModelRefs, modelDelayedOp.cost, resultRef);
+      } else {
+        // Operating on model.refs directly
+        return createModel(model, transformName, newRefs, modelDelayedOp.cost, resultRef);
+      }
     }
-  }
 
-  if (!hasComputed) {
-    return null;
+    default:
+      // Other operation types not yet implemented
+      return null;
   }
-
-  // Create new model with computed tokens
-  // Cost of computation is low since it's just evaluation
-  return createModel(model, 'compute', newTokens, COST.ADD_SINGLE_DIGIT);
 }
 
 // ============================================================================
@@ -185,16 +250,16 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
       }
     }
 
-    // Compute delayed operations for end-of-chain models and continue search
+    // Execute delayed operations for end-of-chain models and continue search
     for (const model of endOfChain) {
-      const computedModel = computeDelayedRefs(model);
-      if (computedModel) {
-        const computedKey = modelToKey(computedModel);
-        if (!visited.has(computedKey)) {
-          // New state after computation - add to heap for further exploration
-          heap.push(computedModel);
+      const executedModel = executeDelayedOp(model);
+      if (executedModel) {
+        const executedKey = modelToKey(executedModel);
+        if (!visited.has(executedKey)) {
+          // New state after execution - add to heap for further exploration
+          heap.push(executedModel);
         }
-        // If already visited, skip - we've seen this computed state before
+        // If already visited, skip - we've seen this executed state before
       }
     }
 

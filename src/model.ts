@@ -2,13 +2,24 @@ import { isGoal } from "./goal.js";
 import { ARef, getRefText, isVariableRef, getVariableName, getPower } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
 
+/**
+ * Delayed operation to be executed at model level
+ * Stores parent ARef and indexes for updating when operation executes
+ */
+export interface ModelDelayedOp {
+  kind: 'add' | 'sub' | 'mul' | 'div' | 'pow' | 'combine';
+  parentRef?: ARef;  // The composite ARef containing children to update
+  indexes: number[]; // Indexes within parentRef.arefs (or model.refs if no parentRef)
+  operation: any;    // Operation-specific data
+  cost: number;      // Cost to execute this operation
+}
+
 export class AModel {
   parent?: AModel;
   transform: string;
   refs: ARef[];
 
-  pendingOp?: (model: AModel) => AModel;
-  pendingOpCost?: number;
+  delayedOp?: ModelDelayedOp;  // Single delayed operation for this model
 
   remainCost: number;
 
@@ -22,16 +33,14 @@ export class AModel {
     parent?: AModel;
     transform: string;
     refs: ARef[];
-    pendingOp?: (model: AModel) => AModel;
-    pendingOpCost?: number;
+    delayedOp?: ModelDelayedOp;
     totalApproxCost?: number;
     resultRef?: ARef;
   }) {
     this.parent = params.parent;
     this.transform = params.transform;
     this.refs = params.refs;
-    this.pendingOp = params.pendingOp;
-    this.pendingOpCost = params.pendingOpCost;
+    this.delayedOp = params.delayedOp;
     this.remainCost = getApproxCost(this);
     this.totalApproxCost = params.totalApproxCost ?? 0;
     this.resultRef = params.resultRef;
