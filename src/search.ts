@@ -107,8 +107,8 @@ function executeDelayedOp(model: AModel): AModel | null {
       let resultText: string;
       let refDelayedOp: DelayedOp;
 
-      // Case 1: Both are digits
-      if (refA.refType === 'digit' && refB.refType === 'digit') {
+      // Case 1: Both are numbers
+      if (refA.refType === 'number' && refB.refType === 'number') {
         refDelayedOp = effectiveOp === '+'
           ? { kind: 'add', left: refA, right: refB }
           : { kind: 'sub', left: refA, right: refB };
@@ -146,8 +146,8 @@ function executeDelayedOp(model: AModel): AModel | null {
       let resultRef: ARef;
       let computedValue: number | null = null;
 
-      if (refA.refType === 'digit' && refB.refType === 'digit') {
-        // Both are digits - compute directly
+      if (refA.refType === 'number' && refB.refType === 'number') {
+        // Both are numbers - compute directly
         const aVal = refA.value as number;
         const bVal = refB.value as number;
 
@@ -217,7 +217,7 @@ function executeDelayedOp(model: AModel): AModel | null {
       // After refB
       newRefs.push(...targetRefs.slice(jPos + 1));
 
-      const transformName = refA.refType === 'digit'
+      const transformName = refA.refType === 'number'
         ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
         : `combine_${iPos}_${jPos}`;
 

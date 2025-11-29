@@ -15,7 +15,7 @@ export interface ModelDelayedOp {
   compute: (model: AModel, operation: any) => AModel;  // Function to perform the computation
 }
 
-class AModelInternalVars {
+export class AModelSymbolCache {
   /**
  * Cache mapping aref[] to internal variable names (e.g., ?1, ?2, ?3)
  * Key: serialized aref array (using getRefText)
@@ -56,7 +56,7 @@ export class AModel {
    */
   totalApproxCost: number;
   resultRef?: ARef;  // The ref created by this transform (also in tokens array)
-  cache: AModelInternalVars;
+  cache: AModelSymbolCache;
 
   constructor(params: {
     parent?: AModel;
@@ -79,7 +79,7 @@ export class AModel {
     if (params.parent) {
       this.cache = params.parent.cache;
     } else {
-      this.cache = new AModelInternalVars();
+      this.cache = new AModelSymbolCache();
     }
   }
 }
@@ -93,13 +93,65 @@ export function modelToKey(model: AModel): string {
 
 /**
  * Create initial model from tokens
+ * Converts sub-expressions to symbols using the model's cache
  */
 export function createInitialModel(tokens: ARef[]): AModel {
-  return new AModel({
+  const model = new AModel({
     parent: undefined,
     transform: 'initial',
     refs: tokens,
     totalApproxCost: 0
+  });
+
+  // Convert sub-expressions to symbols
+  model.refs = convertSubExpressionsToSymbols(tokens, model.cache);
+
+  return model;
+}
+
+/**
+ * Convert sub-expressions (expr nodes) to symbols using the cache
+ */
+function convertSubExpressionsToSymbols(refs: ARef[], cache: AModelSymbolCache): ARef[] {
+  return refs.map(ref => {
+    // If this is an expression with children representing a mul/div/pow operation, convert to symbol
+    if (ref.refType === 'expr' && ref.arefs && ref.arefs.length > 0 && ref.token.text === '(...)') {
+      // Recursively process children first
+      const processedChildren = convertSubExpressionsToSymbols(ref.arefs as ARef[], cache);
+
+      // Get symbol name from cache
+      const symbolName = cache.getInternalVar(processedChildren);
+
+      // Create symbol ARef
+      const symbolRef = new ARef({
+        token: { id: ref.token.id, text: symbolName },
+        arefs: processedChildren,
+        value: undefined, // Not yet computed
+        refType: 'symbol',
+        role: ref.role,
+        variables: ref.variables,
+        symbol: symbolName
+      });
+
+      return symbolRef;
+    }
+
+    // For other types, recursively process children if any
+    if (ref.arefs && ref.arefs.length > 0) {
+      const processedChildren = convertSubExpressionsToSymbols(ref.arefs as ARef[], cache);
+      return new ARef({
+        token: ref.token,
+        arefs: processedChildren,
+        value: ref.value,
+        delayedOp: ref.delayedOp,
+        refType: ref.refType,
+        variables: ref.variables,
+        depth: ref.depth,
+        role: ref.role
+      });
+    }
+
+    return ref;
   });
 }
 
@@ -146,12 +198,12 @@ function getApproxCost(a: AModel): number {
 
   for (const term of terms) {
     let key: string;
-    if (term.refType === 'digit') {
-      key = 'digit';
-    } else if (term.isVariableRef(term)) {
-      const varName = getVariableName(term) || '';
+    if (term.refType === 'number') {
+      key = 'number';
+    } else if (term.refType === 'symbol') {
+      const varName = getRefText(term);
       const power = term.getPower();
-      key = `${varName}^${power}`;
+      key = `${varName}^${power.value ?? 1}`;
     } else {
       // For expressions, use the text as key (simplified)
       key = `expr:${getRefText(term)}`;
@@ -172,7 +224,7 @@ function getApproxCost(a: AModel): number {
     // Number of operations needed to combine all terms in this group
     const numOps = groupTerms.length - 1;
 
-    if (key === 'digit') {
+    if (key === 'number') {
       // Estimate cost for combining numbers
       // Assume average case with MAX_EXPR_VALUE
       const avgCost = COST.ADD_PER_DIGIT * Math.log10(MAX_EXPR_VALUE);
@@ -216,8 +268,6 @@ export function createModel(
     transform,
     refs: tokens,
     totalApproxCost: parent.totalApproxCost + cost,
-    resultRef,
-    cache: parent.cache,
-    nextInternalVarNum: parent.nextInternalVarNum
+    resultRef
   });
 }

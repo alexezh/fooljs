@@ -46,6 +46,7 @@ export class ARef {
     variables?: string[];
     depth?: number;
     role?: TokenRole;
+    symbol?: string;
   }) {
     this.token = params.token;
     this.arefs = params.arefs ?? [];
@@ -55,6 +56,7 @@ export class ARef {
     this.variables = params.variables;
     this.depth = params.depth;
     this.role = params.role;
+    this.symbol = params.symbol ?? this.token.text;
   }
 
   get isNumber(): boolean {
@@ -83,7 +85,7 @@ export class ARef {
   getPower(): ARef {
     return (this.isExp()) ? this.arefs[2] : new ARef({
       token: createToken('1'),
-      refType: 'digit',
+      refType: 'number',
       value: 1
     });
   }
@@ -116,7 +118,7 @@ export function inferRefType(text: string): RefType {
   }
   // Single variable
   if (/^[a-zA-Z]$/.test(text)) {
-    return 'variable';
+    return 'symbol';
   }
   // Everything else is an expression
   return 'expr';
@@ -136,7 +138,7 @@ export function extractVariables(text: string): string[] {
 export function collectVariables(refs: ARef[]): string[] {
   const vars = new Set<string>();
   for (const ref of refs) {
-    if (ref.refType === 'variable') {
+    if (ref.refType === 'symbol') {
       vars.add(getRefText(ref));
     } else if (ref.variables) {
       ref.variables.forEach(v => vars.add(v));
@@ -147,7 +149,7 @@ export function collectVariables(refs: ARef[]): string[] {
 
 export function createAref(text: string, sourceArefs?: ARef[], value?: number | null): ARef {
   const refType = inferRefType(text);
-  const variables = refType === 'variable'
+  const variables = refType === 'symbol'
     ? [text]
     : refType === 'expr'
       ? (sourceArefs ? collectVariables(sourceArefs) : extractVariables(text))
@@ -163,6 +165,10 @@ export function createAref(text: string, sourceArefs?: ARef[], value?: number | 
 }
 
 export function getRefText(ref: ARef): string {
+  // For symbols, return the symbol name
+  if (ref.refType === 'symbol') {
+    return ref.symbol;
+  }
   // If this is a tree node with children, build text from children
   if (ref.arefs && ref.arefs.length > 0 && ref.token.text === '(...)') {
     return ref.arefs.map(child => getRefText(child)).join(' ');
@@ -214,19 +220,19 @@ export type DelayedOp =
  * - Variable and expr containing only that variable are compatible
  */
 export function areRefsCompatible(a: ARef, b: ARef): boolean {
-  // Both digits - always compatible
-  if (a.refType === 'digit' && b.refType === 'digit') {
+  // Both numbers - always compatible
+  if (a.refType === 'number' && b.refType === 'number') {
     return true;
   }
 
-  // Both variables - compatible if same variable
-  if (a.refType === 'variable' && b.refType === 'variable') {
+  // Both symbols - compatible if same symbol
+  if (a.refType === 'symbol' && b.refType === 'symbol') {
     return getRefText(a) === getRefText(b);
   }
 
   // Get variables from both refs
-  const aVars = a.variables ?? (a.refType === 'variable' ? [getRefText(a)] : []);
-  const bVars = b.variables ?? (b.refType === 'variable' ? [getRefText(b)] : []);
+  const aVars = a.variables ?? (a.refType === 'symbol' ? [getRefText(a)] : []);
+  const bVars = b.variables ?? (b.refType === 'symbol' ? [getRefText(b)] : []);
 
   // If either has no variables and other has variables, not compatible
   if (aVars.length === 0 && bVars.length > 0) return false;
@@ -242,10 +248,10 @@ export function areRefsCompatible(a: ARef, b: ARef): boolean {
  * Determine RefType for a delayed operation based on operands
  */
 function inferRefTypeForTokens(sourceArefs: ARef[]): RefType {
-  // If all sources are digits, result is digit
-  const allDigits = sourceArefs.every(ref => ref.refType === 'digit');
-  if (allDigits) {
-    return 'digit';
+  // If all sources are numbers, result is number
+  const allNumbers = sourceArefs.every(ref => ref.refType === 'number');
+  if (allNumbers) {
+    return 'number';
   }
   // If any source has variables, result is expr
   return 'expr';
@@ -267,4 +273,43 @@ export function createDelayedRef(
     refType,
     variables
   });
+}
+
+/**
+ * Check if ref represents a variable (symbol with single letter name)
+ */
+export function isVariableRef(ref: ARef): boolean {
+  if (ref.refType === 'symbol') {
+    const text = getRefText(ref);
+    return text.length === 1 && /^[a-zA-Z]$/.test(text);
+  }
+  return false;
+}
+
+/**
+ * Get variable name from an ARef
+ */
+export function getVariableName(ref: ARef): string | null {
+  if (ref.refType === 'symbol') {
+    return getRefText(ref);
+  }
+  return null;
+}
+
+/**
+ * Get power from an ARef as a number
+ */
+export function getPower(ref: ARef): number {
+  const powerRef = ref.getPower();
+  if (powerRef.isNumber && typeof powerRef.value === 'number') {
+    return powerRef.value;
+  }
+  return 1;
+}
+
+/**
+ * Get the base variable from an ARef
+ */
+export function getBaseVariable(ref: ARef): ARef | null {
+  return ref.getBase();
 }

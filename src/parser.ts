@@ -121,9 +121,9 @@ export function parseExpression(expr: string): ARef[] {
     // Insert implicit * between number and variable (2x -> 2 * x)
     if (i + 1 < rawTokens.length && isNumberToken(token) && isVariableToken(rawTokens[i + 1])) {
       const value = parseInt(text, 10);
-      refs.push(createRef(token, 'digit', { value }));
+      refs.push(createRef(token, 'number', { value }));
       refs.push(createRefFromText('*', 'op'));
-      refs.push(createRef(rawTokens[i + 1], 'variable'));
+      refs.push(createRef(rawTokens[i + 1], 'symbol'));
       i += 2;
       continue;
     }
@@ -241,7 +241,7 @@ function collapsePower(refs: ARef[]): ARef[] {
     // Check for power pattern: <base> ^ <exponent>
     if (nextRef && nextRef.token.text === '^' && expRef) {
       const varName = getRefText(ref);
-      const power = expRef.refType === 'digit' ? (expRef.value as number) : 2;
+      const power = expRef.refType === 'number' ? (expRef.value as number) : 2;
 
       // Create delayed pow op - include operator in arefs
       const delayedOp: DelayedOp = { kind: 'pow', base: ref, exponent: expRef };
@@ -364,10 +364,10 @@ function assignTermRoles(refs: ARef[]): ARef[] {
     // Apply sign to create term
     if (currentSign === '-' && ref.refType !== 'op') {
       // Negate the term
-      if (ref.refType === 'digit') {
+      if (ref.refType === 'number') {
         const origValue = ref.value as number;
         const negValue = -origValue;
-        termRef = createRefFromText(String(negValue), 'digit', {
+        termRef = createRefFromText(String(negValue), 'number', {
           value: negValue,
           role: 'term'
         });
@@ -376,7 +376,7 @@ function assignTermRoles(refs: ARef[]): ARef[] {
       } else {
         // Create negate delayed op with -1 * ref
         const refText = getRefText(ref);
-        const minusOne = createRefFromText('-1', 'digit', { value: -1 });
+        const minusOne = createRefFromText('-1', 'number', { value: -1 });
         const mulOp = createRefFromText('*', 'op');
         const delayedOp: DelayedOp = {
           kind: 'mul',

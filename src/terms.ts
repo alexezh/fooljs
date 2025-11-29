@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, getRefText, areRefsCompatible } from "./token.js";
+import { ARef, getRefText, areRefsCompatible, getVariableName } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -115,8 +115,10 @@ export function calculateTermAddCost(a: ARef, b: ARef, op: '+' | '-'): number {
   if (a.isSymbol && b.isSymbol) {
     const aVarName = getVariableName(a);
     const bVarName = getVariableName(b);
-    const aPower = getPower(a);
-    const bPower = getPower(b);
+    const aPowerRef = a.getPower();
+    const bPowerRef = b.getPower();
+    const aPower = aPowerRef.isNumber && typeof aPowerRef.value === 'number' ? aPowerRef.value : 1;
+    const bPower = bPowerRef.isNumber && typeof bPowerRef.value === 'number' ? bPowerRef.value : 1;
 
     // Cancelling like terms: x - x = 0 (reward with negative cost)
     if (op === '-' && aVarName === bVarName && aPower === bPower) {

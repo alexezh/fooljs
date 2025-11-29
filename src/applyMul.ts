@@ -14,11 +14,12 @@ export function* applyMul(model: AModel): Generator<AModel> {
       const left = tokens[i - 1];
       const right = tokens[i + 1];
 
-      // number * variable -> coefficient-variable with delayed op
+      // number * symbol -> coefficient-variable with delayed op
       if (left.isNumber && right.isSymbol) {
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
-        const varName = getVariableName(right) ?? getRefText(right);
-        const power = getPower(right);
+        const varName = getRefText(right);
+        const powerRef = right.getPower();
+        const power = powerRef.isNumber && typeof powerRef.value === 'number' ? powerRef.value : 1;
         const powerStr = power > 1 ? `^${power}` : '';
         const combinedText = `${getRefText(left)}${varName}${powerStr}`;
         const op = tokens[i];
@@ -26,10 +27,11 @@ export function* applyMul(model: AModel): Generator<AModel> {
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
-      } else if (left.isSymbol() && right.isNumber) {
+      } else if (left.isSymbol && right.isNumber) {
         const delayedOp: DelayedOp = { kind: 'mul', left: right, right: left };
-        const varName = left.getBase().getVariableName();
-        const power = left.getPower();
+        const varName = getRefText(left);
+        const powerRef = left.getPower();
+        const power = powerRef.isNumber && typeof powerRef.value === 'number' ? powerRef.value : 1;
         const powerStr = power > 1 ? `^${power}` : '';
         const combinedText = `${getRefText(right)}${varName}${powerStr}`;
         const op = tokens[i];
@@ -39,17 +41,19 @@ export function* applyMul(model: AModel): Generator<AModel> {
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
       }
 
-      // variable * variable (same variable) -> power with delayed op
-      if (isVariableRef(left) && isVariableRef(right)) {
-        const leftVarName = getVariableName(left);
-        const rightVarName = getVariableName(right);
+      // symbol * symbol (same variable) -> power with delayed op
+      if (left.isSymbol && right.isSymbol) {
+        const leftVarName = getRefText(left);
+        const rightVarName = getRefText(right);
 
         if (leftVarName && rightVarName && leftVarName === rightVarName) {
-          const leftPower = getPower(left);
-          const rightPower = getPower(right);
+          const leftPowerRef = left.getPower();
+          const rightPowerRef = right.getPower();
+          const leftPower = leftPowerRef.isNumber && typeof leftPowerRef.value === 'number' ? leftPowerRef.value : 1;
+          const rightPower = rightPowerRef.isNumber && typeof rightPowerRef.value === 'number' ? rightPowerRef.value : 1;
           const totalPower = leftPower + rightPower;
 
-          const baseRef = getBaseVariable(left) ?? left;
+          const baseRef = left.getBase();
           const delayedOp: DelayedOp = { kind: 'pow', base: baseRef, exponent: createAref(String(totalPower), [], totalPower) };
           const resultText = totalPower === 1
             ? leftVarName

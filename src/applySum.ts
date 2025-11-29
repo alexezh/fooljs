@@ -102,8 +102,8 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
   let resultText: string;
   let delayedOp: DelayedOp;
 
-  // Case 1: Both are digits
-  if (refA.refType === 'digit' && refB.refType === 'digit') {
+  // Case 1: Both are numbers
+  if (refA.refType === 'number' && refB.refType === 'number') {
     delayedOp = effectiveOp === '+'
       ? { kind: 'add', left: refA, right: refB }
       : { kind: 'sub', left: refA, right: refB };
@@ -160,7 +160,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
   // After refB
   newRefs.push(...refs.slice(jPos + 1));
 
-  const transformName = refA.refType === 'digit'
+  const transformName = refA.refType === 'number'
     ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
     : `combine_${iPos}_${jPos}`;
 
