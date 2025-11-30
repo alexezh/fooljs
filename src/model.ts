@@ -3,25 +3,10 @@ import { ARef } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
 import { AModelSymbolCache } from "./asymbol.js";
 
-/**
- * Delayed operation to be executed at model level
- * Stores parent ARef and indexes for updating when operation executes
- */
-export interface ModelDelayedOp {
-  kind: 'add' | 'sub' | 'mul' | 'div' | 'pow' | 'combine';
-  parentRef?: ARef;  // The composite ARef containing children to update
-  indexes: number[]; // Indexes within parentRef.arefs (or model.refs if no parentRef)
-  operation: any;    // Operation-specific data
-  cost: number;      // Cost to execute this operation
-  compute: (model: AModel, operation: any) => AModel;  // Function to perform the computation
-}
-
 export class AModel {
   parent?: AModel;
   transform: string;
   refs: ARef[];
-
-  delayedOp?: ModelDelayedOp;  // Single delayed operation for this model
 
   remainCost: number;
 
@@ -34,9 +19,9 @@ export class AModel {
 
   constructor(params: {
     parent?: AModel;
+    cache?: AModelSymbolCache;
     transform: string;
     refs: ARef[];
-    delayedOp?: ModelDelayedOp;
     totalApproxCost?: number;
     resultRef?: ARef;
     nextInternalVarNum?: number;
@@ -44,7 +29,6 @@ export class AModel {
     this.parent = params.parent;
     this.transform = params.transform;
     this.refs = params.refs;
-    this.delayedOp = params.delayedOp;
     this.remainCost = getApproxCost(this);
     this.totalApproxCost = params.totalApproxCost ?? 0;
     this.resultRef = params.resultRef;
@@ -53,14 +37,13 @@ export class AModel {
     if (params.parent) {
       this.cache = params.parent.cache;
     } else {
-      this.cache = new AModelSymbolCache();
+      this.cache = params.cache!;
     }
   }
 }
 
 export function modelToKey(model: AModel): string {
-  const refs = model.refs.map(t => t.symbol).join('|');
-  return (model.delayedOp) ? "?" + refs : refs;
+  return model.refs.map(t => t.symbol).join('|');
 }
 
 /**
@@ -75,36 +58,9 @@ export function createInitialModel(tokens: ARef[]): AModel {
     totalApproxCost: 0
   });
 
-  // Convert sub-expressions to symbols
-  model.refs = convertSubExpressionsToSymbols(tokens, model.cache);
-
   return model;
 }
 
-/**
- * Convert sub-expressions (expr nodes) to symbols using the cache
- */
-function convertSubExpressionsToSymbols(refs: ARef[], cache: AModelSymbolCache): ARef[] {
-  return refs.map(ref => {
-    // For other types, recursively process children if any
-    if (ref.arefs && ref.arefs.length > 0) {
-      const processedChildren = convertSubExpressionsToSymbols(ref.arefs as ARef[], cache);
-      return new ARef({
-        token: ref.token,
-        arefs: processedChildren,
-        value: ref.value,
-        compute: ref.compute,
-        refType: ref.refType,
-        variables: ref.variables,
-        depth: ref.depth,
-        role: ref.role,
-        symbol: ref.symbol!
-      });
-    }
-
-    return ref;
-  });
-}
 
 /**
  * Get the path from root to this model

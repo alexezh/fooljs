@@ -1,12 +1,4 @@
-import type { ARef } from "./token";
-
-export type ASymbol = string & {
-  __tag_symbol: never
-}
-
-export function toSymbol(s: string): ASymbol {
-  return s as ASymbol;
-}
+import type { ARef, ASymbol } from "./token";
 
 export class AModelSymbolCache {
   /**

@@ -1,5 +1,5 @@
 import type { AModelSymbolCache } from './asymbol.js';
-import { AToken, ARef, RefType, TokenRole, inferRefType, createSymbolRef, createOpRef, createNumberRef } from './token.js';
+import { AToken, ARef, RefType, TokenRole, createSymbolRef, createOpRef, createNumberRef, toSymbol } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -122,9 +122,16 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
     // Insert implicit * between number and variable (2x -> 2 * x)
     if (i + 1 < rawTokens.length && isNumberToken(token) && isVariableToken(rawTokens[i + 1])) {
       const value = parseInt(text, 10);
-      refs.push(createRef(token, 'number', { value }));
+      refs.push(createNumberRef(value, token));
       refs.push(createOpRef('*'));
-      refs.push(createRef(rawTokens[i + 1], 'symbol'));
+      const varToken = rawTokens[i + 1];
+      refs.push(new ARef({
+        token: varToken,
+        arefs: [],
+        refType: 'symbol',
+        value: varToken.text,
+        symbol: toSymbol(varToken.text)
+      }));
       i += 2;
       continue;
     }
@@ -132,7 +139,7 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
     // Insert implicit * between ) and ( or ) and number/variable
     if (text === ')' && i + 1 < rawTokens.length) {
       const nextText = rawTokens[i + 1].text;
-      refs.push(createRef(token, 'op'));
+      refs.push(createOpRef(')', token));
       if (nextText === '(' || isNumberToken(rawTokens[i + 1]) || isVariableToken(rawTokens[i + 1])) {
         refs.push(createOpRef('*'));
       }
@@ -143,9 +150,15 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
     // Insert implicit * between number/variable and (
     if ((isNumberToken(token) || isVariableToken(token)) && i + 1 < rawTokens.length && rawTokens[i + 1].text === '(') {
       if (isNumberToken(token)) {
-        refs.push(createRef(token, 'number', { value: parseInt(text, 10) }));
+        refs.push(createNumberRef(parseInt(text, 10), token));
       } else {
-        refs.push(createRef(token, 'symbol'));
+        refs.push(new ARef({
+          token,
+          arefs: [],
+          refType: 'symbol',
+          value: text,
+          symbol: toSymbol(text)
+        }));
       }
       refs.push(createOpRef('*'));
       i++;
@@ -154,11 +167,18 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
 
     // Regular token
     if (isNumberToken(token)) {
-      refs.push(createRef(token, 'number', { value: parseInt(text, 10) }));
+      refs.push(createNumberRef(parseInt(text, 10), token));
     } else if (isVariableToken(token)) {
-      refs.push(createRef(token, 'symbol'));
+      refs.push(new ARef({
+        token,
+        arefs: [],
+        refType: 'symbol',
+        value: text,
+        symbol: toSymbol(text)
+      }));
     } else {
-      refs.push(createRef(token, inferRefType(text)));
+      // Operator
+      refs.push(createOpRef(text, token));
     }
     i++;
   }
@@ -195,14 +215,14 @@ function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   while (i < refs.length) {
     const ref = refs[i];
 
-    if (ref.token!.text === '(') {
+    if (ref.symbol === '(') {
       // Find matching closing paren
       let depth = 1;
       let j = i + 1;
 
       while (j < refs.length && depth > 0) {
-        if (refs[j].token!.text === '(') depth++;
-        else if (refs[j].token!.text === ')') depth--;
+        if (refs[j].symbol === '(') depth++;
+        else if (refs[j].symbol === ')') depth--;
         j++;
       }
 
@@ -239,7 +259,7 @@ function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
     const expRef = refs[i + 2];
 
     // Check for power pattern: <base> ^ <exponent>
-    if (nextRef && nextRef.token!.text === '^' && expRef) {
+    if (nextRef && nextRef.symbol === '^' && expRef) {
       // Create compute function for power operation
       const compute = () => {
         const baseVal = ref.value;
@@ -273,7 +293,7 @@ function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
     const ref = refs[i];
 
     // Skip if this is an add/sub operator - those stay at top level
-    if (ref.token!.text === '+' || ref.token!.text === '-') {
+    if (ref.symbol === '+' || ref.symbol === '-') {
       result.push(ref);
       i++;
       continue;
@@ -288,12 +308,12 @@ function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
       const opRef = refs[j];
 
       // Stop at add/sub operators
-      if (opRef.token!.text === '+' || opRef.token!.text === '-') {
+      if (opRef.symbol === '+' || opRef.symbol === '-') {
         break;
       }
 
       // Check for mul/div operator
-      if (isMulDivOp(opRef.token!.text)) {
+      if (opRef.symbol && isMulDivOp(opRef.symbol)) {
         const nextFactor = refs[j + 1];
         if (nextFactor) {
           ops.push(opRef);
@@ -342,20 +362,20 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 
   while (i < refs.length) {
     const ref = refs[i];
-    const text = ref.token!.text;
+    const symbol = ref.symbol;
 
     // Handle add/sub operators
-    if (isAddSubOp(text)) {
+    if (symbol && isAddSubOp(symbol)) {
       // Check if this is a unary sign (at start or after operator)
       if (result.length === 0 || result[result.length - 1].refType === 'op') {
-        currentSign = text as '+' | '-';
+        currentSign = symbol as '+' | '-';
         i++;
         continue;
       } else {
         // Binary operator - keep it
-        const opRef = createOpRef(text);
+        const opRef = createOpRef(symbol);
         result.push(opRef);
-        currentSign = text as '+' | '-';
+        currentSign = symbol as '+' | '-';
         i++;
         continue;
       }

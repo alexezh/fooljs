@@ -4,6 +4,7 @@ import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
 import { AModel, createInitialModel, createModel, getModelPath, modelToKey } from './model.js';
 import { COST } from './terms.js';
+import { AModelSymbolCache } from './asymbol.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -66,36 +67,10 @@ class MinHeap<T> {
   }
 }
 // ============================================================================
-// Compute delayed operations
-// ============================================================================
-
-/**
- * Execute a model's delayed operation if present.
- * Returns a new model with the operation executed, or null if no delayed op.
- */
-function executeDelayedOp(model: AModel): AModel | null {
-  if (!model.delayedOp) {
-    return null;
-  }
-
-  const modelDelayedOp = model.delayedOp;
-
-  // Execute using the compute function
-  if (modelDelayedOp.compute) {
-    return modelDelayedOp.compute(model, modelDelayedOp.operation);
-  }
-
-  // No compute function - this shouldn't happen with the new architecture
-  return null;
-}
-
-// ============================================================================
 // A* Search with AModel
 // ============================================================================
 
-export function aStarSearch(startTokens: ARef[]): AModel[] | null {
-  const startModel = createInitialModel(startTokens);
-
+export function aStarSearch(startModel: AModel): AModel[] | null {
   const heap = new MinHeap<AModel>((a, b) => {
     const aTotal = a.remainCost;
     const bTotal = b.remainCost;
@@ -107,69 +82,42 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
   const visited = new Set<string>();
 
   while (heap.length > 0) {
-    const endOfChain: AModel[] = [];
+    const model = heap.pop()!;
 
-    while (heap.length > 0) {
-      const model = heap.pop()!;
+    const stateKey = modelToKey(model);
+    if (visited.has(stateKey)) {
+      continue;
+    }
+    visited.add(stateKey);
 
-      const stateKey = modelToKey(model);
-      if (visited.has(stateKey)) {
-        continue;
-      }
-      visited.add(stateKey);
+    if (isGoal(model.refs)) {
+      return getModelPath(model);
+    }
 
-      if (isGoal(model.refs)) {
-        return getModelPath(model);
-      }
+    // Get all possible next states using generators
+    for (const actionResult of getAllActions(model)) {
+      const { action, model: nextModel, next } = actionResult;
+      const nextKey = modelToKey(nextModel);
 
-      // Get all possible next states using generators
-      // For each action type, get models while remainCost is improving
-      let isEnd = true;
-      for (const actionResult of getAllActions(model)) {
-        const { action, model: nextModel, next } = actionResult;
-        const nextKey = modelToKey(nextModel);
+      if (!visited.has(nextKey)) {
+        heap.push(nextModel);
 
-        if (!visited.has(nextKey)) {
-          heap.push(nextModel);
-          isEnd = false;
+        // Continue getting models from this action while remainCost improves
+        let prevRemainCost = nextModel.remainCost;
+        for (const furtherModel of next) {
+          if (furtherModel.remainCost >= prevRemainCost) {
+            break; // Cost is not improving, stop this action
+          }
 
-          // Continue getting models from this action while remainCost improves
-          let prevRemainCost = nextModel.remainCost;
-          for (const furtherModel of next) {
-            if (furtherModel.remainCost >= prevRemainCost) {
-              break; // Cost is not improving, stop this action
-            }
-
-            const furtherKey = modelToKey(furtherModel);
-            if (!visited.has(furtherKey)) {
-              heap.push(furtherModel);
-              prevRemainCost = furtherModel.remainCost;
-            }
+          const furtherKey = modelToKey(furtherModel);
+          if (!visited.has(furtherKey)) {
+            heap.push(furtherModel);
+            prevRemainCost = furtherModel.remainCost;
           }
         }
       }
-
-      if (isEnd) {
-        endOfChain.push(model)
-      }
     }
-
-    // Execute delayed operations for end-of-chain models and continue search
-    for (const model of endOfChain) {
-      const executedModel = executeDelayedOp(model);
-      if (executedModel) {
-        const executedKey = modelToKey(executedModel);
-        if (!visited.has(executedKey)) {
-          // New state after execution - add to heap for further exploration
-          heap.push(executedModel);
-        }
-        // If already visited, skip - we've seen this executed state before
-      }
-    }
-
-    endOfChain.length = 0;
   }
-
 
   return null;
 }
@@ -183,14 +131,15 @@ function main(): void {
   // const exprStr = '4 + 3 * 4';
 
   // Create a temporary model to get the cache
-  const tempModel = createInitialModel([]);
-  const expr = parseExpression(tempModel.cache, exprStr);
+  const cache = new AModelSymbolCache();
+  const expr = parseExpression(cache, exprStr);
+  const model = new AModel({ transform: "initial", cache: cache, refs: expr })
 
   console.log(`Searching for solution to: ${exprStr}`);
   console.log(`Parsed tokens: ${expr.map(t => t.symbol).join(' ')}`);
   console.log('---');
 
-  const result = aStarSearch(expr);
+  const result = aStarSearch(model);
 
   if (result) {
     console.log('Solution found:');

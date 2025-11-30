@@ -1,4 +1,12 @@
-import type { AModelSymbolCache, ASymbol } from "./asymbol";
+import type { AModelSymbolCache } from "./asymbol";
+
+export type ASymbol = string & {
+  __tag_symbol: never
+}
+
+export function toSymbol(s: string): ASymbol {
+  return s as ASymbol;
+}
 
 /**
  * Type of reference content
@@ -81,11 +89,7 @@ export class ARef {
     return (this.isExp()) ? this.arefs[0] : this;
   }
   getPower(): ARef {
-    return (this.isExp()) ? this.arefs[2] : new ARef({
-      token: createToken('1'),
-      refType: 'number',
-      value: 1
-    });
+    return (this.isExp()) ? this.arefs[2] : createNumberRef(1);
   }
 }
 
@@ -160,7 +164,8 @@ export function createSymbolRef(
   cache: AModelSymbolCache,
   sourceRefs?: ARef[],
   value?: number | null,
-  compute?: () => number | null
+  compute?: () => number | null,
+  token?: AToken
 ): ARef {
   const arefs = sourceRefs ?? []
   const symbol = cache.makeSymbol(arefs);
@@ -168,25 +173,30 @@ export function createSymbolRef(
   return new ARef({
     arefs: arefs,
     value: value ?? null,
+    token: token,
     refType: "symbol",
     symbol: symbol,
     compute: compute
   });
 }
 
-export function createOpRef(op: string): ARef {
+export function createOpRef(op: string, token?: AToken): ARef {
   return new ARef({
     arefs: [],
     value: null,
-    refType: "op"
+    refType: "op",
+    token,
+    symbol: toSymbol(op)
   });
 }
 
-export function createNumberRef(val: number): ARef {
+export function createNumberRef(val: number, token?: AToken): ARef {
   return new ARef({
     arefs: [],
     value: val,
-    refType: "number"
+    refType: "number",
+    token,
+    symbol: toSymbol(val.toString())
   });
 }
 

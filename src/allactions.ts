@@ -92,11 +92,6 @@ class MergeHeap {
  * Uses k-way merge to yield globally sorted results across all action types.
  */
 export function* getAllActions(model: AModel): Generator<{ action: string, model: AModel, next: Generator<AModel> }> {
-  // If model has a delayed operation, it needs to be executed first
-  // Skip generating new actions for models with pending delayed ops
-  if (model.delayedOp) {
-    return;
-  }
 
   const mergeHeap = new MergeHeap();
 
