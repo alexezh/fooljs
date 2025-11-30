@@ -1,6 +1,6 @@
 import { ARef, isVariableRef, getVariableName, getPower, createNumberRef, createSymbolRef } from './token.js';
 import { parseExpression } from './parser.js';
-import { isGoal } from './goal.js';
+import { isLinearExpressionGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
 import { AModel, createInitialModel, createModel, getModelPath, modelToKey } from './model.js';
 import { COST } from './terms.js';
@@ -90,7 +90,7 @@ export function aStarSearch(startModel: AModel): AModel[] | null {
     }
     visited.add(stateKey);
 
-    if (isGoal(model.refs)) {
+    if (isLinearExpressionGoal(model.refs)) {
       return getModelPath(model);
     }
 

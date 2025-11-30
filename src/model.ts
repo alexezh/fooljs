@@ -1,4 +1,4 @@
-import { isGoal } from "./goal.js";
+import { isLinearExpressionGoal } from "./goal.js";
 import { ARef } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
 import { AModelSymbolCache } from "./asymbol.js";
@@ -80,7 +80,7 @@ const MAX_EXPR_VALUE = 100;
 
 function getApproxCost(a: AModel): number {
   // Goal state has zero remaining cost
-  if (isGoal(a.refs)) {
+  if (isLinearExpressionGoal(a.refs)) {
     return 0;
   }
 

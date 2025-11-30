@@ -73,12 +73,24 @@ export class ARef {
     return this.refType === 'number';
   }
 
+  get isOp(): boolean {
+    return this.refType === 'op';
+  }
+
   get isSymbol(): boolean {
     return this.refType === 'symbol';
   }
 
   isExp(): boolean {
     return this.arefs?.length >= 2 && this.arefs[1].token?.text === '^';
+  }
+
+  isInternalSymbol(): boolean {
+    return (this.symbol && this.symbol[0] === "?") ? true : false;
+  }
+
+  isPublicVariable(): boolean {
+    return (this.symbol && this.symbol[0] !== "?") ? true : false;
   }
 
   getVariableName(): string {
@@ -196,7 +208,6 @@ export function createNumberRef(val: number, token?: AToken): ARef {
     value: val,
     refType: "number",
     token,
-    symbol: toSymbol(val.toString())
   });
 }
 
