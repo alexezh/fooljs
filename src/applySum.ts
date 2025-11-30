@@ -1,7 +1,6 @@
 import { AModel, createModel, ModelDelayedOp } from "./model.js";
 import { calculateTermAddCost, canAddTerms, COST } from "./terms.js";
-import { ARef, createDelayedRef, DelayedOp, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
-import { toSymbol } from "./asymbol.js";
+import { ARef, createSymbolRef, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
 
 /**
  * Scanned term pair info for pending realization
@@ -100,45 +99,16 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
   const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
   const effectiveOp = (opBeforeB && opBeforeB.symbol === '-') ? '-' : '+';
 
-  let resultText: string;
-  let delayedOp: DelayedOp;
-
-  // Case 1: Both are numbers
-  if (refA.refType === 'number' && refB.refType === 'number') {
-    delayedOp = effectiveOp === '+'
-      ? { kind: 'add', left: refA, right: refB }
-      : { kind: 'sub', left: refA, right: refB };
-    resultText = `(${refA.symbol}${effectiveOp}${refB.symbol})`;
-  }
-  // Case 2: Both are variables
-  else if (isVariableRef(refA) && isVariableRef(refB)) {
-    const aVarName = getVariableName(refA)!;
-    const aPower = getPower(refA);
-
-    if (effectiveOp === '+') {
-      delayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
-      const powerStr = aPower !== 1 ? `^${aPower}` : '';
-      resultText = `(2*${aVarName}${powerStr})`;
-    } else {
-      delayedOp = { kind: 'sub', left: refA, right: refB };
-      resultText = '0';
+  const compute = () => {
+    const aVal = refA.value;
+    const bVal = refB.value;
+    if (typeof aVal === 'number' && typeof bVal === 'number') {
+      return effectiveOp === '+' ? aVal + bVal : aVal - bVal;
     }
-  }
-  // Case 3: Other symbols
-  else {
-    const aText = refA.symbol;
-    const bText = refB.symbol;
+    return null;
+  };
 
-    if (effectiveOp === '+') {
-      delayedOp = { kind: 'add', left: refA, right: refB };
-      resultText = `(${aText}+${bText})`;
-    } else {
-      delayedOp = { kind: 'sub', left: refA, right: refB };
-      resultText = aText === bText ? '0' : `(${aText}-${bText})`;
-    }
-  }
-
-  const resultRef = createDelayedRef(toSymbol(resultText), [refA, refB], delayedOp);
+  const resultRef = createSymbolRef(model.cache, [refA, refB], undefined, compute);
 
   // Build new refs array
   const opIndexBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;

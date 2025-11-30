@@ -48,7 +48,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       if (
         left.isSymbol &&
         right.isSymbol &&
-        getRefText(left) !== getRefText(right)
+        left.symbol !== right.symbol
       ) {
         return true;
       }
@@ -60,7 +60,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       if (
         left.isSymbol &&
         right.isSymbol &&
-        getRefText(left) === getRefText(right)
+        left.symbol === right.symbol
       ) {
         return false;
       }
@@ -72,7 +72,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       if (
         left.isSymbol &&
         right.isSymbol &&
-        getRefText(left) !== getRefText(right)
+        left.symbol !== right.symbol
       ) {
         return true;
       }
@@ -92,7 +92,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       if (
         left.isSymbol &&
         right.isSymbol &&
-        getRefText(left) === getRefText(right)
+        left.symbol === right.symbol
       ) {
         return false;
       }
@@ -115,7 +115,7 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
       }
       // Variable * variable should become power or remain separate for different variables
       if (left.isSymbol && right.isSymbol) {
-        if (getRefText(left) === getRefText(right)) {
+        if (left.symbol === right.symbol) {
           return false; // x * x -> x^2
         } else {
           return true; // x * y stays as x * y
@@ -173,6 +173,6 @@ function isValidGoalSequence(tokens: ARef[]): boolean {
 }
 
 function isOperator(token: ARef): boolean {
-  const text = getRefText(token);
+  const text = token.symbol;
   return text === '*' || text === '/' || text === '-' || text === '+';
 }

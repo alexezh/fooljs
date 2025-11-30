@@ -93,7 +93,7 @@ function convertSubExpressionsToSymbols(refs: ARef[], cache: AModelSymbolCache):
         token: ref.token,
         arefs: processedChildren,
         value: ref.value,
-        delayedOp: ref.delayedOp,
+        compute: ref.compute,
         refType: ref.refType,
         variables: ref.variables,
         depth: ref.depth,

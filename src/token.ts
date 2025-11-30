@@ -26,7 +26,7 @@ export class ARef {
 
   token?: AToken;
   arefs: ReadonlyArray<ARef>;
-  delayedOp?: DelayedOp;
+  compute?: () => number | null;
   refType: RefType;
   /** For expr type: which variables are contained (e.g., ['x', 'y'])
    * assume that names are sorted
@@ -43,7 +43,7 @@ export class ARef {
     token?: AToken;
     arefs?: ReadonlyArray<ARef>;
     value?: any;
-    delayedOp?: DelayedOp;
+    compute?: () => number | null;
     refType: RefType;
     variables?: string[];
     depth?: number;
@@ -53,7 +53,7 @@ export class ARef {
     this.token = params.token;
     this.arefs = params.arefs ?? [];
     this.value = params.value ?? null;
-    this.delayedOp = params.delayedOp;
+    this.compute = params.compute;
     this.refType = params.refType;
     this.variables = params.variables;
     this.depth = params.depth;
@@ -70,7 +70,7 @@ export class ARef {
   }
 
   isExp(): boolean {
-    return this.arefs?.length >= 2 && this.arefs[1].token.text === '^';
+    return this.arefs?.length >= 2 && this.arefs[1].token?.text === '^';
   }
 
   getVariableName(): string {
@@ -156,7 +156,12 @@ export function collectVariables(refs: ARef[]): string[] {
 //   });
 // }
 
-export function createSymbolRef(cache: AModelSymbolCache, sourceRefs?: ARef[], value?: number | null): ARef {
+export function createSymbolRef(
+  cache: AModelSymbolCache,
+  sourceRefs?: ARef[],
+  value?: number | null,
+  compute?: () => number | null
+): ARef {
   const arefs = sourceRefs ?? []
   const symbol = cache.makeSymbol(arefs);
 
@@ -164,7 +169,8 @@ export function createSymbolRef(cache: AModelSymbolCache, sourceRefs?: ARef[], v
     arefs: arefs,
     value: value ?? null,
     refType: "symbol",
-    symbol: symbol
+    symbol: symbol,
+    compute: compute
   });
 }
 
@@ -196,7 +202,7 @@ export function createRefWithSources(text: string, sourceTokens: ARef[]): ARef {
   return new ARef({
     token: createToken(text),
     arefs: sourceTokens,
-    refType: inferRefTypeForTokens(sourceTokens),
+    refType: 'symbol',
     value: null
   });
 }
@@ -211,15 +217,7 @@ export interface VariablePowerResult {
   endIndex: number;
 }
 
-// Operation types for delayed evaluation
-export type DelayedOp =
-  | { kind: 'add'; left: ARef; right: ARef }
-  | { kind: 'sub'; left: ARef; right: ARef }
-  | { kind: 'mul'; left: ARef; right: ARef }
-  | { kind: 'div'; left: ARef; right: ARef }
-  | { kind: 'pow'; base: ARef; exponent: ARef }
-  | { kind: 'combine'; terms: ARef[]; op: string }
-  | { kind: 'wrap'; terms: ARef[] };
+// Removed DelayedOp - using compute function instead
 
 /**
  * Check if two refs are compatible for combining (addition/subtraction).
@@ -252,23 +250,7 @@ export function areRefsCompatible(a: ARef, b: ARef): boolean {
   return bVars.every(v => aSet.has(v));
 }
 
-export function createDelayedRef(
-  text: string,
-  sourceArefs: ARef[],
-  delayedOp: DelayedOp
-): ARef {
-  const refType = inferRefTypeForTokens(sourceArefs);
-  const variables = refType === 'expr' ? collectVariables(sourceArefs) : undefined;
-
-  return new ARef({
-    token: createToken(text),
-    arefs: sourceArefs,
-    value: null,
-    delayedOp,
-    refType,
-    variables
-  });
-}
+// Removed createDelayedRef - use createSymbolRef with compute parameter instead
 
 /**
  * Check if ref represents a variable (symbol with single letter name)

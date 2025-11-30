@@ -1,5 +1,5 @@
 import type { AModelSymbolCache } from './asymbol.js';
-import { AToken, ARef, RefType, TokenRole, inferRefType, createDelayedRef, DelayedOp, createSymbolRef, createOpRef, createNumberRef } from './token.js';
+import { AToken, ARef, RefType, TokenRole, inferRefType, createSymbolRef, createOpRef, createNumberRef } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -123,7 +123,7 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
     if (i + 1 < rawTokens.length && isNumberToken(token) && isVariableToken(rawTokens[i + 1])) {
       const value = parseInt(text, 10);
       refs.push(createRef(token, 'number', { value }));
-      refs.push(createRefFromText('*', 'op'));
+      refs.push(createOpRef('*'));
       refs.push(createRef(rawTokens[i + 1], 'symbol'));
       i += 2;
       continue;
@@ -134,7 +134,7 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
       const nextText = rawTokens[i + 1].text;
       refs.push(createRef(token, 'op'));
       if (nextText === '(' || isNumberToken(rawTokens[i + 1]) || isVariableToken(rawTokens[i + 1])) {
-        refs.push(createRefFromText('*', 'op'));
+        refs.push(createOpRef('*'));
       }
       i++;
       continue;
@@ -147,7 +147,7 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
       } else {
         refs.push(createRef(token, 'symbol'));
       }
-      refs.push(createRefFromText('*', 'op'));
+      refs.push(createOpRef('*'));
       i++;
       continue;
     }
@@ -173,16 +173,16 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
  */
 function buildTermTree(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   // First pass: handle parentheses
-  const withoutParens = collapseParentheses(refs);
+  const withoutParens = collapseParentheses(cache, refs);
 
   // Second pass: handle power (highest precedence after parens)
   const withoutPower = collapsePower(cache, withoutParens);
 
   // Third pass: handle multiplication/division
-  const withoutMulDiv = collapseMulDiv(withoutPower);
+  const withoutMulDiv = collapseMulDiv(cache, withoutPower);
 
   // Fourth pass: assign roles and signs for addition/subtraction
-  return assignTermRoles(withoutMulDiv);
+  return assignTermRoles(cache, withoutMulDiv);
 }
 
 /**
@@ -213,8 +213,7 @@ function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
       const processedInner = buildTermTree(cache, innerRefs);
 
       // Create a node for the parenthesized expression
-      const parenNode = createRefFromText(`(...)`, 'symbol');
-      parenNode.arefs = processedInner;
+      const parenNode = createSymbolRef(cache, processedInner);
       result.push(parenNode);
 
       i = j;
@@ -241,11 +240,16 @@ function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 
     // Check for power pattern: <base> ^ <exponent>
     if (nextRef && nextRef.token!.text === '^' && expRef) {
-      const power = expRef.refType === 'number' ? (expRef.value as number) : 2;
-
-      // Create delayed pow op - include operator in arefs
-      const delayedOp: DelayedOp = { kind: 'pow', base: ref, exponent: expRef };
-      const powerNode = createSymbolRef(cache, [ref, nextRef, expRef], delayedOp);
+      // Create compute function for power operation
+      const compute = () => {
+        const baseVal = ref.value;
+        const expVal = expRef.value;
+        if (typeof baseVal === 'number' && typeof expVal === 'number') {
+          return Math.pow(baseVal, expVal);
+        }
+        return null;
+      };
+      const powerNode = createSymbolRef(cache, [ref, nextRef, expRef], undefined, compute);
 
       result.push(powerNode);
       i += 3;
@@ -370,15 +374,18 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
         // Store original ref in arefs
         termRef.arefs = [ref];
       } else {
-        // Create negate delayed op with -1 * ref
+        // Create negate with -1 * ref
         const minusOne = createNumberRef(-1);
         const mulOp = createOpRef('*');
-        const delayedOp: DelayedOp = {
-          kind: 'mul',
-          left: minusOne,
-          right: ref
+        const compute = () => {
+          const leftVal = minusOne.value;
+          const rightVal = ref.value;
+          if (typeof leftVal === 'number' && typeof rightVal === 'number') {
+            return leftVal * rightVal;
+          }
+          return null;
         };
-        termRef = createDelayedRef(`(-${refText})`, [minusOne, mulOp, ref], delayedOp);
+        termRef = createSymbolRef(cache, [minusOne, mulOp, ref], undefined, compute);
         termRef.role = 'term';
       }
       currentSign = '+';

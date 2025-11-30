@@ -1,4 +1,4 @@
-import { ARef, getRefText, createDelayedRef, DelayedOp, isVariableRef, getVariableName, getPower, createAref } from './token.js';
+import { ARef, isVariableRef, getVariableName, getPower, createNumberRef, createSymbolRef } from './token.js';
 import { parseExpression } from './parser.js';
 import { isGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
@@ -71,7 +71,6 @@ class MinHeap<T> {
 
 /**
  * Execute a model's delayed operation if present.
- * Updates the refs at the specified indexes within the parent or root.
  * Returns a new model with the operation executed, or null if no delayed op.
  */
 function executeDelayedOp(model: AModel): AModel | null {
@@ -81,177 +80,13 @@ function executeDelayedOp(model: AModel): AModel | null {
 
   const modelDelayedOp = model.delayedOp;
 
-  // If compute function is provided, use it
+  // Execute using the compute function
   if (modelDelayedOp.compute) {
     return modelDelayedOp.compute(model, modelDelayedOp.operation);
   }
 
-  // Fallback: manual execution for operations without compute function
-  const targetRefs = modelDelayedOp.parentRef ? modelDelayedOp.parentRef.arefs as ARef[] : model.refs;
-
-  // Execute based on operation kind
-  switch (modelDelayedOp.kind) {
-    case 'add':
-    case 'sub': {
-      // Get the operation data (TermPair)
-      const pair = modelDelayedOp.operation;
-      const [iPos, jPos] = modelDelayedOp.indexes;
-
-      const refA = targetRefs[iPos];
-      const refB = targetRefs[jPos];
-
-      // Determine operation by checking operator before refB
-      const opBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? targetRefs[jPos - 1] : null;
-      const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
-
-      let resultText: string;
-      let refDelayedOp: DelayedOp;
-
-      // Case 1: Both are numbers
-      if (refA.refType === 'number' && refB.refType === 'number') {
-        refDelayedOp = effectiveOp === '+'
-          ? { kind: 'add', left: refA, right: refB }
-          : { kind: 'sub', left: refA, right: refB };
-        resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
-      }
-      // Case 2: Both are variables
-      else if (isVariableRef(refA) && isVariableRef(refB)) {
-        const aVarName = getVariableName(refA)!;
-        const aPower = getPower(refA);
-
-        if (effectiveOp === '+') {
-          refDelayedOp = { kind: 'combine', terms: [refA, refB], op: '+' };
-          const powerStr = aPower !== 1 ? `^${aPower}` : '';
-          resultText = `(2*${aVarName}${powerStr})`;
-        } else {
-          refDelayedOp = { kind: 'sub', left: refA, right: refB };
-          resultText = '0';
-        }
-      }
-      // Case 3: Expressions
-      else {
-        const aText = getRefText(refA);
-        const bText = getRefText(refB);
-
-        if (effectiveOp === '+') {
-          refDelayedOp = { kind: 'add', left: refA, right: refB };
-          resultText = `(${aText}+${bText})`;
-        } else {
-          refDelayedOp = { kind: 'sub', left: refA, right: refB };
-          resultText = aText === bText ? '0' : `(${aText}-${bText})`;
-        }
-      }
-
-      // Try to compute the value immediately if both operands are numeric
-      let resultRef: ARef;
-      let computedValue: number | null = null;
-
-      if (refA.refType === 'number' && refB.refType === 'number') {
-        // Both are numbers - compute directly
-        const aVal = refA.value as number;
-        const bVal = refB.value as number;
-
-        if (typeof aVal === 'number' && typeof bVal === 'number') {
-          computedValue = effectiveOp === '+' ? aVal + bVal : aVal - bVal;
-        }
-      }
-
-      if (computedValue !== null) {
-        // We computed a numeric value - create a digit ref with the value
-        resultRef = createAref(String(computedValue), [refA, refB], computedValue);
-        resultRef.refType = 'number';
-      } else if (isVariableRef(refA) && isVariableRef(refB) && getVariableName(refA) === getVariableName(refB)) {
-        const varName = getVariableName(refA)!;
-        const power = getPower(refA);
-
-        if (effectiveOp === '-') {
-          // Variables cancelled out (x - x = 0)
-          resultRef = createAref('0', [refA, refB], 0);
-          resultRef.refType = 'number';
-        } else {
-          // Variables combined (x + x = 2x)
-          const powerStr = power !== 1 ? `^${power}` : '';
-          resultRef = createDelayedRef(`(2*${varName}${powerStr})`, [refA, refB], refDelayedOp);
-          resultRef.refType = 'symbol';  // 2x is an expression
-          resultRef.variables = [varName];
-        }
-      } else if (refA.refType === 'symbol' && refB.refType === 'symbol' && getRefText(refA) === getRefText(refB)) {
-        // Identical expressions
-        if (effectiveOp === '-') {
-          // Expressions cancelled out (expr - expr = 0)
-          resultRef = createAref('0', [refA, refB], 0);
-          resultRef.refType = 'number';
-        } else {
-          // Expressions combined (expr + expr = 2*expr)
-          resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
-          resultRef.refType = 'symbol';
-          if (refA.variables) {
-            resultRef.variables = refA.variables;
-          }
-        }
-      } else {
-        // Create delayed ref for later evaluation
-        resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
-      }
-
-      resultRef.role = 'term';
-
-      // Build new refs array
-      const opIndexBeforeB = jPos > 0 && targetRefs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
-
-      let newRefs: ARef[] = [];
-
-      // Before refA
-      newRefs.push(...targetRefs.slice(0, iPos));
-
-      // The result
-      newRefs.push(resultRef);
-
-      // Between refA and operator before refB
-      const startAfterA = iPos + 1;
-      const endBeforeOpB = opIndexBeforeB > 0 ? opIndexBeforeB : jPos;
-      if (endBeforeOpB > startAfterA) {
-        newRefs.push(...targetRefs.slice(startAfterA, endBeforeOpB));
-      }
-
-      // After refB
-      newRefs.push(...targetRefs.slice(jPos + 1));
-
-      const transformName = refA.refType === 'number'
-        ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
-        : `combine_${iPos}_${jPos}`;
-
-      // If operating on a parentRef, update it and return model with updated tree
-      if (modelDelayedOp.parentRef) {
-        // Need to update the parent ref's children and rebuild model
-        const parent = modelDelayedOp.parentRef;
-        const updatedParent = new ARef({
-          token: parent.token,
-          arefs: newRefs,
-          value: parent.value,
-          delayedOp: parent.delayedOp,
-          refType: parent.refType,
-          variables: parent.variables,
-          depth: parent.depth,
-          role: parent.role
-        });
-
-        // Find and replace parent in model.refs
-        const newModelRefs = model.refs.map(ref =>
-          ref === modelDelayedOp.parentRef ? updatedParent : ref
-        );
-
-        return createModel(model, transformName, newModelRefs, modelDelayedOp.cost, resultRef);
-      } else {
-        // Operating on model.refs directly
-        return createModel(model, transformName, newRefs, modelDelayedOp.cost, resultRef);
-      }
-    }
-
-    default:
-      // Other operation types not yet implemented
-      return null;
-  }
+  // No compute function - this shouldn't happen with the new architecture
+  return null;
 }
 
 // ============================================================================
@@ -346,9 +181,13 @@ export function aStarSearch(startTokens: ARef[]): AModel[] | null {
 function main(): void {
   const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
   // const exprStr = '4 + 3 * 4';
-  const expr = parseExpression(exprStr);
+
+  // Create a temporary model to get the cache
+  const tempModel = createInitialModel([]);
+  const expr = parseExpression(tempModel.cache, exprStr);
+
   console.log(`Searching for solution to: ${exprStr}`);
-  console.log(`Parsed tokens: ${expr.map(t => getRefText(t)).join(' ')}`);
+  console.log(`Parsed tokens: ${expr.map(t => t.symbol).join(' ')}`);
   console.log('---');
 
   const result = aStarSearch(expr);
@@ -356,7 +195,7 @@ function main(): void {
   if (result) {
     console.log('Solution found:');
     for (const model of result) {
-      const tokensStr = model.refs.map(t => getRefText(t)).join(' ');
+      const tokensStr = model.refs.map(t => t.symbol).join(' ');
       console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.totalApproxCost})`);
     }
   } else {
