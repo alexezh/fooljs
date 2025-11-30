@@ -1,4 +1,4 @@
-import type { AModelSymbolCache } from "./asymbol";
+import type { ASymbolCache } from "./asymbol";
 
 export type ASymbol = string & {
   __tag_symbol: never
@@ -20,7 +20,7 @@ export type RefType = 'number' | 'symbol' | 'op';
 /**
  * Role of a token in an expression - determined during parsing
  */
-export type TokenRole = 'term' | 'operator' | 'sign';
+export type TokenRole = 'term' | 'operator';
 
 /**
  * computed value
@@ -42,10 +42,6 @@ export class ARef {
   variables?: string[];
 
   depth?: number;
-
-  // Term information (set during parsing)
-  /** Role of this token in the expression */
-  role?: TokenRole;
 
   /** Original ref before compute transformation */
   orig?: ARef;
@@ -69,7 +65,6 @@ export class ARef {
     this.refType = params.refType;
     this.variables = params.variables;
     this.depth = params.depth;
-    this.role = params.role;
     this.symbol = params.symbol ?? null;
     this.orig = params.orig;
   }
@@ -80,6 +75,10 @@ export class ARef {
 
   get isOp(): boolean {
     return this.refType === 'op';
+  }
+
+  get isTerm(): boolean {
+    return this.refType !== 'op';
   }
 
   get isSymbol(): boolean {
@@ -197,7 +196,6 @@ export function makeComputeFunction(computeValue: () => number | null): () => bo
         refType: this.refType,
         symbol: this.symbol ?? undefined,
         compute: this.compute,
-        role: this.role
       });
 
       // Update to computed value
@@ -215,7 +213,7 @@ export function makeComputeFunction(computeValue: () => number | null): () => bo
 }
 
 export function createSymbolRef(
-  cache: AModelSymbolCache,
+  cache: ASymbolCache,
   sourceRefs?: ARef[],
   value?: number | null,
   compute?: () => boolean,

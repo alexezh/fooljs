@@ -11,7 +11,7 @@ export function* applySum(model: AModel): Generator<AModel> {
   // Find all term indices (refs with role='term')
   const termIndices: number[] = [];
   for (let i = 0; i < refs.length; i++) {
-    if (refs[i].role === 'term') {
+    if (!refs[i].isOp) {
       termIndices.push(i);
     }
   }

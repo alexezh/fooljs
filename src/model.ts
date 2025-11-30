@@ -1,7 +1,7 @@
 import { isLinearExpressionGoal } from "./goal.js";
 import { ARef } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
-import { AModelSymbolCache } from "./asymbol.js";
+import { ASymbolCache } from "./asymbol.js";
 
 export class AModel {
   parent?: AModel;
@@ -15,12 +15,12 @@ export class AModel {
    * cost to full compute from 0. combined from past cost and estimated future cost
    */
   totalApproxCost: number;
-  resultRef?: ARef;  // The ref created by this transform (also in tokens array)
-  cache: AModelSymbolCache;
+  computeRefs?: (ARef | null)[];  // The ref created by this transform (also in tokens array)
+  cache: ASymbolCache;
 
   constructor(params: {
     parent?: AModel;
-    cache?: AModelSymbolCache;
+    cache?: ASymbolCache;
     transform: string;
     refs: ARef[];
     totalApproxCost?: number;
@@ -32,7 +32,9 @@ export class AModel {
     this.refs = params.refs;
     this.remainCost = getApproxCost(this);
     this.totalApproxCost = params.totalApproxCost ?? 0;
-    this.resultRef = params.resultRef;
+    if (params.resultRef) {
+      this.computeRefs = [params.resultRef];
+    }
     this.requireCompute = params.resultRef?.compute !== undefined;
 
     // Inherit cache from parent or create new
@@ -49,16 +51,48 @@ export function modelToKey(model: AModel): string {
 }
 
 /**
+ * Recursively collect all refs with compute functions
+ */
+function collectComputeRefs(refs: ARef[]): ARef[] {
+  const result: ARef[] = [];
+
+  function traverse(ref: ARef) {
+    if (ref.compute) {
+      result.push(ref);
+    }
+    if (ref.arefs) {
+      for (const child of ref.arefs) {
+        traverse(child);
+      }
+    }
+  }
+
+  for (const ref of refs) {
+    traverse(ref);
+  }
+
+  return result;
+}
+
+/**
  * Create initial model from tokens
  * Converts sub-expressions to symbols using the model's cache
  */
-export function createInitialModel(tokens: ARef[]): AModel {
+export function createInitialModel(cache: ASymbolCache, refs: ARef[]): AModel {
+  const computeRefs = collectComputeRefs(refs);
+
   const model = new AModel({
     parent: undefined,
     transform: 'initial',
-    refs: tokens,
+    refs: refs,
+    cache: cache,
     totalApproxCost: 0
   });
+
+  if (computeRefs.length > 0) {
+    model.computeRefs = computeRefs;
+    model.requireCompute = true;
+  }
 
   return model;
 }
@@ -91,7 +125,7 @@ function getApproxCost(a: AModel): number {
   // Find all terms (potential operands for addition/subtraction)
   const terms: ARef[] = [];
   for (const ref of refs) {
-    if (ref.role === 'term') {
+    if (ref.isTerm) {
       terms.push(ref);
     }
   }

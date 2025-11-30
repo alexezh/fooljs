@@ -84,22 +84,3 @@ export function* applyParenthesis(model: AModel): Generator<AModel> {
   }
 }
 
-/**
- * Convert subtraction to addition with negatives - yields AModel
- */
-export function* applySubToAdd(model: AModel): Generator<AModel> {
-  const tokens = model.refs;
-
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
-      const nextToken = tokens[i + 1];
-      if (nextToken.isNumber) {
-        const plusRef = createOpRef('+');
-        const resultRef = createSymbolRef(model.cache, [nextToken]);
-        const newTokens = splice(tokens, i, i + 2, [plusRef, resultRef]);
-
-        yield createModel(model, `sub_to_add_${i}`, newTokens, 1, resultRef);
-      }
-    }
-  }
-}

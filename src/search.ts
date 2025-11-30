@@ -1,10 +1,8 @@
-import { ARef, isVariableRef, getVariableName, getPower, createNumberRef, createSymbolRef } from './token.js';
 import { parseExpression } from './parser.js';
 import { isLinearExpressionGoal } from './goal.js';
 import { getAllActions } from './allactions.js';
-import { AModel, createInitialModel, createModel, getModelPath, modelToKey } from './model.js';
-import { COST } from './terms.js';
-import { AModelSymbolCache } from './asymbol.js';
+import { AModel, createInitialModel, getModelPath, modelToKey } from './model.js';
+import { ASymbolCache } from './asymbol.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -135,15 +133,17 @@ export function aStarSearch(startModel: AModel): AModel[] | null {
         heap.push(model);
       }
     }
+
+    endOfChain.length = 0;
   }
 
   return null;
 }
 
 function executeLazyCompute(model: AModel): boolean {
-  if (!model.requireCompute) {
-    return false;
-  }
+  // if (!model.requireCompute) {
+  //   return false;
+  // }
   let chain: AModel[] = [];
   let cur: AModel | undefined = model;
   while (cur) {
@@ -154,10 +154,22 @@ function executeLazyCompute(model: AModel): boolean {
   let changed = false;
   for (let idx = chain.length - 1; idx >= 0; idx--) {
     let cur = chain[idx];
-    if (cur.resultRef?.compute) {
-      const refChanged = cur.resultRef.compute();
-      if (refChanged) {
-        changed = true;
+    if (cur.computeRefs) {
+      let hasCompute = false;
+      for (let idx = 0; idx < cur.computeRefs.length; idx++) {
+        let compute = cur.computeRefs[idx];
+        if (compute) {
+          const refChanged = compute.compute!();
+          if (refChanged) {
+            changed = true;
+            cur.computeRefs[idx] = null;
+          } else {
+            hasCompute = true;
+          }
+        }
+      }
+      if (!hasCompute) {
+        cur.computeRefs = undefined;
       }
     }
   }
@@ -173,9 +185,9 @@ function main(): void {
   // const exprStr = '4 + 3 * 4';
 
   // Create a temporary model to get the cache
-  const cache = new AModelSymbolCache();
+  const cache = new ASymbolCache();
   const expr = parseExpression(cache, exprStr);
-  const model = new AModel({ transform: "initial", cache: cache, refs: expr })
+  const model = createInitialModel(cache, expr)
 
   console.log(`Searching for solution to: ${exprStr}`);
   console.log(`Parsed tokens: ${expr.map(t => t.symbol).join(' ')}`);
@@ -186,7 +198,7 @@ function main(): void {
   if (result) {
     console.log('Solution found:');
     for (const model of result) {
-      const tokensStr = model.refs.map(t => t.symbol).join(' ');
+      const tokensStr = model.refs.map(t => t.value ?? t.symbol).join(' ');
       console.log(`  [${model.transform}] ${tokensStr} (cost: ${model.totalApproxCost})`);
     }
   } else {

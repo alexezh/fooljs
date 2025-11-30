@@ -1,6 +1,6 @@
 import type { ARef, ASymbol } from "./token";
 
-export class AModelSymbolCache {
+export class ASymbolCache {
   /**
  * Cache mapping aref[] to internal variable names (e.g., ?1, ?2, ?3)
  * Key: serialized aref array (using getRefText)

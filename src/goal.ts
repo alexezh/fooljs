@@ -18,7 +18,7 @@ export function isLinearExpressionGoal(refs: ARef[]): boolean {
   // Count variables in all tokens
   for (const token of refs) {
     if (token.isNumber) {
-      counts["_number"] = counts["_number"] ?? 0 + 1;
+      counts["_number"] = (counts["_number"] ?? 0) + 1;
     } else if (token.isOp) {
       // nothing
     } else {

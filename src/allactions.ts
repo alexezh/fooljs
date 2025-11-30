@@ -1,5 +1,5 @@
 
-import { applyCancel, applyCleanup, applyParenthesis, applySubToAdd } from "./actions.js";
+import { applyCancel, applyCleanup, applyParenthesis } from "./actions.js";
 import { applyDiv } from "./applyDiv.js";
 import { applyMul } from "./applyMul.js";
 import { applySum } from "./applySum.js";
@@ -18,7 +18,6 @@ export const ALL_ACTIONS: ActionEntry[] = [
   { name: 'div', fn: applyDiv },
   { name: 'cancel', fn: applyCancel },
   { name: 'cleanup', fn: applyCleanup },
-  { name: 'subToAdd', fn: applySubToAdd },
   { name: 'parenthesis', fn: applyParenthesis }
 ];
 

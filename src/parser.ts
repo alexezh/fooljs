@@ -1,4 +1,4 @@
-import type { AModelSymbolCache } from './asymbol.js';
+import type { ASymbolCache } from './asymbol.js';
 import { AToken, ARef, RefType, TokenRole, createSymbolRef, createOpRef, createNumberRef, toSymbol, makeComputeFunction } from './token.js';
 
 type TokenLike = string | AToken | ARef;
@@ -72,7 +72,7 @@ function isMulDivOp(text: string): boolean {
  * Pass 2: Convert to ARef with implicit multiplication (2x -> 2 * x)
  * Pass 3: Assign roles (term, factor, exponent, operator) and signs
  */
-export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] {
+export function parseExpression(cache: ASymbolCache, expr: string): ARef[] {
   expr = expr.replace(/\s/g, ''); // Remove whitespace
 
   // ============================================================================
@@ -191,7 +191,7 @@ export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] 
  * Top level contains addition/subtraction operations (terms).
  * Multiplication, division, power, and parentheses create nested tree nodes.
  */
-function buildTermTree(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
+function buildTermTree(cache: ASymbolCache, refs: ARef[]): ARef[] {
   // First pass: handle parentheses
   const withoutParens = collapseParentheses(cache, refs);
 
@@ -208,7 +208,7 @@ function buildTermTree(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 /**
  * Collapse parentheses into tree nodes
  */
-function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
+function collapseParentheses(cache: ASymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
@@ -232,8 +232,20 @@ function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
       // Recursively process inner content
       const processedInner = buildTermTree(cache, innerRefs);
 
-      // Create a node for the parenthesized expression
-      const parenNode = createSymbolRef(cache, processedInner);
+      // Create a node for the parenthesized expression with compute function
+      const computeValue = (): number | null => {
+        // Sum all term values (ignoring operators)
+        let sum = 0;
+        let hasValue = false;
+        for (const ref of processedInner) {
+          if (!ref.isOp && typeof ref.value === 'number') {
+            sum += ref.value;
+            hasValue = true;
+          }
+        }
+        return hasValue ? sum : null;
+      };
+      const parenNode = createSymbolRef(cache, processedInner, undefined, makeComputeFunction(computeValue));
       result.push(parenNode);
 
       i = j;
@@ -249,7 +261,7 @@ function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 /**
  * Collapse power operations into tree nodes
  */
-function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
+function collapsePower(cache: ASymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
@@ -285,7 +297,7 @@ function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 /**
  * Collapse multiplication/division into tree nodes
  */
-function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
+function collapseMulDiv(cache: ASymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
@@ -339,7 +351,39 @@ function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
         }
       }
 
-      const exprNode = createSymbolRef(cache, children);
+      // Create compute function for mul/div chain
+      const computeValue = (): number | null => {
+        // Start with first factor
+        const firstVal = factors[0].value;
+        if (typeof firstVal !== 'number') {
+          return null;
+        }
+
+        let result = firstVal;
+
+        // Apply each operation
+        for (let k = 0; k < ops.length; k++) {
+          const op = ops[k].symbol;
+          const factorVal = factors[k + 1].value;
+
+          if (typeof factorVal !== 'number') {
+            return null;
+          }
+
+          if (op === '*') {
+            result *= factorVal;
+          } else if (op === '/') {
+            if (factorVal === 0) {
+              return null;
+            }
+            result /= factorVal;
+          }
+        }
+
+        return result;
+      };
+
+      const exprNode = createSymbolRef(cache, children, undefined, makeComputeFunction(computeValue));
 
       result.push(exprNode);
       i = j;
@@ -354,8 +398,9 @@ function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
 
 /**
  * Assign term roles and signs to top-level addition/subtraction
+ * Always uses + as operator, and creates negate compute operations for subtraction
  */
-function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
+function assignTermRoles(cache: ASymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let currentSign: '+' | '-' = '+';
   let i = 0;
@@ -372,9 +417,8 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
         i++;
         continue;
       } else {
-        // Binary operator - keep it
-        const opRef = createOpRef(symbol);
-        result.push(opRef);
+        // Binary operator - always use + and track the sign
+        result.push(createOpRef('+'));
         currentSign = symbol as '+' | '-';
         i++;
         continue;
@@ -384,34 +428,21 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
     // For all other refs (terms), apply the current sign
     let termRef = ref;
 
-    // Apply sign to create term
+    // Apply sign to create term with negate compute if needed
     if (currentSign === '-' && ref.refType !== 'op') {
-      // Negate the term
-      if (ref.refType === 'number') {
-        const origValue = ref.value as number;
-        const negValue = -origValue;
-        termRef = createNumberRef(negValue);
-        // Store original ref in arefs
-        termRef.arefs = [ref];
-      } else {
-        // Create negate with -1 * ref
-        const minusOne = createNumberRef(-1);
-        const mulOp = createOpRef('*');
-        const computeValue = (): number | null => {
-          const leftVal = minusOne.value;
-          const rightVal = ref.value;
-          if (typeof leftVal === 'number' && typeof rightVal === 'number') {
-            return leftVal * rightVal;
-          }
-          return null;
-        };
-        termRef = createSymbolRef(cache, [minusOne, mulOp, ref], undefined, makeComputeFunction(computeValue));
-        termRef.role = 'term';
-      }
+      // Create negate compute operation for both numbers and variables
+      const minusOne = createNumberRef(-1);
+      const mulOp = createOpRef('*');
+      const computeValue = (): number | null => {
+        const leftVal = minusOne.value;
+        const rightVal = ref.value;
+        if (typeof leftVal === 'number' && typeof rightVal === 'number') {
+          return leftVal * rightVal;
+        }
+        return null;
+      };
+      termRef = createSymbolRef(cache, [minusOne, mulOp, ref], undefined, makeComputeFunction(computeValue));
       currentSign = '+';
-    } else {
-      // Positive term
-      termRef.role = 'term';
     }
 
     result.push(termRef);
