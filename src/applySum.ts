@@ -1,6 +1,7 @@
 import { AModel, createModel, ModelDelayedOp } from "./model.js";
 import { calculateTermAddCost, canAddTerms, COST } from "./terms.js";
-import { ARef, createDelayedRef, DelayedOp, getRefText, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
+import { ARef, createDelayedRef, DelayedOp, areRefsCompatible, isVariableRef, getVariableName, getPower } from "./token.js";
+import { toSymbol } from "./asymbol.js";
 
 /**
  * Scanned term pair info for pending realization
@@ -45,7 +46,7 @@ export function* applySumScan(model: AModel): Generator<AModel> {
       if (canAddTerms(refA, refB)) {
         // Determine operation by checking operator before refB
         const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
-        const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
+        const effectiveOp = (opBeforeB && opBeforeB.symbol === '-') ? '-' : '+';
         const cost = calculateTermAddCost(refA, refB, effectiveOp);
         pairs.push({ iPos, jPos, cost });
       }
@@ -97,7 +98,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
 
   // Determine operation by checking operator before refB
   const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
-  const effectiveOp = (opBeforeB && getRefText(opBeforeB) === '-') ? '-' : '+';
+  const effectiveOp = (opBeforeB && opBeforeB.symbol === '-') ? '-' : '+';
 
   let resultText: string;
   let delayedOp: DelayedOp;
@@ -107,7 +108,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
     delayedOp = effectiveOp === '+'
       ? { kind: 'add', left: refA, right: refB }
       : { kind: 'sub', left: refA, right: refB };
-    resultText = `(${getRefText(refA)}${effectiveOp}${getRefText(refB)})`;
+    resultText = `(${refA.symbol}${effectiveOp}${refB.symbol})`;
   }
   // Case 2: Both are variables
   else if (isVariableRef(refA) && isVariableRef(refB)) {
@@ -123,10 +124,10 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
       resultText = '0';
     }
   }
-  // Case 3: Expressions
+  // Case 3: Other symbols
   else {
-    const aText = getRefText(refA);
-    const bText = getRefText(refB);
+    const aText = refA.symbol;
+    const bText = refB.symbol;
 
     if (effectiveOp === '+') {
       delayedOp = { kind: 'add', left: refA, right: refB };
@@ -137,7 +138,7 @@ export function realizeSumPair(model: AModel, pair: TermPair): AModel {
     }
   }
 
-  const resultRef = createDelayedRef(resultText, [refA, refB], delayedOp);
+  const resultRef = createDelayedRef(toSymbol(resultText), [refA, refB], delayedOp);
 
   // Build new refs array
   const opIndexBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;

@@ -1,6 +1,7 @@
 import { isGoal } from "./goal.js";
-import { ARef, getRefText } from "./token.js";
+import { ARef } from "./token.js";
 import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
+import { AModelSymbolCache } from "./asymbol.js";
 
 /**
  * Delayed operation to be executed at model level
@@ -13,33 +14,6 @@ export interface ModelDelayedOp {
   operation: any;    // Operation-specific data
   cost: number;      // Cost to execute this operation
   compute: (model: AModel, operation: any) => AModel;  // Function to perform the computation
-}
-
-export class AModelSymbolCache {
-  /**
- * Cache mapping aref[] to internal variable names (e.g., ?1, ?2, ?3)
- * Key: serialized aref array (using getRefText)
- * Value: internal variable name
- */
-  cache: Map<string, string> = new Map();
-  private nextInternalVarNum: number = 1;
-
-  /**
-   * Get or create an internal variable for the given arefs
-   */
-  getInternalVar(arefs: ARef[]): string {
-    const key = arefs.map(r => getRefText(r)).join('|');
-
-    if (this.cache.has(key)) {
-      return this.cache.get(key)!;
-    }
-
-    const varName = `?${this.nextInternalVarNum}`;
-    this.cache.set(key, varName);
-    this.nextInternalVarNum++;
-
-    return varName;
-  }
 }
 
 export class AModel {
@@ -85,10 +59,8 @@ export class AModel {
 }
 
 export function modelToKey(model: AModel): string {
-
-  const refs = model.refs.map(t => getRefText(t)).join('|');
+  const refs = model.refs.map(t => t.symbol).join('|');
   return (model.delayedOp) ? "?" + refs : refs;
-  //return tokensToKey(model.refs);
 }
 
 /**
@@ -114,28 +86,6 @@ export function createInitialModel(tokens: ARef[]): AModel {
  */
 function convertSubExpressionsToSymbols(refs: ARef[], cache: AModelSymbolCache): ARef[] {
   return refs.map(ref => {
-    // If this is an expression with children representing a mul/div/pow operation, convert to symbol
-    if (ref.refType === 'expr' && ref.arefs && ref.arefs.length > 0 && ref.token.text === '(...)') {
-      // Recursively process children first
-      const processedChildren = convertSubExpressionsToSymbols(ref.arefs as ARef[], cache);
-
-      // Get symbol name from cache
-      const symbolName = cache.getInternalVar(processedChildren);
-
-      // Create symbol ARef
-      const symbolRef = new ARef({
-        token: { id: ref.token.id, text: symbolName },
-        arefs: processedChildren,
-        value: undefined, // Not yet computed
-        refType: 'symbol',
-        role: ref.role,
-        variables: ref.variables,
-        symbol: symbolName
-      });
-
-      return symbolRef;
-    }
-
     // For other types, recursively process children if any
     if (ref.arefs && ref.arefs.length > 0) {
       const processedChildren = convertSubExpressionsToSymbols(ref.arefs as ARef[], cache);
@@ -147,7 +97,8 @@ function convertSubExpressionsToSymbols(refs: ARef[], cache: AModelSymbolCache):
         refType: ref.refType,
         variables: ref.variables,
         depth: ref.depth,
-        role: ref.role
+        role: ref.role,
+        symbol: ref.symbol!
       });
     }
 
@@ -201,12 +152,12 @@ function getApproxCost(a: AModel): number {
     if (term.refType === 'number') {
       key = 'number';
     } else if (term.refType === 'symbol') {
-      const varName = getRefText(term);
+      const varName = term.symbol || '';
       const power = term.getPower();
       key = `${varName}^${power.value ?? 1}`;
     } else {
-      // For expressions, use the text as key (simplified)
-      key = `expr:${getRefText(term)}`;
+      // For other types, use the symbol as key
+      key = `other:${term.symbol}`;
     }
 
     if (!groups.has(key)) {
@@ -246,7 +197,7 @@ function getApproxCost(a: AModel): number {
   }
 
   // Add cost for any remaining operators (multiply, divide, power)
-  const operators = refs.filter(r => r.refType === 'op' && ['*', '/', '^'].includes(getRefText(r)));
+  const operators = refs.filter(r => r.refType === 'op' && r.symbol && ['*', '/', '^'].includes(r.symbol));
   if (operators.length > 0) {
     // Estimate multiplication/division costs
     estimatedCost += operators.length * COST.MUL_SINGLE_DIGIT * Math.log10(MAX_EXPR_VALUE);

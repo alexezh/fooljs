@@ -1,4 +1,5 @@
-import { AToken, ARef, RefType, TokenRole, inferRefType, createDelayedRef, DelayedOp, getRefText } from './token.js';
+import type { AModelSymbolCache } from './asymbol.js';
+import { AToken, ARef, RefType, TokenRole, inferRefType, createDelayedRef, DelayedOp, createSymbolRef, createOpRef, createNumberRef } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -25,16 +26,16 @@ function createRef(
   });
 }
 
-function createRefFromText(
-  text: string,
-  refType: RefType,
-  options?: {
-    value?: number;
-    role?: TokenRole;
-  }
-): ARef {
-  return createRef(createToken(text), refType, options);
-}
+// function createRefFromText(
+//   text: string,
+//   refType: RefType,
+//   options?: {
+//     value?: number;
+//     role?: TokenRole;
+//   }
+// ): ARef {
+//   return createRef(createToken(text), refType, options);
+// }
 
 function getTokenText(token: TokenLike): string {
   if (typeof token === 'string') {
@@ -43,7 +44,7 @@ function getTokenText(token: TokenLike): string {
   if ('text' in token) {
     return token.text;
   }
-  return token.token.text;
+  return token.token!.text;
 }
 
 function isNumberToken(token: TokenLike): boolean {
@@ -71,7 +72,7 @@ function isMulDivOp(text: string): boolean {
  * Pass 2: Convert to ARef with implicit multiplication (2x -> 2 * x)
  * Pass 3: Assign roles (term, factor, exponent, operator) and signs
  */
-export function parseExpression(expr: string): ARef[] {
+export function parseExpression(cache: AModelSymbolCache, expr: string): ARef[] {
   expr = expr.replace(/\s/g, ''); // Remove whitespace
 
   // ============================================================================
@@ -162,7 +163,7 @@ export function parseExpression(expr: string): ARef[] {
     i++;
   }
 
-  return buildTermTree(refs);
+  return buildTermTree(cache, refs);
 }
 
 /**
@@ -170,12 +171,12 @@ export function parseExpression(expr: string): ARef[] {
  * Top level contains addition/subtraction operations (terms).
  * Multiplication, division, power, and parentheses create nested tree nodes.
  */
-function buildTermTree(refs: ARef[]): ARef[] {
+function buildTermTree(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   // First pass: handle parentheses
   const withoutParens = collapseParentheses(refs);
 
   // Second pass: handle power (highest precedence after parens)
-  const withoutPower = collapsePower(withoutParens);
+  const withoutPower = collapsePower(cache, withoutParens);
 
   // Third pass: handle multiplication/division
   const withoutMulDiv = collapseMulDiv(withoutPower);
@@ -187,21 +188,21 @@ function buildTermTree(refs: ARef[]): ARef[] {
 /**
  * Collapse parentheses into tree nodes
  */
-function collapseParentheses(refs: ARef[]): ARef[] {
+function collapseParentheses(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
   while (i < refs.length) {
     const ref = refs[i];
 
-    if (ref.token.text === '(') {
+    if (ref.token!.text === '(') {
       // Find matching closing paren
       let depth = 1;
       let j = i + 1;
 
       while (j < refs.length && depth > 0) {
-        if (refs[j].token.text === '(') depth++;
-        else if (refs[j].token.text === ')') depth--;
+        if (refs[j].token!.text === '(') depth++;
+        else if (refs[j].token!.text === ')') depth--;
         j++;
       }
 
@@ -209,10 +210,10 @@ function collapseParentheses(refs: ARef[]): ARef[] {
       const innerRefs = refs.slice(i + 1, j - 1);
 
       // Recursively process inner content
-      const processedInner = buildTermTree(innerRefs);
+      const processedInner = buildTermTree(cache, innerRefs);
 
       // Create a node for the parenthesized expression
-      const parenNode = createRefFromText(`(...)`, 'expr');
+      const parenNode = createRefFromText(`(...)`, 'symbol');
       parenNode.arefs = processedInner;
       result.push(parenNode);
 
@@ -229,7 +230,7 @@ function collapseParentheses(refs: ARef[]): ARef[] {
 /**
  * Collapse power operations into tree nodes
  */
-function collapsePower(refs: ARef[]): ARef[] {
+function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
@@ -239,13 +240,12 @@ function collapsePower(refs: ARef[]): ARef[] {
     const expRef = refs[i + 2];
 
     // Check for power pattern: <base> ^ <exponent>
-    if (nextRef && nextRef.token.text === '^' && expRef) {
-      const varName = getRefText(ref);
+    if (nextRef && nextRef.token!.text === '^' && expRef) {
       const power = expRef.refType === 'number' ? (expRef.value as number) : 2;
 
       // Create delayed pow op - include operator in arefs
       const delayedOp: DelayedOp = { kind: 'pow', base: ref, exponent: expRef };
-      const powerNode = createDelayedRef(`${varName}^${power}`, [ref, nextRef, expRef], delayedOp);
+      const powerNode = createSymbolRef(cache, [ref, nextRef, expRef], delayedOp);
 
       result.push(powerNode);
       i += 3;
@@ -261,7 +261,7 @@ function collapsePower(refs: ARef[]): ARef[] {
 /**
  * Collapse multiplication/division into tree nodes
  */
-function collapseMulDiv(refs: ARef[]): ARef[] {
+function collapseMulDiv(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let i = 0;
 
@@ -269,7 +269,7 @@ function collapseMulDiv(refs: ARef[]): ARef[] {
     const ref = refs[i];
 
     // Skip if this is an add/sub operator - those stay at top level
-    if (ref.token.text === '+' || ref.token.text === '-') {
+    if (ref.token!.text === '+' || ref.token!.text === '-') {
       result.push(ref);
       i++;
       continue;
@@ -284,12 +284,12 @@ function collapseMulDiv(refs: ARef[]): ARef[] {
       const opRef = refs[j];
 
       // Stop at add/sub operators
-      if (opRef.token.text === '+' || opRef.token.text === '-') {
+      if (opRef.token!.text === '+' || opRef.token!.text === '-') {
         break;
       }
 
       // Check for mul/div operator
-      if (isMulDivOp(opRef.token.text)) {
+      if (isMulDivOp(opRef.token!.text)) {
         const nextFactor = refs[j + 1];
         if (nextFactor) {
           ops.push(opRef);
@@ -305,8 +305,6 @@ function collapseMulDiv(refs: ARef[]): ARef[] {
 
     // If we collected mul/div operations, create a tree node
     if (factors.length > 1) {
-      // Create expression node containing the factors
-      const exprNode = createRefFromText('(...)', 'expr');
 
       // Interleave factors and operators
       const children: ARef[] = [];
@@ -317,7 +315,8 @@ function collapseMulDiv(refs: ARef[]): ARef[] {
         }
       }
 
-      exprNode.arefs = children;
+      const exprNode = createSymbolRef(cache, children);
+
       result.push(exprNode);
       i = j;
     } else {
@@ -332,14 +331,14 @@ function collapseMulDiv(refs: ARef[]): ARef[] {
 /**
  * Assign term roles and signs to top-level addition/subtraction
  */
-function assignTermRoles(refs: ARef[]): ARef[] {
+function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
   const result: ARef[] = [];
   let currentSign: '+' | '-' = '+';
   let i = 0;
 
   while (i < refs.length) {
     const ref = refs[i];
-    const text = ref.token.text;
+    const text = ref.token!.text;
 
     // Handle add/sub operators
     if (isAddSubOp(text)) {
@@ -350,7 +349,7 @@ function assignTermRoles(refs: ARef[]): ARef[] {
         continue;
       } else {
         // Binary operator - keep it
-        const opRef = createRefFromText(text, 'op', { role: 'operator' });
+        const opRef = createOpRef(text);
         result.push(opRef);
         currentSign = text as '+' | '-';
         i++;
@@ -367,17 +366,13 @@ function assignTermRoles(refs: ARef[]): ARef[] {
       if (ref.refType === 'number') {
         const origValue = ref.value as number;
         const negValue = -origValue;
-        termRef = createRefFromText(String(negValue), 'number', {
-          value: negValue,
-          role: 'term'
-        });
+        termRef = createNumberRef(negValue);
         // Store original ref in arefs
         termRef.arefs = [ref];
       } else {
         // Create negate delayed op with -1 * ref
-        const refText = getRefText(ref);
-        const minusOne = createRefFromText('-1', 'number', { value: -1 });
-        const mulOp = createRefFromText('*', 'op');
+        const minusOne = createNumberRef(-1);
+        const mulOp = createOpRef('*');
         const delayedOp: DelayedOp = {
           kind: 'mul',
           left: minusOne,

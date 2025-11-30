@@ -2,37 +2,37 @@ import { AModel, createModel } from './model.js';
 import {
   ARef,
   tokenEquals,
-  getRefText,
   splice,
-  createAref
+  createOpRef,
+  createSymbolRef,
 } from './token.js';
 
 /**
  * Apply cancellation operations - yields AModel
  */
 export function* applyCancel(model: AModel): Generator<AModel> {
-  const tokens = model.refs;
+  const refs = model.refs;
 
   function isPartOfMultiplication(index: number): boolean {
-    if (index > 0 && tokenEquals(tokens[index - 1], '*')) return true;
-    if (index + 1 < tokens.length && tokenEquals(tokens[index + 1], '*')) return true;
+    if (index > 0 && tokenEquals(refs[index - 1], '*')) return true;
+    if (index + 1 < refs.length && tokenEquals(refs[index + 1], '*')) return true;
     return false;
   }
 
   // Look for +term ... -term patterns
-  for (let i = 0; i < tokens.length; i++) {
-    if (tokenEquals(tokens[i], '+') && i + 1 < tokens.length) {
-      const addTerm = tokens[i + 1];
+  for (let i = 0; i < refs.length; i++) {
+    if (tokenEquals(refs[i], '+') && i + 1 < refs.length) {
+      const addTerm = refs[i + 1];
       if (isPartOfMultiplication(i + 1)) continue;
 
-      for (let j = i + 2; j < tokens.length; j++) {
+      for (let j = i + 2; j < refs.length; j++) {
         if (
-          tokenEquals(tokens[j], '-') &&
-          j + 1 < tokens.length &&
-          getRefText(tokens[j + 1]) === getRefText(addTerm) &&
+          tokenEquals(refs[j], '-') &&
+          j + 1 < refs.length &&
+          refs[j + 1].symbol === addTerm.symbol &&
           !isPartOfMultiplication(j + 1)
         ) {
-          let newTokens = splice(tokens, j, j + 2, []);
+          let newTokens = splice(refs, j, j + 2, []);
           newTokens = splice(newTokens, i, i + 2, []);
 
           yield createModel(model, `cancel_${i}_${j}`, newTokens, 1);
@@ -57,7 +57,7 @@ export function* applyCleanup(model: AModel): Generator<AModel> {
 
   // Remove leading - operator and negate
   if (tokenEquals(tokens[0], '-') && tokens.length > 1 && tokens[1].isNumber) {
-    const resultRef = createAref('-' + getRefText(tokens[1]), [tokens[1]]);
+    const resultRef = createSymbolRef(model.cache, [tokens[1]]);
     const newTokens = splice(tokens, 0, 2, [resultRef]);
     yield createModel(model, 'negate_leading', newTokens, 1, resultRef);
   }
@@ -94,36 +94,12 @@ export function* applySubToAdd(model: AModel): Generator<AModel> {
     if (tokenEquals(tokens[i], '-') && i + 1 < tokens.length) {
       const nextToken = tokens[i + 1];
       if (nextToken.isNumber) {
-        const plusRef = createAref('+');
-        const resultRef = createAref('-' + getRefText(nextToken), [nextToken]);
+        const plusRef = createOpRef('+');
+        const resultRef = createSymbolRef(model.cache, [nextToken]);
         const newTokens = splice(tokens, i, i + 2, [plusRef, resultRef]);
 
         yield createModel(model, `sub_to_add_${i}`, newTokens, 1, resultRef);
       }
     }
   }
-}
-
-// ============================================================================
-// Evaluate delayed operations (when needed)
-// ============================================================================
-
-/**
- * Get the numeric value of a ref, recursively evaluating delayed ops if needed.
- * Returns null if the ref contains variables or can't be evaluated.
- */
-function getRefValue(ref: ARef): number | null {
-  // If ref has a computed value, use it
-  if (ref.value !== null && ref.value !== undefined) {
-    return ref.value;
-  }
-
-  // Try to parse as number from text
-  const text = getRefText(ref);
-  if (/^-?\d+$/.test(text)) {
-    return parseInt(text, 10);
-  }
-
-  // Can't evaluate (contains variables or invalid)
-  return null;
 }

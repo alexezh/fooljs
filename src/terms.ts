@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, getRefText, areRefsCompatible, getVariableName } from "./token.js";
+import { ARef, areRefsCompatible, getVariableName } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -106,8 +106,8 @@ export function canAddTerms(a: ARef, b: ARef): boolean {
 export function calculateTermAddCost(a: ARef, b: ARef, op: '+' | '-'): number {
   // Number + Number or Number - Number
   if (a.isNumber && b.isNumber) {
-    const aVal = (a.value as number) ?? parseInt(getRefText(a), 10) ?? 0;
-    const bVal = (b.value as number) ?? parseInt(getRefText(b), 10) ?? 0;
+    const aVal = (a.value as number) ?? parseInt(a.symbol || '0', 10) ?? 0;
+    const bVal = (b.value as number) ?? parseInt(b.symbol || '0', 10) ?? 0;
     return op === '+' ? calculateAdditionCost(aVal, bVal) : calculateSubtractionCost(aVal, bVal);
   }
 
@@ -132,22 +132,17 @@ export function calculateTermAddCost(a: ARef, b: ARef, op: '+' | '-'): number {
     return COST.VAR_BASE_COST;
   }
 
-  // Expression operations
-  if (a.refType === 'expr' || b.refType === 'expr') {
-    const aText = getRefText(a);
-    const bText = getRefText(b);
+  // Other symbol operations
+  const aText = a.symbol;
+  const bText = b.symbol;
 
-    // Cancelling identical expressions: (expr) - (expr) = 0
-    if (op === '-' && aText === bText) {
-      return COST.VAR_CANCEL_REWARD;
-    }
-
-    // Combining compatible expressions
-    return COST.EXPR_COMBINE_COST;
+  // Cancelling identical expressions: (expr) - (expr) = 0
+  if (op === '-' && aText === bText) {
+    return COST.VAR_CANCEL_REWARD;
   }
 
-  // Default: base variable cost
-  return COST.VAR_BASE_COST;
+  // Combining compatible expressions
+  return COST.EXPR_COMBINE_COST;
 }
 
 

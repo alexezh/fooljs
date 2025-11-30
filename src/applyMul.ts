@@ -1,6 +1,7 @@
 import { AModel, createModel } from "./model.js";
 import { calculateMultiplicationCost, COST } from "./terms.js";
-import { ARef, createAref, createDelayedRef, DelayedOp, getRefText, splice, tokenEquals } from "./token.js";
+import { ARef, createDelayedRef, createSymbolRef, DelayedOp, splice, tokenEquals } from "./token.js";
+import { toSymbol } from "./asymbol.js";
 
 
 /**
@@ -17,25 +18,25 @@ export function* applyMul(model: AModel): Generator<AModel> {
       // number * symbol -> coefficient-variable with delayed op
       if (left.isNumber && right.isSymbol) {
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
-        const varName = getRefText(right);
+        const varName = right.symbol || '';
         const powerRef = right.getPower();
         const power = powerRef.isNumber && typeof powerRef.value === 'number' ? powerRef.value : 1;
         const powerStr = power > 1 ? `^${power}` : '';
-        const combinedText = `${getRefText(left)}${varName}${powerStr}`;
+        const combinedText = `${left.symbol}${varName}${powerStr}`;
         const op = tokens[i];
-        const resultRef = createDelayedRef(combinedText, [left, op, right], delayedOp);
+        const resultRef = createDelayedRef(toSymbol(combinedText), [left, op, right], delayedOp);
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
       } else if (left.isSymbol && right.isNumber) {
         const delayedOp: DelayedOp = { kind: 'mul', left: right, right: left };
-        const varName = getRefText(left);
+        const varName = left.symbol || '';
         const powerRef = left.getPower();
         const power = powerRef.isNumber && typeof powerRef.value === 'number' ? powerRef.value : 1;
         const powerStr = power > 1 ? `^${power}` : '';
-        const combinedText = `${getRefText(right)}${varName}${powerStr}`;
+        const combinedText = `${right.symbol}${varName}${powerStr}`;
         const op = tokens[i];
-        const resultRef = createDelayedRef(combinedText, [left, op, right], delayedOp);
+        const resultRef = createDelayedRef(toSymbol(combinedText), [left, op, right], delayedOp);
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
@@ -43,8 +44,8 @@ export function* applyMul(model: AModel): Generator<AModel> {
 
       // symbol * symbol (same variable) -> power with delayed op
       if (left.isSymbol && right.isSymbol) {
-        const leftVarName = getRefText(left);
-        const rightVarName = getRefText(right);
+        const leftVarName = left.symbol;
+        const rightVarName = right.symbol;
 
         if (leftVarName && rightVarName && leftVarName === rightVarName) {
           const leftPowerRef = left.getPower();
@@ -54,12 +55,12 @@ export function* applyMul(model: AModel): Generator<AModel> {
           const totalPower = leftPower + rightPower;
 
           const baseRef = left.getBase();
-          const delayedOp: DelayedOp = { kind: 'pow', base: baseRef, exponent: createAref(String(totalPower), [], totalPower) };
+          const delayedOp: DelayedOp = { kind: 'pow', base: baseRef, exponent: createSymbolRef(model.cache, [], totalPower) };
           const resultText = totalPower === 1
             ? leftVarName
             : `${leftVarName}^${totalPower}`;
           const op = tokens[i];
-          const resultRef = createDelayedRef(resultText, [left, op, right], delayedOp);
+          const resultRef = createDelayedRef(toSymbol(resultText), [left, op, right], delayedOp);
           const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
           yield createModel(model, `multiply_same_var_${i}`, newTokens, COST.SAME_VAR_MUL, resultRef);
@@ -68,13 +69,13 @@ export function* applyMul(model: AModel): Generator<AModel> {
 
       // number * number -> delayed multiplication
       if (left.isNumber && right.isNumber) {
-        const leftValue = left.value ?? parseInt(getRefText(left), 10);
-        const rightValue = right.value ?? parseInt(getRefText(right), 10);
+        const leftValue = left.value ?? parseInt(left.symbol || '0', 10);
+        const rightValue = right.value ?? parseInt(right.symbol || '0', 10);
         const cost = calculateMultiplicationCost(leftValue, rightValue);
 
         const delayedOp: DelayedOp = { kind: 'mul', left, right };
-        const resultText = `(${getRefText(left)}*${getRefText(right)})`;
-        const resultRef = createDelayedRef(resultText, [left, right], delayedOp);
+        const resultText = `(${left.symbol}*${right.symbol})`;
+        const resultRef = createDelayedRef(toSymbol(resultText), [left, right], delayedOp);
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_numbers_${i}`, newTokens, cost, resultRef);

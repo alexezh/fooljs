@@ -172,10 +172,10 @@ function executeDelayedOp(model: AModel): AModel | null {
           // Variables combined (x + x = 2x)
           const powerStr = power !== 1 ? `^${power}` : '';
           resultRef = createDelayedRef(`(2*${varName}${powerStr})`, [refA, refB], refDelayedOp);
-          resultRef.refType = 'expr';  // 2x is an expression
+          resultRef.refType = 'symbol';  // 2x is an expression
           resultRef.variables = [varName];
         }
-      } else if (refA.refType === 'expr' && refB.refType === 'expr' && getRefText(refA) === getRefText(refB)) {
+      } else if (refA.refType === 'symbol' && refB.refType === 'symbol' && getRefText(refA) === getRefText(refB)) {
         // Identical expressions
         if (effectiveOp === '-') {
           // Expressions cancelled out (expr - expr = 0)
@@ -184,7 +184,7 @@ function executeDelayedOp(model: AModel): AModel | null {
         } else {
           // Expressions combined (expr + expr = 2*expr)
           resultRef = createDelayedRef(resultText, [refA, refB], refDelayedOp);
-          resultRef.refType = 'expr';
+          resultRef.refType = 'symbol';
           if (refA.variables) {
             resultRef.variables = refA.variables;
           }

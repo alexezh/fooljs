@@ -1,4 +1,4 @@
-import { ARef, getRefText, tokenEquals } from './token.js';
+import { ARef, tokenEquals } from './token.js';
 
 export function isGoal(tokens: ARef[]): boolean {
   // Goal: single token, number, variable, or coeffvar (e.g., 2x, x^2)
@@ -7,22 +7,11 @@ export function isGoal(tokens: ARef[]): boolean {
   // Single token cases
   if (tokens.length === 1) {
     const token = tokens[0];
-    const text = getRefText(token);
     // Handle plain numbers and variables
     if (token.isNumber || token.isSymbol) {
       return true;
     }
-    // Handle coefficient*variable patterns: 2x, 2*x, (2*x), 2x^2, etc.
-    // Remove parentheses for checking
-    const cleanText = text.replace(/^\(|\)$/g, '');
-    // Match: optional-number, optional-*, variable, optional-power
-    if (/^\d*\*?[a-zA-Z](\^\d+)?$/.test(cleanText)) {
-      return true;
-    }
-    // Match more complex patterns like 2*x^2
-    if (/^\d+\*[a-zA-Z](\^\d+)?$/.test(cleanText)) {
-      return true;
-    }
+
     return false;
   }
 

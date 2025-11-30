@@ -1,3 +1,5 @@
+import type { AModelSymbolCache, ASymbol } from "./asymbol";
+
 /**
  * Type of reference content
  * - 'digit': pure numeric value (e.g., 5, 42, -3)
@@ -5,7 +7,7 @@
  * - 'expr': expression containing variables (e.g., 2x, x+y, x^2)
  * - 'op': operator (+, -, *, /, ^)
  */
-export type RefType = 'number' | 'symbol' | 'expr' | 'op';
+export type RefType = 'number' | 'symbol' | 'op';
 
 /**
  * Role of a token in an expression - determined during parsing
@@ -20,9 +22,9 @@ export class ARef {
    * for digits - value, for variables - name
    */
   value: any;
-  symbol: string;
+  symbol: ASymbol | null;
 
-  token: AToken;
+  token?: AToken;
   arefs: ReadonlyArray<ARef>;
   delayedOp?: DelayedOp;
   refType: RefType;
@@ -38,7 +40,7 @@ export class ARef {
   role?: TokenRole;
 
   constructor(params: {
-    token: AToken;
+    token?: AToken;
     arefs?: ReadonlyArray<ARef>;
     value?: any;
     delayedOp?: DelayedOp;
@@ -46,7 +48,7 @@ export class ARef {
     variables?: string[];
     depth?: number;
     role?: TokenRole;
-    symbol?: string;
+    symbol?: ASymbol;
   }) {
     this.token = params.token;
     this.arefs = params.arefs ?? [];
@@ -56,7 +58,7 @@ export class ARef {
     this.variables = params.variables;
     this.depth = params.depth;
     this.role = params.role;
-    this.symbol = params.symbol ?? this.token.text;
+    this.symbol = params.symbol ?? null;
   }
 
   get isNumber(): boolean {
@@ -65,10 +67,6 @@ export class ARef {
 
   get isSymbol(): boolean {
     return this.refType === 'symbol';
-  }
-
-  get isExpr(): boolean {
-    return this.refType === 'expr';
   }
 
   isExp(): boolean {
@@ -116,12 +114,8 @@ export function inferRefType(text: string): RefType {
   if (/^-?\d+$/.test(text)) {
     return 'number';
   }
-  // Single variable
-  if (/^[a-zA-Z]$/.test(text)) {
-    return 'symbol';
-  }
-  // Everything else is an expression
-  return 'expr';
+  // Everything else (variables, expressions, symbols)
+  return 'symbol';
 }
 
 /**
@@ -138,8 +132,8 @@ export function extractVariables(text: string): string[] {
 export function collectVariables(refs: ARef[]): string[] {
   const vars = new Set<string>();
   for (const ref of refs) {
-    if (ref.refType === 'symbol') {
-      vars.add(getRefText(ref));
+    if (ref.refType === 'symbol' && ref.symbol) {
+      vars.add(ref.symbol);
     } else if (ref.variables) {
       ref.variables.forEach(v => vars.add(v));
     }
@@ -147,37 +141,51 @@ export function collectVariables(refs: ARef[]): string[] {
   return [...vars];
 }
 
-export function createAref(text: string, sourceArefs?: ARef[], value?: number | null): ARef {
-  const refType = inferRefType(text);
-  const variables = refType === 'symbol'
-    ? [text]
-    : refType === 'expr'
-      ? (sourceArefs ? collectVariables(sourceArefs) : extractVariables(text))
-      : undefined;
+// export function createAref(symbol: ASymbol, sourceArefs?: ARef[], value?: number | null): ARef {
+//   const refType = inferRefType(symbol as string);
+//   const variables = refType === 'symbol'
+//     ? [symbol as string]
+//     : undefined;
+
+//   return new ARef({
+//     arefs: sourceArefs ?? [],
+//     value: value ?? null,
+//     refType,
+//     variables,
+//     symbol: symbol as string
+//   });
+// }
+
+export function createSymbolRef(cache: AModelSymbolCache, sourceRefs?: ARef[], value?: number | null): ARef {
+  const arefs = sourceRefs ?? []
+  const symbol = cache.makeSymbol(arefs);
 
   return new ARef({
-    token: createToken(text),
-    arefs: sourceArefs ?? [],
+    arefs: arefs,
     value: value ?? null,
-    refType,
-    variables
+    refType: "symbol",
+    symbol: symbol
   });
 }
 
-export function getRefText(ref: ARef): string {
-  // For symbols, return the symbol name
-  if (ref.refType === 'symbol') {
-    return ref.symbol;
-  }
-  // If this is a tree node with children, build text from children
-  if (ref.arefs && ref.arefs.length > 0 && ref.token.text === '(...)') {
-    return ref.arefs.map(child => getRefText(child)).join(' ');
-  }
-  return ref.token.text;
+export function createOpRef(op: string): ARef {
+  return new ARef({
+    arefs: [],
+    value: null,
+    refType: "op"
+  });
+}
+
+export function createNumberRef(val: number): ARef {
+  return new ARef({
+    arefs: [],
+    value: val,
+    refType: "number"
+  });
 }
 
 export function tokenEquals(token: ARef, str: string): boolean {
-  return getRefText(token) === str;
+  return token.symbol === str;
 }
 
 export function splice(tokens: ReadonlyArray<ARef>, start: number, end: number, replacement: ARef[]): ARef[] {
@@ -227,12 +235,12 @@ export function areRefsCompatible(a: ARef, b: ARef): boolean {
 
   // Both symbols - compatible if same symbol
   if (a.refType === 'symbol' && b.refType === 'symbol') {
-    return getRefText(a) === getRefText(b);
+    return a.symbol === b.symbol;
   }
 
   // Get variables from both refs
-  const aVars = a.variables ?? (a.refType === 'symbol' ? [getRefText(a)] : []);
-  const bVars = b.variables ?? (b.refType === 'symbol' ? [getRefText(b)] : []);
+  const aVars = a.variables ?? (a.refType === 'symbol' && a.symbol ? [a.symbol] : []);
+  const bVars = b.variables ?? (b.refType === 'symbol' && b.symbol ? [b.symbol] : []);
 
   // If either has no variables and other has variables, not compatible
   if (aVars.length === 0 && bVars.length > 0) return false;
@@ -242,19 +250,6 @@ export function areRefsCompatible(a: ARef, b: ARef): boolean {
   if (aVars.length !== bVars.length) return false;
   const aSet = new Set(aVars);
   return bVars.every(v => aSet.has(v));
-}
-
-/**
- * Determine RefType for a delayed operation based on operands
- */
-function inferRefTypeForTokens(sourceArefs: ARef[]): RefType {
-  // If all sources are numbers, result is number
-  const allNumbers = sourceArefs.every(ref => ref.refType === 'number');
-  if (allNumbers) {
-    return 'number';
-  }
-  // If any source has variables, result is expr
-  return 'expr';
 }
 
 export function createDelayedRef(
@@ -279,9 +274,8 @@ export function createDelayedRef(
  * Check if ref represents a variable (symbol with single letter name)
  */
 export function isVariableRef(ref: ARef): boolean {
-  if (ref.refType === 'symbol') {
-    const text = getRefText(ref);
-    return text.length === 1 && /^[a-zA-Z]$/.test(text);
+  if (ref.refType === 'symbol' && ref.symbol) {
+    return ref.symbol.length === 1 && /^[a-zA-Z]$/.test(ref.symbol);
   }
   return false;
 }
@@ -291,7 +285,7 @@ export function isVariableRef(ref: ARef): boolean {
  */
 export function getVariableName(ref: ARef): string | null {
   if (ref.refType === 'symbol') {
-    return getRefText(ref);
+    return ref.symbol;
   }
   return null;
 }
