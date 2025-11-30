@@ -1,5 +1,5 @@
 import type { AModelSymbolCache } from './asymbol.js';
-import { AToken, ARef, RefType, TokenRole, createSymbolRef, createOpRef, createNumberRef, toSymbol } from './token.js';
+import { AToken, ARef, RefType, TokenRole, createSymbolRef, createOpRef, createNumberRef, toSymbol, makeComputeFunction } from './token.js';
 
 type TokenLike = string | AToken | ARef;
 
@@ -261,7 +261,7 @@ function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
     // Check for power pattern: <base> ^ <exponent>
     if (nextRef && nextRef.symbol === '^' && expRef) {
       // Create compute function for power operation
-      const compute = () => {
+      const computeValue = (): number | null => {
         const baseVal = ref.value;
         const expVal = expRef.value;
         if (typeof baseVal === 'number' && typeof expVal === 'number') {
@@ -269,7 +269,7 @@ function collapsePower(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
         }
         return null;
       };
-      const powerNode = createSymbolRef(cache, [ref, nextRef, expRef], undefined, compute);
+      const powerNode = createSymbolRef(cache, [ref, nextRef, expRef], undefined, makeComputeFunction(computeValue));
 
       result.push(powerNode);
       i += 3;
@@ -397,7 +397,7 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
         // Create negate with -1 * ref
         const minusOne = createNumberRef(-1);
         const mulOp = createOpRef('*');
-        const compute = () => {
+        const computeValue = (): number | null => {
           const leftVal = minusOne.value;
           const rightVal = ref.value;
           if (typeof leftVal === 'number' && typeof rightVal === 'number') {
@@ -405,7 +405,7 @@ function assignTermRoles(cache: AModelSymbolCache, refs: ARef[]): ARef[] {
           }
           return null;
         };
-        termRef = createSymbolRef(cache, [minusOne, mulOp, ref], undefined, compute);
+        termRef = createSymbolRef(cache, [minusOne, mulOp, ref], undefined, makeComputeFunction(computeValue));
         termRef.role = 'term';
       }
       currentSign = '+';

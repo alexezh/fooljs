@@ -9,6 +9,7 @@ export class AModel {
   refs: ARef[];
 
   remainCost: number;
+  requireCompute: boolean;
 
   /**
    * cost to full compute from 0. combined from past cost and estimated future cost
@@ -32,6 +33,7 @@ export class AModel {
     this.remainCost = getApproxCost(this);
     this.totalApproxCost = params.totalApproxCost ?? 0;
     this.resultRef = params.resultRef;
+    this.requireCompute = params.resultRef?.compute !== undefined;
 
     // Inherit cache from parent or create new
     if (params.parent) {

@@ -1,6 +1,6 @@
 import { AModel, createModel } from "./model.js";
 import { calculateMultiplicationCost, COST } from "./terms.js";
-import { ARef, createSymbolRef, splice, tokenEquals } from "./token.js";
+import { ARef, createSymbolRef, splice, tokenEquals, makeComputeFunction } from "./token.js";
 
 
 /**
@@ -17,7 +17,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
       // number * symbol -> coefficient-variable with compute
       if (left.isNumber && right.isSymbol) {
         const op = tokens[i];
-        const compute = () => {
+        const computeValue = (): number | null => {
           const leftVal = left.value;
           const rightVal = right.value;
           if (typeof leftVal === 'number' && typeof rightVal === 'number') {
@@ -25,13 +25,13 @@ export function* applyMul(model: AModel): Generator<AModel> {
           }
           return null;
         };
-        const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, compute);
+        const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, makeComputeFunction(computeValue));
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
       } else if (left.isSymbol && right.isNumber) {
         const op = tokens[i];
-        const compute = () => {
+        const computeValue = (): number | null => {
           const leftVal = left.value;
           const rightVal = right.value;
           if (typeof leftVal === 'number' && typeof rightVal === 'number') {
@@ -39,7 +39,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
           }
           return null;
         };
-        const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, compute);
+        const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, makeComputeFunction(computeValue));
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_coeff_var_${i}`, newTokens, COST.COEFF_VAR_MUL, resultRef);
@@ -52,7 +52,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
 
         if (leftVarName && rightVarName && leftVarName === rightVarName) {
           const op = tokens[i];
-          const compute = () => {
+          const computeValue = (): number | null => {
             const leftVal = left.value;
             const rightVal = right.value;
             if (typeof leftVal === 'number' && typeof rightVal === 'number') {
@@ -60,7 +60,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
             }
             return null;
           };
-          const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, compute);
+          const resultRef = createSymbolRef(model.cache, [left, op, right], undefined, makeComputeFunction(computeValue));
           const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
           yield createModel(model, `multiply_same_var_${i}`, newTokens, COST.SAME_VAR_MUL, resultRef);
@@ -73,7 +73,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
         const rightValue = right.value ?? parseInt(right.symbol || '0', 10);
         const cost = calculateMultiplicationCost(leftValue, rightValue);
 
-        const compute = () => {
+        const computeValue = (): number | null => {
           const lval = left.value;
           const rval = right.value;
           if (typeof lval === 'number' && typeof rval === 'number') {
@@ -81,7 +81,7 @@ export function* applyMul(model: AModel): Generator<AModel> {
           }
           return null;
         };
-        const resultRef = createSymbolRef(model.cache, [left, right], undefined, compute);
+        const resultRef = createSymbolRef(model.cache, [left, right], undefined, makeComputeFunction(computeValue));
         const newTokens = splice(tokens, i - 1, i + 2, [resultRef]);
 
         yield createModel(model, `multiply_numbers_${i}`, newTokens, cost, resultRef);

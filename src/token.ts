@@ -34,7 +34,7 @@ export class ARef {
 
   token?: AToken;
   arefs: ReadonlyArray<ARef>;
-  compute?: () => number | null;
+  compute?: () => boolean;
   refType: RefType;
   /** For expr type: which variables are contained (e.g., ['x', 'y'])
    * assume that names are sorted
@@ -47,16 +47,20 @@ export class ARef {
   /** Role of this token in the expression */
   role?: TokenRole;
 
+  /** Original ref before compute transformation */
+  orig?: ARef;
+
   constructor(params: {
     token?: AToken;
     arefs?: ReadonlyArray<ARef>;
     value?: any;
-    compute?: () => number | null;
+    compute?: () => boolean;
     refType: RefType;
     variables?: string[];
     depth?: number;
     role?: TokenRole;
     symbol?: ASymbol;
+    orig?: ARef;
   }) {
     this.token = params.token;
     this.arefs = params.arefs ?? [];
@@ -67,6 +71,7 @@ export class ARef {
     this.depth = params.depth;
     this.role = params.role;
     this.symbol = params.symbol ?? null;
+    this.orig = params.orig;
   }
 
   get isNumber(): boolean {
@@ -172,11 +177,48 @@ export function collectVariables(refs: ARef[]): string[] {
 //   });
 // }
 
+/**
+ * Create a compute function that updates the ref in place.
+ * Returns a function that:
+ * - Calls the value-computing function
+ * - If result is not null and different, stores original in orig and updates ref
+ * - Returns true if updated, false otherwise
+ */
+export function makeComputeFunction(computeValue: () => number | null): () => boolean {
+  return function (this: ARef): boolean {
+    const result = computeValue();
+
+    if (result !== null && result !== this.value) {
+      // Store original state in orig
+      this.orig = new ARef({
+        arefs: this.arefs,
+        value: this.value,
+        token: this.token,
+        refType: this.refType,
+        symbol: this.symbol ?? undefined,
+        compute: this.compute,
+        role: this.role
+      });
+
+      // Update to computed value
+      this.value = result;
+      this.arefs = [];
+      this.symbol = null;
+      this.compute = undefined;
+      this.refType = 'number';
+
+      return true;
+    }
+
+    return false;
+  };
+}
+
 export function createSymbolRef(
   cache: AModelSymbolCache,
   sourceRefs?: ARef[],
   value?: number | null,
-  compute?: () => number | null,
+  compute?: () => boolean,
   token?: AToken
 ): ARef {
   const arefs = sourceRefs ?? []

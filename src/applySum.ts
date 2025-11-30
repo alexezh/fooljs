@@ -1,6 +1,6 @@
 import { AModel, createModel } from "./model.js";
 import { calculateTermAddCost, canAddTerms } from "./terms.js";
-import { ARef, createSymbolRef } from "./token.js";
+import { ARef, createSymbolRef, makeComputeFunction } from "./token.js";
 
 /**
  * Apply addition/subtraction operations - yields AModel with computed results
@@ -36,7 +36,7 @@ export function* applySum(model: AModel): Generator<AModel> {
         const cost = calculateTermAddCost(refA, refB, effectiveOp);
 
         // Create compute function for the operation
-        const compute = () => {
+        const computeValue = (): number | null => {
           const aVal = refA.value;
           const bVal = refB.value;
           if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -45,7 +45,7 @@ export function* applySum(model: AModel): Generator<AModel> {
           return null;
         };
 
-        const resultRef = createSymbolRef(model.cache, [refA, refB], undefined, compute);
+        const resultRef = createSymbolRef(model.cache, [refA, refB], undefined, makeComputeFunction(computeValue));
 
         // Build new refs array
         const opIndexBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? jPos - 1 : -1;
