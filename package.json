@@ -3,8 +3,16 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "dependencies": {},
+  "scripts": {
+    "build": "tsc && cp src/grammar.ohm out/grammar.ohm"
+  },
+  "dependencies": {
+    "ohm-js": "^17.2.1"
+  },
   "eslintConfig": {
     "extends": []
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
   }
 }

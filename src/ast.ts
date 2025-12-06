@@ -1,4 +1,6 @@
-export type AstNodeKind = 'var' | 'number' | 'symbol' | 'func' | 'rule';
+export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'rule';
+
+export type TypeName = 'number' | 'var';
 
 export class ASymbol {
   name: string;
@@ -9,17 +11,28 @@ export class ASymbol {
   }
 }
 
+export class Constraint {
+  patvar: string;
+  type: TypeName;
+  constructor(patvar: string, type: TypeName) {
+    this.patvar = patvar;
+    this.type = type;
+  }
+}
+
 export type AFunc = ASymbol;
 
 export class AstNode {
   kind: AstNodeKind;
   value: number | string | ASymbol;
   children: AstNode[] | undefined;
+  constraints?: Constraint[];
 
-  constructor(kind: AstNodeKind, value: number | string | ASymbol, children?: AstNode[]) {
+  constructor(kind: AstNodeKind, value: number | string | ASymbol, children?: AstNode[], constraints?: Constraint[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
+    this.constraints = constraints;
   }
 }
 

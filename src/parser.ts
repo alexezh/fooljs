@@ -1,239 +1,121 @@
-import { AstNode, ASymbol } from "./ast";
+import * as ohm from 'ohm-js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { AstNode, ASymbol, Constraint, TypeName } from "./ast.js";
 
 // Examples:
 // "1" → AstNode(kind='number', value=1)
 // "42" → AstNode(kind='number', value=42)
 // "x" → AstNode(kind='symbol', value=ASymbol("x"))
-// "?v" → AstNode(kind='var', value="v")
-// "?x1" → AstNode(kind='var', value="x1")
+// "?v" → AstNode(kind='patvar', value="v")
+// "?x1" → AstNode(kind='patvar', value="x1")
 // "a1" → AstNode(kind='symbol', value=ASymbol("a", [AstNode('number', 1)]))
 // "x2" → AstNode(kind='symbol', value=ASymbol("x", [AstNode('number', 2)]))
 // "a{x, 1}" → AstNode(kind='symbol', value=ASymbol("a", [AstNode('symbol', ASymbol("x")), AstNode('number', 1)]))
 // "f{1, 2, 3}" → AstNode(kind='symbol', value=ASymbol("f", [AstNode('number', 1), AstNode('number', 2), AstNode('number', 3)]))
 // "sum(a, b)" → AstNode(kind='func', value="sum", children=[AstNode('symbol', ASymbol("a")), AstNode('symbol', ASymbol("b"))])
-// "sum(?x, ?y)" → AstNode(kind='func', value="sum", children=[AstNode('var', "x"), AstNode('var', "y")])
+// "sum(?x, ?y)" → AstNode(kind='func', value="sum", children=[AstNode('patvar', "x"), AstNode('patvar', "y")])
 // "add(1, 2)" → AstNode(kind='func', value="add", children=[AstNode('number', 1), AstNode('number', 2)])
 // "mul(x1, 3)" → AstNode(kind='func', value="mul", children=[AstNode('symbol', ASymbol("x", [AstNode('number', 1)])), AstNode('number', 3)])
-// "sum(a, b, c) => sum(sum(a, b), c)" →
-//      AstNode(kind='rule', value="rule", children=[
-//          AstNode('func', "sum", children=[AstNode('symbol', ASymbol("a")), AstNode('symbol', ASymbol("b")), AstNode('symbol', ASymbol("c"))]),
-//          AstNode('func', "sum", children=[AstNode('func', "sum", children=[AstNode('symbol', ASymbol("a")), AstNode('symbol', ASymbol("b"))]), AstNode('symbol', ASymbol("c"))])])
+// "sum(?a, ?b) => add(?a, ?b)" → AstNode(kind='rule', value="rule", children=[...])
+// "sum(?a, ?b) => add(?a, ?b) where ?a is number, ?b is number" → AstNode with constraints
 
-type Token = {
-  type: 'number' | 'identifier' | 'lparen' | 'rparen' | 'lbrace' | 'rbrace' | 'comma' | 'arrow' | 'question' | 'eof';
-  value: string;
-};
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-function tokenize(text: string): Token[] {
-  const tokens: Token[] = [];
-  let i = 0;
+// Load grammar
+const grammarPath = join(__dirname, 'grammar.ohm');
+const grammarSource = readFileSync(grammarPath, 'utf-8');
+const grammar = ohm.grammar(grammarSource);
 
-  while (i < text.length) {
-    const char = text[i];
+// Semantic actions
+const semantics = grammar.createSemantics().addOperation('toAst', {
+  Program(expr) {
+    return expr.toAst();
+  },
 
-    // Skip whitespace
-    if (/\s/.test(char)) {
-      i++;
-      continue;
-    }
+  Rule(left, _arrow, right, whereClause) {
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+    const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
+    return new AstNode('rule', 'rule', [leftNode, rightNode], constraints);
+  },
 
-    // Number
-    if (/\d/.test(char)) {
-      let num = '';
-      while (i < text.length && /\d/.test(text[i])) {
-        num += text[i];
-        i++;
-      }
-      tokens.push({ type: 'number', value: num });
-      continue;
-    }
+  WhereClause(_where, constraintList) {
+    return constraintList.toAst();
+  },
 
-    // Identifier (letter followed by optional number)
-    if (/[a-zA-Z]/.test(char)) {
-      let id = '';
-      while (i < text.length && /[a-zA-Z]/.test(text[i])) {
-        id += text[i];
-        i++;
-      }
-      tokens.push({ type: 'identifier', value: id });
-      continue;
+  ConstraintList(first, _commas, rest) {
+    const constraints: Constraint[] = [first.toAst()];
+    for (const c of rest.children) {
+      constraints.push(c.toAst());
     }
+    return constraints;
+  },
 
-    // Arrow =>
-    if (char === '=' && i + 1 < text.length && text[i + 1] === '>') {
-      tokens.push({ type: 'arrow', value: '=>' });
-      i += 2;
-      continue;
-    }
+  Constraint(patvar, _is, typeName) {
+    const varName = patvar.toAst().value as string;
+    const type = typeName.sourceString as TypeName;
+    return new Constraint(varName, type);
+  },
 
-    // Question mark for pattern variables
-    if (char === '?') {
-      tokens.push({ type: 'question', value: '?' });
-      i++;
-      continue;
-    }
+  Expression(expr) {
+    return expr.toAst();
+  },
 
-    // Parentheses, braces, and comma
-    if (char === '(') {
-      tokens.push({ type: 'lparen', value: '(' });
-      i++;
-      continue;
-    }
-    if (char === ')') {
-      tokens.push({ type: 'rparen', value: ')' });
-      i++;
-      continue;
-    }
-    if (char === '{') {
-      tokens.push({ type: 'lbrace', value: '{' });
-      i++;
-      continue;
-    }
-    if (char === '}') {
-      tokens.push({ type: 'rbrace', value: '}' });
-      i++;
-      continue;
-    }
-    if (char === ',') {
-      tokens.push({ type: 'comma', value: ',' });
-      i++;
-      continue;
-    }
+  FuncCall(name, _lparen, args, _rparen) {
+    const funcName = name.sourceString;
+    const argNodes = args.asIteration().children.map((arg: any) => arg.toAst());
+    return new AstNode('func', funcName, argNodes);
+  },
 
-    // Unknown character, skip
-    i++;
+  Symbol_indexed(name, _lbrace, indices, _rbrace) {
+    const symbolName = name.sourceString;
+    const indexNodes = indices.asIteration().children.map((idx: any) => idx.toAst());
+    const symbol = new ASymbol(symbolName, indexNodes);
+    return new AstNode('symbol', symbol);
+  },
+
+  Symbol_numbered(name, num) {
+    const symbolName = name.sourceString;
+    const indexValue = parseInt(num.sourceString, 10);
+    const symbol = new ASymbol(symbolName, [new AstNode('number', indexValue)]);
+    return new AstNode('symbol', symbol);
+  },
+
+  Symbol_plain(name) {
+    const symbolName = name.sourceString;
+    const symbol = new ASymbol(symbolName);
+    return new AstNode('symbol', symbol);
+  },
+
+  PatVar(_question, name, num) {
+    let varName = name.sourceString;
+    if (num.children.length > 0) {
+      varName += num.sourceString;
+    }
+    return new AstNode('patvar', varName);
+  },
+
+  number(_digits) {
+    return new AstNode('number', parseInt(this.sourceString, 10));
+  },
+
+  ident(_first, _rest) {
+    return this.sourceString;
+  },
+
+  _iter(...children) {
+    return children.map(c => c.toAst());
   }
-
-  tokens.push({ type: 'eof', value: '' });
-  return tokens;
-}
-
-class Parser {
-  private tokens: Token[];
-  private pos: number = 0;
-
-  constructor(tokens: Token[]) {
-    this.tokens = tokens;
-  }
-
-  private current(): Token {
-    return this.tokens[this.pos];
-  }
-
-  private advance(): void {
-    this.pos++;
-  }
-
-  private expect(type: Token['type']): Token {
-    const token = this.current();
-    if (token.type !== type) {
-      throw new Error(`Expected ${type}, got ${token.type}`);
-    }
-    this.advance();
-    return token;
-  }
-
-  // Parse top-level expression (rule or expression)
-  parse(): AstNode {
-    const left = this.parseExpression();
-
-    // Check for rule arrow
-    if (this.current().type === 'arrow') {
-      this.advance();
-      const right = this.parseExpression();
-      return new AstNode('rule', 'rule', [left, right]);
-    }
-
-    return left;
-  }
-
-  // Parse expression (number, symbol, pattern variable, or function call)
-  private parseExpression(): AstNode {
-    const token = this.current();
-
-    // Number
-    if (token.type === 'number') {
-      this.advance();
-      return new AstNode('number', parseInt(token.value, 10));
-    }
-
-    // Pattern variable (?v, ?x1, etc.)
-    if (token.type === 'question') {
-      this.advance();
-      const nameToken = this.expect('identifier');
-      // Check if followed by number for indexed pattern variable
-      let varName = nameToken.value;
-      if (this.current().type === 'number') {
-        const numToken = this.current();
-        this.advance();
-        varName = nameToken.value + numToken.value;
-      }
-      return new AstNode('var', varName);
-    }
-
-    // Identifier (could be symbol or function)
-    if (token.type === 'identifier') {
-      const name = token.value;
-      this.advance();
-
-      // Check if followed by number (indexed symbol like "a1")
-      if (this.current().type === 'number') {
-        const indexToken = this.current();
-        this.advance();
-        const symbol = new ASymbol(name, [new AstNode('number', parseInt(indexToken.value, 10))]);
-        return new AstNode('symbol', symbol);
-      }
-
-      // Check if followed by '{' (complex index like "a{x, 1}")
-      if (this.current().type === 'lbrace') {
-        this.advance();
-        const indices: AstNode[] = [];
-
-        // Parse index expressions
-        if (this.current().type !== 'rbrace') {
-          indices.push(this.parseExpression());
-
-          while (this.current().type === 'comma') {
-            this.advance();
-            indices.push(this.parseExpression());
-          }
-        }
-
-        this.expect('rbrace');
-        const symbol = new ASymbol(name, indices);
-        return new AstNode('symbol', symbol);
-      }
-
-      // Check if followed by '(' (function call)
-      if (this.current().type === 'lparen') {
-        this.advance();
-        const args: AstNode[] = [];
-
-        // Parse arguments
-        if (this.current().type !== 'rparen') {
-          args.push(this.parseExpression());
-
-          while (this.current().type === 'comma') {
-            this.advance();
-            args.push(this.parseExpression());
-          }
-        }
-
-        this.expect('rparen');
-        return new AstNode('func', name, args);
-      }
-
-      // Plain identifier (symbol without index)
-      const symbol = new ASymbol(name);
-      return new AstNode('symbol', symbol);
-    }
-
-    throw new Error(`Unexpected token: ${token.type}`);
-  }
-}
+});
 
 export function parse(text: string): AstNode {
-  const tokens = tokenize(text);
-  const parser = new Parser(tokens);
-  return parser.parse();
+  const match = grammar.match(text);
+  if (match.failed()) {
+    throw new Error(`Parse error: ${match.message}`);
+  }
+  return semantics(match).toAst();
 }

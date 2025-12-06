@@ -1,0 +1,34 @@
+FoolJS {
+  Program = Rule | Expression
+
+  Rule = Expression "=>" Expression WhereClause?
+
+  WhereClause = "where" ConstraintList
+
+  ConstraintList = Constraint ("," Constraint)*
+
+  Constraint = PatVar "is" TypeName
+
+  TypeName = "number" | "var"
+
+  Expression
+    = FuncCall
+    | Symbol
+    | PatVar
+    | number
+
+  FuncCall = ident "(" ListOf<Expression, ","> ")"
+
+  Symbol
+    = ident "{" ListOf<Expression, ","> "}"  -- indexed
+    | identPlain number                       -- numbered
+    | ident                                   -- plain
+
+  identPlain = letter+
+
+  PatVar = "?" ident number?
+
+  ident = letter alnum*
+
+  number = digit+
+}

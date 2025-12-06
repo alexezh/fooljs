@@ -2,10 +2,13 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
+    "moduleResolution": "bundler",
     "outDir": "out",
     "strictNullChecks": true,
     "sourceMap": true,
-    "sourceRoot": "./src"
+    "sourceRoot": "./src",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "exclude": ["arch"]
 }
