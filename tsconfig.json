@@ -4,6 +4,8 @@
     "module": "ESNext",
     "outDir": "out",
     "strictNullChecks": true,
-    "sourceMap": true
-  }
+    "sourceMap": true,
+    "sourceRoot": "./src"
+  },
+  "exclude": ["arch"]
 }

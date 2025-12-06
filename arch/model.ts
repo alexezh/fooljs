@@ -1,6 +1,6 @@
 import { isLinearExpressionGoal } from "./goal.js";
 import { ARef } from "./token.js";
-import { calculateTermAddCost, calculateMultiplicationCost, canAddTerms, COST } from "./terms.js";
+import { COST } from "./terms.js";
 import { ASymbolCache } from "./asymbol.js";
 
 export class AModel {

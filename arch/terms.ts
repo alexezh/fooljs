@@ -37,7 +37,7 @@ export const COST = {
 // Term extraction helpers
 // ============================================================================
 
-import { ARef, areRefsCompatible, getVariableName } from "./token.js";
+import { ARef, getVariableName } from "./token.js";
 
 // ============================================================================
 // Cost calculation helpers
@@ -95,9 +95,21 @@ export function canAddTerms(a: ARef, b: ARef): boolean {
     return true;
   }
 
-  // Use the first ref from each term to check compatibility
-  return areRefsCompatible(a, b);
+  // Get variables from both refs
+  // const aVars = a.variables ?? (a.refType === 'symbol' && a.symbol ? [a.symbol] : []);
+  // const bVars = b.variables ?? (b.refType === 'symbol' && b.symbol ? [b.symbol] : []);
+
+  // // If either has no variables and other has variables, not compatible
+  // if (aVars.length === 0 && bVars.length > 0) return false;
+  // if (bVars.length === 0 && aVars.length > 0) return false;
+
+  // // Compare variable sets - must be identical for compatibility
+  // if (aVars.length !== bVars.length) return false;
+  // const aSet = new Set(aVars);
+  // return bVars.every(v => aSet.has(v));
+  return false;
 }
+
 
 /**
  * Calculate cost of adding/subtracting two ARef terms.

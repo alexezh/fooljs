@@ -1,4 +1,4 @@
-import { AToken, ARef, createRefWithSources } from './token.js';
+import { AToken, ARef, createRefWithSources } from '../arch/token.js';
 
 export function makeMultTerm(tokens: ARef[]): ARef {
   // Create a concatenated name with underscore prefix

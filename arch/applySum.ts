@@ -31,16 +31,14 @@ export function* applySum(model: AModel): Generator<AModel> {
 
       if (canAddTerms(refA, refB)) {
         // Determine operation by checking operator before refB
-        const opBeforeB = jPos > 0 && refs[jPos - 1].refType === 'op' ? refs[jPos - 1] : null;
-        const effectiveOp = (opBeforeB && opBeforeB.symbol === '-') ? '-' : '+';
-        const cost = calculateTermAddCost(refA, refB, effectiveOp);
+        const cost = calculateTermAddCost(refA, refB, '+');
 
         // Create compute function for the operation
         const computeValue = (): number | null => {
           const aVal = refA.value;
           const bVal = refB.value;
           if (typeof aVal === 'number' && typeof bVal === 'number') {
-            return effectiveOp === '+' ? aVal + bVal : aVal - bVal;
+            return aVal + bVal;
           }
           return null;
         };
@@ -69,7 +67,7 @@ export function* applySum(model: AModel): Generator<AModel> {
         newRefs.push(...refs.slice(jPos + 1));
 
         const transformName = refA.refType === 'number'
-          ? `${effectiveOp === '+' ? 'add' : 'sub'}_${iPos}_${jPos}`
+          ? `add_${iPos}_${jPos}`
           : `combine_${iPos}_${jPos}`;
 
         yield createModel(model, transformName, newRefs, cost, resultRef);

@@ -1,8 +1,8 @@
-import { parseExpression } from './parser.js';
-import { isLinearExpressionGoal } from './goal.js';
-import { getAllActions } from './allactions.js';
-import { AModel, createInitialModel, getModelPath, modelToKey } from './model.js';
-import { ASymbolCache } from './asymbol.js';
+import { parseExpression } from '../arch/parser.js';
+import { isLinearExpressionGoal } from '../arch/goal.js';
+import { getAllActions } from '../arch/allactions.js';
+import { AModel, createInitialModel, getModelPath, modelToKey } from '../arch/model.js';
+import { ASymbolCache } from '../arch/asymbol.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation

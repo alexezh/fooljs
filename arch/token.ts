@@ -30,18 +30,20 @@ export class ARef {
    * for digits - value, for variables - name
    */
   value: any;
+
+  /**
+   * either real symbol or computed symbol
+   */
   symbol: ASymbol | null;
 
-  token?: AToken;
   arefs: ReadonlyArray<ARef>;
   compute?: () => boolean;
   refType: RefType;
-  /** For expr type: which variables are contained (e.g., ['x', 'y'])
-   * assume that names are sorted
-  */
-  variables?: string[];
 
-  depth?: number;
+  /**
+   * optional token from source
+   */
+  token?: AToken;
 
   /** Original ref before compute transformation */
   orig?: ARef;
@@ -52,8 +54,6 @@ export class ARef {
     value?: any;
     compute?: () => boolean;
     refType: RefType;
-    variables?: string[];
-    depth?: number;
     role?: TokenRole;
     symbol?: ASymbol;
     orig?: ARef;
@@ -63,8 +63,6 @@ export class ARef {
     this.value = params.value ?? null;
     this.compute = params.compute;
     this.refType = params.refType;
-    this.variables = params.variables;
-    this.depth = params.depth;
     this.symbol = params.symbol ?? null;
     this.orig = params.orig;
   }
@@ -104,6 +102,7 @@ export class ARef {
   getBase(): ARef {
     return (this.isExp()) ? this.arefs[0] : this;
   }
+
   getPower(): ARef {
     return (this.isExp()) ? this.arefs[2] : createNumberRef(1);
   }
@@ -137,44 +136,6 @@ export function inferRefType(text: string): RefType {
   // Everything else (variables, expressions, symbols)
   return 'symbol';
 }
-
-/**
- * Extract variable names from text
- */
-export function extractVariables(text: string): string[] {
-  const matches = text.match(/[a-zA-Z]/g);
-  return matches ? [...new Set(matches)] : [];
-}
-
-/**
- * Collect all variables from source refs
- */
-export function collectVariables(refs: ARef[]): string[] {
-  const vars = new Set<string>();
-  for (const ref of refs) {
-    if (ref.refType === 'symbol' && ref.symbol) {
-      vars.add(ref.symbol);
-    } else if (ref.variables) {
-      ref.variables.forEach(v => vars.add(v));
-    }
-  }
-  return [...vars];
-}
-
-// export function createAref(symbol: ASymbol, sourceArefs?: ARef[], value?: number | null): ARef {
-//   const refType = inferRefType(symbol as string);
-//   const variables = refType === 'symbol'
-//     ? [symbol as string]
-//     : undefined;
-
-//   return new ARef({
-//     arefs: sourceArefs ?? [],
-//     value: value ?? null,
-//     refType,
-//     variables,
-//     symbol: symbol as string
-//   });
-// }
 
 /**
  * Create a compute function that updates the ref in place.
@@ -277,41 +238,6 @@ export interface VariablePowerResult {
   power: number | null;
   endIndex: number;
 }
-
-// Removed DelayedOp - using compute function instead
-
-/**
- * Check if two refs are compatible for combining (addition/subtraction).
- * - Two digits are always compatible
- * - Two expressions with the same variables are compatible
- * - Variable and expr containing only that variable are compatible
- */
-export function areRefsCompatible(a: ARef, b: ARef): boolean {
-  // Both numbers - always compatible
-  if (a.refType === 'number' && b.refType === 'number') {
-    return true;
-  }
-
-  // Both symbols - compatible if same symbol
-  if (a.refType === 'symbol' && b.refType === 'symbol') {
-    return a.symbol === b.symbol;
-  }
-
-  // Get variables from both refs
-  const aVars = a.variables ?? (a.refType === 'symbol' && a.symbol ? [a.symbol] : []);
-  const bVars = b.variables ?? (b.refType === 'symbol' && b.symbol ? [b.symbol] : []);
-
-  // If either has no variables and other has variables, not compatible
-  if (aVars.length === 0 && bVars.length > 0) return false;
-  if (bVars.length === 0 && aVars.length > 0) return false;
-
-  // Compare variable sets - must be identical for compatibility
-  if (aVars.length !== bVars.length) return false;
-  const aSet = new Set(aVars);
-  return bVars.every(v => aSet.has(v));
-}
-
-// Removed createDelayedRef - use createSymbolRef with compute parameter instead
 
 /**
  * Check if ref represents a variable (symbol with single letter name)
