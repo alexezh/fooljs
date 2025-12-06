@@ -1,7 +1,6 @@
 import * as ohm from 'ohm-js';
 import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { AstNode, ASymbol, Constraint, TypeName } from "./ast.js";
 
 // Examples:
@@ -21,12 +20,8 @@ import { AstNode, ASymbol, Constraint, TypeName } from "./ast.js";
 // "sum(?a, ?b) => add(?a, ?b)" → AstNode(kind='rule', value="rule", children=[...])
 // "sum(?a, ?b) => add(?a, ?b) where ?a is number, ?b is number" → AstNode with constraints
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load grammar
-const grammarPath = join(__dirname, 'grammar.ohm');
+// Load grammar (grammar.ohm should be in same directory as compiled output)
+const grammarPath = join(process.cwd(), 'out', 'grammar.ohm');
 const grammarSource = readFileSync(grammarPath, 'utf-8');
 const grammar = ohm.grammar(grammarSource);
 

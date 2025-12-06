@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc && cp src/grammar.ohm out/grammar.ohm"
+    "build": "tsc && cp src/grammar.ohm out/grammar.ohm",
+    "test:parser": "node --import=tsx/esm src/parsertest.ts"
   },
   "dependencies": {
     "ohm-js": "^17.2.1"
@@ -13,6 +14,7 @@
     "extends": []
   },
   "devDependencies": {
-    "@types/node": "^24.10.1"
+    "@types/node": "^24.10.1",
+    "tsx": "^4.21.0"
   }
 }

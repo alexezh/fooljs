@@ -1,14 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "module": "ES2022",
+    "moduleResolution": "node",
     "outDir": "out",
     "strictNullChecks": true,
     "sourceMap": true,
-    "sourceRoot": "./src",
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
-  },
-  "exclude": ["arch"]
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
+  }
 }

@@ -9,6 +9,14 @@ export class ASymbol {
     this.name = name;
     this.index = index;
   }
+
+  toString(): string {
+    let indexStr: string | undefined;
+    if (this.index) {
+      indexStr = '{' + this.index.map(x => x.toString()).join(',') + '}'
+    }
+    return this.name + (indexStr ?? '');
+  }
 }
 
 export class Constraint {
@@ -17,6 +25,9 @@ export class Constraint {
   constructor(patvar: string, type: TypeName) {
     this.patvar = patvar;
     this.type = type;
+  }
+  toString(): string {
+    return `${this.patvar} is ${this.type}`
   }
 }
 
@@ -33,6 +44,20 @@ export class AstNode {
     this.value = value;
     this.children = children;
     this.constraints = constraints;
+  }
+
+  toString(): string {
+    let childrenStr: string | undefined;
+    if (this.children) {
+      childrenStr = '(' + this.children.map(x => x.toString()).join(',') + ')';
+    }
+
+    let constrStr: string | undefined;
+    if (this.constraints) {
+      constrStr = 'where ' + this.constraints.map(x => x.toString()).join(',');
+    }
+
+    return this.value.toString() + (childrenStr ?? '') + (constrStr ?? '');
   }
 }
 
