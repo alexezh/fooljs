@@ -105,6 +105,16 @@ function parsertest(): void {
   validateAst("a{}", "a{}");
   validateAst("f(x)", "f(x)");
 
+  // Lists and spread
+  console.log("\n-- Lists and Spread --");
+  validateAst("[]", "[]");
+  validateAst("[?x, ?y]", "[?x,?y]");
+  validateAst("(?a, ?x)", "(?a,?x)");
+  validateAst("[ (?a, ?x)... ]", "[(?a,?x)...]");
+  validateAst("[?x...]", "[?x...]");
+  validateAst("?x...", "?x...");
+  validateAst("alt_fixed(?a, [?x...])", "alt_fixed(?a,[?x...])");
+
   // Summary
   console.log("\n=== Test Summary ===");
   console.log(`Total:  ${testCount}`);

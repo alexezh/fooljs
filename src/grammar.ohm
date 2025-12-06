@@ -12,23 +12,35 @@ FoolJS {
   TypeName = "number" | "var"
 
   Expression
+    = Spread
+    | Primary
+
+  Primary
     = FuncCall
+    | List
+    | Tuple
     | Symbol
     | PatVar
     | number
 
   FuncCall = ident "(" ListOf<Expression, ","> ")"
 
+  List = "[" ListOf<Expression, ","> "]"
+
+  Tuple = "(" ListOf<Expression, ","> ")"
+
+  Spread = Primary "..."
+
   Symbol
     = ident "{" ListOf<Expression, ","> "}"  -- indexed
     | identPlain number                       -- numbered
     | ident                                   -- plain
 
-  identPlain = letter+
+  identPlain = letter (letter | "_")*
 
   PatVar = "?" ident number?
 
-  ident = letter alnum*
+  ident = letter (alnum | "_")*
 
   number = digit+
 }

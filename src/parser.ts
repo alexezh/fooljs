@@ -20,6 +20,16 @@ import { AstNode, ASymbol, Constraint, TypeName } from "./ast.js";
 // "sum(?a, ?b) => add(?a, ?b)" → AstNode(kind='rule', value="rule", children=[...])
 // "sum(?a, ?b) => add(?a, ?b) where ?a is number, ?b is number" → AstNode with constraints
 
+// Recognition / canonicalization:
+// [ (?a, ?x)... ]
+//   => alt_fixed(?a, [?x...])
+//   where ?a is number,
+//         ?x is number
+
+// // Optional expansion back to a flat sequence:
+// alt_fixed(?a, [?x...])
+//   => [ (?a, ?x)... ]
+
 // Load grammar (grammar.ohm should be in same directory as compiled output)
 const grammarPath = join(process.cwd(), 'out', 'grammar.ohm');
 const grammarSource = readFileSync(grammarPath, 'utf-8');
@@ -60,6 +70,10 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return expr.toAst();
   },
 
+  Primary(expr) {
+    return expr.toAst();
+  },
+
   FuncCall(name, _lparen, args, _rparen) {
     const funcName = name.sourceString;
     const argNodes = args.asIteration().children.map((arg: any) => arg.toAst());
@@ -84,6 +98,21 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const symbolName = name.sourceString;
     const symbol = new ASymbol(symbolName);
     return new AstNode('symbol', symbol);
+  },
+
+  List(_lbrack, elements, _rbrack) {
+    const elementNodes = elements.asIteration().children.map((element: any) => element.toAst());
+    return new AstNode('list', 'list', elementNodes);
+  },
+
+  Tuple(_lparen, elements, _rparen) {
+    const elementNodes = elements.asIteration().children.map((element: any) => element.toAst());
+    return new AstNode('tuple', 'tuple', elementNodes);
+  },
+
+  Spread(expr, _dots) {
+    const target = expr.toAst();
+    return new AstNode('spread', '...', [target]);
   },
 
   PatVar(_question, name, num) {

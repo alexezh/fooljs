@@ -1,4 +1,4 @@
-export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'rule';
+export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'rule' | 'list' | 'tuple' | 'spread';
 
 export type TypeName = 'number' | 'var';
 
@@ -47,6 +47,24 @@ export class AstNode {
   }
 
   toString(): string {
+    if (this.kind === 'list') {
+      const items = this.children ?? [];
+      const contents = items.map(x => x.toString()).join(',');
+      return `[${contents}]`;
+    }
+
+    if (this.kind === 'tuple') {
+      const items = this.children ?? [];
+      const contents = items.map(x => x.toString()).join(',');
+      return `(${contents})`;
+    }
+
+    if (this.kind === 'spread') {
+      const target = this.children && this.children[0];
+      const targetStr = target ? target.toString() : '';
+      return `${targetStr}...`;
+    }
+
     let childrenStr: string | undefined;
     if (this.children) {
       childrenStr = '(' + this.children.map(x => x.toString()).join(',') + ')';
@@ -60,4 +78,3 @@ export class AstNode {
     return (this.kind === 'patvar' ? '?' : '') + this.value.toString() + (childrenStr ?? '') + (constrStr ?? '');
   }
 }
-
