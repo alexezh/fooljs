@@ -57,7 +57,7 @@ export class AstNode {
       constrStr = 'where ' + this.constraints.map(x => x.toString()).join(',');
     }
 
-    return this.value.toString() + (childrenStr ?? '') + (constrStr ?? '');
+    return (this.kind === 'patvar' ? '?' : '') + this.value.toString() + (childrenStr ?? '') + (constrStr ?? '');
   }
 }
 
