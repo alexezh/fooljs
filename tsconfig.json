@@ -9,6 +9,13 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "sourceRoot": "./src",
-  }
+    "rootDir": "src",
+  },
+  "include": [
+    "src/**/*"
+  ], // <- only compile files under src
+  "exclude": [
+    "node_modules",
+    "out"
+  ] // <- don't recompile output / deps}
 }

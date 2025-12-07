@@ -1,10 +1,10 @@
-import { Runtime } from "./runtime";
+import { Runtime } from "./runtime.js";
 
 export function initCore(runtime: Runtime) {
   const coreRules = [
     // Associativity variants
-    "sum(?a, ?b, ?c) => sum(sum(?a, ?b), ?c)",
-    "sum(?a, ?b, ?c) => sum(sum(?a, ?c), ?b)",
+    "sum(?a, ?b, ?c) => sum(add(?a, ?b), ?c)",
+    "sum(?a, ?b, ?c) => sum(add(?a, ?c), ?b)",
 
     // Commutativity and neutral element
     "sum(?a, ?b) => sum(?b, ?a)",

@@ -11,11 +11,12 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}/src/search.ts",
-      "preLaunchTask": "tsc: build - tsconfig.json",
+      "program": "${workspaceFolder}/out/main.js",
+      "preLaunchTask": "build-and-copy",
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
       ],
+      "sourceMaps": true,
       "console": "integratedTerminal"
     },
     {
@@ -25,11 +26,12 @@
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}/out/src/parsertest.js",
+      "program": "${workspaceFolder}/out/parsertest.js",
       "preLaunchTask": "tsc: build - tsconfig.json",
       "outFiles": [
         "${workspaceFolder}/out/**/*.js"
       ],
+      "sourceMaps": true,
       "console": "integratedTerminal"
     }
   ]

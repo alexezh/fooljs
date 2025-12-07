@@ -3,6 +3,8 @@ import { isLinearExpressionGoal } from '../arch/goal.js';
 import { getAllActions } from '../arch/allactions.js';
 import { AModel, createInitialModel, getModelPath, modelToKey } from '../arch/model.js';
 import { ASymbolCache } from '../arch/asymbol.js';
+import { initCore } from './corefunc.js';
+import { Runtime } from './runtime.js';
 
 // ============================================================================
 // Priority Queue (Min-Heap) Implementation
@@ -183,6 +185,8 @@ function executeLazyCompute(model: AModel): boolean {
 function main(): void {
   const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
   // const exprStr = '4 + 3 * 4';
+
+  initCore(Runtime.instance);
 
   // Create a temporary model to get the cache
   const cache = new ASymbolCache();
