@@ -1,8 +1,16 @@
-import { AstNode, ASymbol } from "./ast.js";
+import { AstNode, ASymbol, Constraint } from "./ast.js";
 import { parse } from "./parser.js";
 
+type RuleNode = {
+  pattern: AstNode,
+  match: AstNode,
+  constraints?: Constraint[],
+  func?: (ast: AstNode) => AstNode | undefined
+}
+
 export class Runtime {
-  rules: AstNode[] = [];
+  private rules: RuleNode[] = [];
+  private byFunc = new Map<string, RuleNode>();
 
   static instance: Runtime = new Runtime();
 
@@ -11,7 +19,8 @@ export class Runtime {
     this.addCoreRule(computeSum, "add", "a", "b")
     this.addCoreRule(computeMul, "add", "a", "b")
   }
-  addRule(args: string | AstNode): void {
+
+  addRule(args: string | AstNode, func?: (ast: AstNode) => AstNode | undefined): void {
     let ruleAst: AstNode;
     if (typeof (args) === "string") {
       ruleAst = parse(args);
@@ -23,19 +32,38 @@ export class Runtime {
       throw "Should be rule"
     }
 
-    this.rules.push(ruleAst);
+    let node: RuleNode = {
+      pattern: ruleAst.children![0],
+      match: ruleAst.children![1],
+      constraints: ruleAst.constraints,
+      func: func
+    }
+    this.rules.push(node);
+    if (node.pattern.kind === "func") {
+      if (typeof (node.pattern.value) !== "string") {
+        debugger;
+      } else {
+        this.byFunc.set(node.pattern.value as string, node);
+      }
+    }
   }
 
   matchRule(inp: AstNode): AstNode[] {
     const results: AstNode[] = [];
 
     for (const rule of this.rules) {
-      if (!rule.children || rule.children.length < 2) {
+      // If rule has a function, use it directly
+      if (rule.func) {
+        const result = rule.func(inp);
+        if (result !== undefined) {
+          results.push(result);
+        }
         continue;
       }
 
-      const pattern = rule.children[0];
-      const replacement = rule.children[1];
+      // Otherwise use pattern matching
+      const pattern = rule.pattern;
+      const replacement = rule.match;
       const constraints = rule.constraints;
 
       const bindings = this.match(pattern, inp);
@@ -65,6 +93,10 @@ export class Runtime {
   }
 
   private matchInternal(pattern: AstNode, input: AstNode, bindings: Map<string, AstNode>): boolean {
+    if (pattern.kind === 'func') {
+      this.matchFunc(pattern, input, bindings);
+    }
+
     // Pattern variable matches anything
     if (pattern.kind === 'patvar') {
       const varName = pattern.value as string;
@@ -229,6 +261,10 @@ export class Runtime {
     }
 
     return false;
+  }
+
+  private matchFunc(pattern: AstNode, input: AstNode, bindings: Map<string, AstNode>): boolean {
+    return true;
   }
 
   private astEqual(a: AstNode, b: AstNode): boolean {

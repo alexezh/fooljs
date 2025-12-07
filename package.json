@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc && cp src/grammar.ohm out/grammar.ohm",
     "test:parser": "node --import=tsx/esm src/parsertest.ts",
-    "test:match": "node --import=tsx/esm src/matchtest.ts"
+    "test:match": "node --import=tsx/esm src/matchtest.ts",
+    "test:corefunc": "node --import=tsx/esm src/corefunctest.ts"
   },
   "dependencies": {
     "ohm-js": "^17.2.1"

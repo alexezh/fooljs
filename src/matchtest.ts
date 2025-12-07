@@ -172,10 +172,16 @@ function matchtest(): void {
 
   // Core rules tests
   console.log("\n-- Core Rules from corefunc.ts --");
+  // sum(1,2) now matches: commutativity, but NOT sum->mul (args not equal)
   testCoreRules("sum(1, 2)", ["sum(2,1)"]);
-  testCoreRules("sum(x, 0)", ["x", "sum(0,x)"]);  // Matches neutral element AND commutativity
-  testCoreRules("sum(0, y)", ["y", "sum(y,0)"]);  // Matches neutral element AND commutativity
+  // sum(x,0) matches: neutral element, commutativity, but NOT sum->mul (not all numbers)
+  testCoreRules("sum(x, 0)", ["x", "sum(0,x)"]);
+  // sum(0,y) matches: neutral element, commutativity, but NOT sum->mul (not all numbers)
+  testCoreRules("sum(0, y)", ["y", "sum(y,0)"]);
+  // sum(1,2,3) matches: associativity rules, but NOT sum->mul (args not equal)
   testCoreRules("sum(1, 2, 3)", ["sum(add(1,2),3)", "sum(add(1,3),2)"]);
+  // sum(5,5) matches: commutativity AND sum->mul (all equal numbers)
+  testCoreRules("sum(5, 5)", ["sum(5,5)", "mul(2,5)"]);
   testCoreRules("eval(5)", ["5"]);
   testCoreRules("eval(sym(x))", ["sym(x)", "eval(sym(eval(x)))"]);
 
