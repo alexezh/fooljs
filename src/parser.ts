@@ -74,10 +74,11 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return expr.toAst();
   },
 
-  FuncCall(name, _lparen, args, _rparen) {
-    const funcName = name.sourceString;
+  FuncCall(target, _lparen, args, _rparen) {
+    const callee = target.toAst();
     const argNodes = args.asIteration().children.map((arg: any) => arg.toAst());
-    return new AstNode('func', funcName, argNodes);
+    const funcValue = callee instanceof AstNode ? callee : (callee as string);
+    return new AstNode('func', funcValue, argNodes);
   },
 
   Symbol_indexed(name, _lbrace, indices, _rbrace) {

@@ -1,6 +1,6 @@
 export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'rule' | 'list' | 'tuple' | 'spread';
 
-export type TypeName = 'number' | 'var';
+export type TypeName = 'number' | 'var' | 'symbol_name' | 'func_name';
 
 export class ASymbol {
   name: string;
@@ -35,11 +35,11 @@ export type AFunc = ASymbol;
 
 export class AstNode {
   kind: AstNodeKind;
-  value: number | string | ASymbol;
+  value: number | string | ASymbol | AstNode;
   children: AstNode[] | undefined;
   constraints?: Constraint[];
 
-  constructor(kind: AstNodeKind, value: number | string | ASymbol, children?: AstNode[], constraints?: Constraint[]) {
+  constructor(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
@@ -75,6 +75,8 @@ export class AstNode {
       constrStr = 'where ' + this.constraints.map(x => x.toString()).join(',');
     }
 
-    return (this.kind === 'patvar' ? '?' : '') + this.value.toString() + (childrenStr ?? '') + (constrStr ?? '');
+    let prefix = this.kind === 'patvar' ? '?' : '';
+    const valueStr = this.value instanceof AstNode ? this.value.toString() : this.value.toString();
+    return prefix + valueStr + (childrenStr ?? '') + (constrStr ?? '');
   }
 }

@@ -9,7 +9,7 @@ FoolJS {
 
   Constraint = PatVar "is" TypeName
 
-  TypeName = "number" | "var"
+  TypeName = "number" | "var" | "symbol_name" | "func_name"
 
   Expression
     = Spread
@@ -23,7 +23,11 @@ FoolJS {
     | PatVar
     | number
 
-  FuncCall = ident "(" ListOf<Expression, ","> ")"
+  FuncCall = CallTarget "(" ListOf<Expression, ","> ")"
+
+  CallTarget
+    = ident
+    | PatVar
 
   List = "[" ListOf<Expression, ","> "]"
 

@@ -115,6 +115,25 @@ function parsertest(): void {
   validateAst("?x...", "?x...");
   validateAst("alt_fixed(?a, [?x...])", "alt_fixed(?a,[?x...])");
 
+  // Eval rules and type constraints
+  console.log("\n-- Eval Rules --");
+  validateAst(
+    "eval(?n) => ?n where ?n is number",
+    "rule(eval(?n),?n)where n is number"
+  );
+  validateAst(
+    "eval(sym(?x)) => sym(?x) where ?x is symbol_name",
+    "rule(eval(sym(?x)),sym(?x))where x is symbol_name"
+  );
+  validateAst(
+    "eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name",
+    "rule(eval(?f(?a,?rest...)),eval(?f(eval(?a),?rest...)))where f is func_name"
+  );
+  validateAst(
+    "eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name",
+    "rule(eval(def(sym(?y),?e)),def(sym(?y),eval(?e)))where y is symbol_name"
+  );
+
   // Summary
   console.log("\n=== Test Summary ===");
   console.log(`Total:  ${testCount}`);

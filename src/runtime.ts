@@ -6,8 +6,8 @@ export class Runtime {
 
   init(): void {
     //this.rules.push(new AstNode("sum", [new AstNode(new ASymbol("a")), new AstNode(new ASymbol("b"))]))
-    this.addCoreRule(computeSum, "sum", "?a", "?b")
-    this.addCoreRule(computeMul, "sum", "?a", "?b")
+    this.addCoreRule(computeSum, "add", "a", "b")
+    this.addCoreRule(computeMul, "add", "a", "b")
   }
   addRule(args: string | { astSrc: AstNode, astDest: AstNode }): void {
     if (typeof (args) === "string") {
