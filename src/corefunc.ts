@@ -1,4 +1,4 @@
-import { AstNode, ASymbol } from "./ast.js";
+import { AstNode, ASymbol, FuncName } from "./ast.js";
 import { Runtime } from "./runtime.js";
 
 // Helper to check if node is a number
@@ -40,29 +40,30 @@ function allEqual(nodes: AstNode[]): boolean {
   return true;
 }
 
-// sum(?a, ?b, ?c) => sum(add(?a, ?b), ?c)
+// sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)
 function ruleAssocLeft(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'sum')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 3) return undefined;
+  if (args.length < 3) return undefined;
 
-  const [a, b, c] = args;
-  return new AstNode('func', 'sum', [
-    new AstNode('func', 'add', [a, b]),
-    c
+  const [a, b, ...rest] = args;
+  return AstNode.create('func', 'sum', [
+    AstNode.create('func', 'sum', [a, b]),
+    ...rest
   ]);
 }
 
-// sum(?a, ?b, ?c) => sum(add(?a, ?c), ?b)
+// sum(?a, ?b, ?c, ?rest...) => sum(sum(?a, ?c), ?b, ?rest...)
 function ruleAssocMid(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'sum')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 3) return undefined;
+  if (args.length < 3) return undefined;
 
-  const [a, b, c] = args;
-  return new AstNode('func', 'sum', [
-    new AstNode('func', 'add', [a, c]),
-    b
+  const [a, b, c, ...rest] = args;
+  return AstNode.create('func', 'sum', [
+    AstNode.create('func', 'sum', [a, c]),
+    b,
+    ...rest
   ]);
 }
 
@@ -73,31 +74,46 @@ function ruleCommutative(ast: AstNode): AstNode | undefined {
   if (args.length !== 2) return undefined;
 
   const [a, b] = args;
-  return new AstNode('func', 'sum', [b, a]);
+  return AstNode.create('func', 'sum', [b, a]);
 }
 
-// sum(?a, 0) => ?a
+// sum(?a, ?mid..., ?c) => sum(?c, ?mid..., ?a) - Swap first and last
+function ruleSwapEnds(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'sum')) return undefined;
+  const args = getArgs(ast);
+  if (args.length < 2) return undefined;
+
+  const first = args[0];
+  const last = args[args.length - 1];
+  const middle = args.slice(1, -1);
+
+  return AstNode.create('func', 'sum', [last, ...middle, first]);
+}
+
+// sum(?args..., 0, ?rest...) => sum(?args..., ?rest...) - Remove any zeros
 function ruleNeutralRight(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'sum')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
+  if (args.length < 2) return undefined;
 
-  const [a, b] = args;
-  if (!isNumber(b) || b.value !== 0) return undefined;
+  // Find first zero
+  const zeroIndex = args.findIndex(arg => isNumber(arg) && arg.value === 0);
+  if (zeroIndex === -1) return undefined;
 
-  return a;
+  // Remove the zero
+  const newArgs = [...args.slice(0, zeroIndex), ...args.slice(zeroIndex + 1)];
+
+  // If only one arg left, return it
+  if (newArgs.length === 1) return newArgs[0];
+
+  // Otherwise return sum of remaining args
+  return AstNode.create('func', 'sum', newArgs);
 }
 
-// sum(0, ?a) => ?a
+// Deprecated: merged into ruleNeutralRight
 function ruleNeutralLeft(ast: AstNode): AstNode | undefined {
-  if (!isFunc(ast, 'sum')) return undefined;
-  const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
-
-  const [a, b] = args;
-  if (!isNumber(a) || a.value !== 0) return undefined;
-
-  return b;
+  // Just redirect to ruleNeutralRight which now handles zeros anywhere
+  return ruleNeutralRight(ast);
 }
 
 // sum(?a, ?b) => eval(def(sym(?y), sum(?a, ?b))) where ?y is symbol_name
@@ -154,9 +170,9 @@ function ruleEvalProgressive(ast: AstNode): AstNode | undefined {
   const [first, ...rest] = funcArgs;
 
   // Create eval(?f(eval(?a), ?rest...))
-  return new AstNode('func', 'eval', [
-    new AstNode('func', funcCall.value, [
-      new AstNode('func', 'eval', [first]),
+  return AstNode.create('func', 'eval', [
+    AstNode.create('func', funcCall.value as FuncName, [
+      AstNode.create('func', 'eval', [first]),
       ...rest
     ])
   ]);
@@ -181,9 +197,9 @@ function ruleEvalDef(ast: AstNode): AstNode | undefined {
   if (symArgs.length !== 1) return undefined;
   if (!isSymbol(symArgs[0])) return undefined;
 
-  return new AstNode('func', 'def', [
+  return AstNode.create('func', 'def', [
     sym,
-    new AstNode('func', 'eval', [expr])
+    AstNode.create('func', 'eval', [expr])
   ]);
 }
 
@@ -206,19 +222,96 @@ function ruleEvalDefSimplify(ast: AstNode): AstNode | undefined {
   if (symArgs.length !== 1) return undefined;
   if (!isSymbol(symArgs[0])) return undefined;
 
-  return new AstNode('func', 'eval', [expr]);
+  return AstNode.create('func', 'eval', [expr]);
 }
 
-// mul(?a, ?b, ?c) => mul(prod(?a, ?b), ?c)
+// eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number
+function ruleEvalSum(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const sumCall = args[0];
+  if (!isFunc(sumCall, 'sum')) return undefined;
+
+  const sumArgs = getArgs(sumCall);
+  if (sumArgs.length !== 2) return undefined;
+
+  const [a, b] = sumArgs;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+
+  const result = (a.value as number) + (b.value as number);
+  return AstNode.create('number', result);
+}
+
+// eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number
+function ruleEvalMul(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const mulCall = args[0];
+  if (!isFunc(mulCall, 'mul')) return undefined;
+
+  const mulArgs = getArgs(mulCall);
+  if (mulArgs.length !== 2) return undefined;
+
+  const [a, b] = mulArgs;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+
+  const result = (a.value as number) * (b.value as number);
+  return AstNode.create('number', result);
+}
+
+// eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number, ?b != 0
+function ruleEvalDiv(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const divCall = args[0];
+  if (!isFunc(divCall, 'div')) return undefined;
+
+  const divArgs = getArgs(divCall);
+  if (divArgs.length !== 2) return undefined;
+
+  const [a, b] = divArgs;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+  if (b.value === 0) return undefined; // Don't divide by zero
+
+  const result = (a.value as number) / (b.value as number);
+  return AstNode.create('number', result);
+}
+
+// eval(neg(?a)) => calc_neg(?a) where ?a is number
+function ruleEvalNeg(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const negCall = args[0];
+  if (!isFunc(negCall, 'neg')) return undefined;
+
+  const negArgs = getArgs(negCall);
+  if (negArgs.length !== 1) return undefined;
+
+  const a = negArgs[0];
+  if (!isNumber(a)) return undefined;
+
+  const result = -(a.value as number);
+  return AstNode.create('number', result);
+}
+
+// mul(?a, ?b, ?rest...) => mul(mul(?a, ?b), ?rest...)
 function ruleMulAssocLeft(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'mul')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 3) return undefined;
+  if (args.length < 3) return undefined;
 
-  const [a, b, c] = args;
-  return new AstNode('func', 'mul', [
-    new AstNode('func', 'prod', [a, b]),
-    c
+  const [a, b, ...rest] = args;
+  return AstNode.create('func', 'mul', [
+    AstNode.create('func', 'mul', [a, b]),
+    ...rest
   ]);
 }
 
@@ -229,55 +322,52 @@ function ruleMulCommutative(ast: AstNode): AstNode | undefined {
   if (args.length !== 2) return undefined;
 
   const [a, b] = args;
-  return new AstNode('func', 'mul', [b, a]);
+  return AstNode.create('func', 'mul', [b, a]);
 }
 
-// mul(?a, 1) => ?a
+// mul(?args..., 1, ?rest...) => mul(?args..., ?rest...) - Remove any ones
 function ruleMulNeutralRight(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'mul')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
+  if (args.length < 2) return undefined;
 
-  const [a, b] = args;
-  if (!isNumber(b) || b.value !== 1) return undefined;
+  // Find first one
+  const oneIndex = args.findIndex(arg => isNumber(arg) && arg.value === 1);
+  if (oneIndex === -1) return undefined;
 
-  return a;
+  // Remove the one
+  const newArgs = [...args.slice(0, oneIndex), ...args.slice(oneIndex + 1)];
+
+  // If only one arg left, return it
+  if (newArgs.length === 1) return newArgs[0];
+
+  // Otherwise return mul of remaining args
+  return AstNode.create('func', 'mul', newArgs);
 }
 
-// mul(1, ?a) => ?a
+// Deprecated: merged into ruleMulNeutralRight
 function ruleMulNeutralLeft(ast: AstNode): AstNode | undefined {
-  if (!isFunc(ast, 'mul')) return undefined;
-  const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
-
-  const [a, b] = args;
-  if (!isNumber(a) || a.value !== 1) return undefined;
-
-  return b;
+  // Just redirect to ruleMulNeutralRight which now handles ones anywhere
+  return ruleMulNeutralRight(ast);
 }
 
-// mul(?a, 0) => 0
+// mul(?args..., 0, ?rest...) => 0 - Any zero makes the whole product zero
 function ruleMulZeroRight(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'mul')) return undefined;
   const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
+  if (args.length < 2) return undefined;
 
-  const [a, b] = args;
-  if (!isNumber(b) || b.value !== 0) return undefined;
+  // Find any zero
+  const hasZero = args.some(arg => isNumber(arg) && arg.value === 0);
+  if (!hasZero) return undefined;
 
-  return new AstNode('number', 0);
+  return AstNode.create('number', 0);
 }
 
-// mul(0, ?a) => 0
+// Deprecated: merged into ruleMulZeroRight
 function ruleMulZeroLeft(ast: AstNode): AstNode | undefined {
-  if (!isFunc(ast, 'mul')) return undefined;
-  const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
-
-  const [a, b] = args;
-  if (!isNumber(a) || a.value !== 0) return undefined;
-
-  return new AstNode('number', 0);
+  // Just redirect to ruleMulZeroRight which now handles zeros anywhere
+  return ruleMulZeroRight(ast);
 }
 
 // div(?a, 1) => ?a
@@ -304,12 +394,12 @@ function ruleDivSelfToOne(ast: AstNode): AstNode | undefined {
 
   if (a.kind === 'number' && b.kind === 'number') {
     if (a.value !== b.value || a.value === 0) return undefined;
-    return new AstNode('number', 1);
+    return AstNode.create('number', 1);
   } else if (a.kind === 'symbol' && b.kind === 'symbol') {
     const aSym = a.value as ASymbol;
     const bSym = b.value as ASymbol;
     if (aSym.name !== bSym.name) return undefined;
-    return new AstNode('number', 1);
+    return AstNode.create('number', 1);
   }
 
   return undefined;
@@ -331,9 +421,9 @@ function ruleSubToSum(ast: AstNode): AstNode | undefined {
   if (args.length !== 2) return undefined;
 
   const [a, b] = args;
-  return new AstNode('func', 'sum', [
+  return AstNode.create('func', 'sum', [
     a,
-    new AstNode('func', 'neg', [b])
+    AstNode.create('func', 'neg', [b])
   ]);
 }
 
@@ -361,7 +451,7 @@ function ruleNegZero(ast: AstNode): AstNode | undefined {
   const arg = args[0];
   if (!isNumber(arg) || arg.value !== 0) return undefined;
 
-  return new AstNode('number', 0);
+  return AstNode.create('number', 0);
 }
 
 // add(?a, neg(?a)) => 0
@@ -377,7 +467,7 @@ function ruleSumNegSelf(ast: AstNode): AstNode | undefined {
     const negArgs = getArgs(b);
     if (negArgs.length === 1) {
       if (a.toString() === negArgs[0].toString()) {
-        return new AstNode('number', 0);
+        return AstNode.create('number', 0);
       }
     }
   }
@@ -403,8 +493,8 @@ function ruleSumToMul(ast: AstNode): AstNode | undefined {
   const value = args[0];
   const count = args.length;
 
-  return new AstNode('func', 'mul', [
-    new AstNode('number', count),
+  return AstNode.create('func', 'mul', [
+    AstNode.create('number', count),
     value
   ]);
 }
@@ -424,13 +514,14 @@ function ruleMulToSum(ast: AstNode): AstNode | undefined {
 
   // Create sum with 'count' copies of 'a'
   const sumArgs = Array(count).fill(a);
-  return new AstNode('func', 'sum', sumArgs);
+  return AstNode.create('func', 'sum', sumArgs);
 }
 
 export const coreRuleFunctions = [
   ruleAssocLeft,
   ruleAssocMid,
   ruleCommutative,
+  ruleSwapEnds,
   ruleNeutralRight,
   ruleNeutralLeft,
   ruleLiftSum,
@@ -439,6 +530,10 @@ export const coreRuleFunctions = [
   ruleEvalProgressive,
   ruleEvalDef,
   ruleEvalDefSimplify,
+  ruleEvalSum,
+  ruleEvalMul,
+  ruleEvalDiv,
+  ruleEvalNeg,
   ruleMulAssocLeft,
   ruleMulCommutative,
   ruleMulNeutralRight,
@@ -458,14 +553,15 @@ export const coreRuleFunctions = [
 
 export function initCore(runtime: Runtime) {
   const coreRules: [string, (ast: AstNode) => AstNode | undefined][] = [
-    // Sum: Associativity variants
-    ["sum(?a, ?b, ?c) => sum(sum(?a, ?b), ?c)", ruleAssocLeft],
-    ["sum(?a, ?b, ?c) => sum(sum(?a, ?c), ?b)", ruleAssocMid],
+    // Sum: Associativity variants (works with 3+ args)
+    ["sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)", ruleAssocLeft],
+    ["sum(?a, ?b, ?c, ?rest...) => sum(sum(?a, ?c), ?b, ?rest...)", ruleAssocMid],
 
     // Sum: Commutativity and neutral element
     ["sum(?a, ?b) => sum(?b, ?a)", ruleCommutative],
-    ["sum(?a, 0) => ?a", ruleNeutralRight],
-    ["sum(0, ?a) => ?a", ruleNeutralLeft],
+    ["sum(?a, ?mid..., ?c) => sum(?c, ?mid..., ?a)", ruleSwapEnds],
+    ["sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", ruleNeutralRight],
+    ["sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", ruleNeutralLeft],
 
     // Sum: Lift sums into the evaluation flow
     ["sum(?a, ?b) => eval(def(sym(?y), sum(?a, ?b))) where ?y is symbol_name", ruleLiftSum],
@@ -481,19 +577,25 @@ export function initCore(runtime: Runtime) {
     ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
     ["eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name", ruleEvalDefSimplify],
 
-    // Multiply: Associativity
-    ["mul(?a, ?b, ?c) => mul(prod(?a, ?b), ?c)", ruleMulAssocLeft],
+    // Eval computation for arithmetic operations
+    ["eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", ruleEvalSum],
+    ["eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", ruleEvalMul],
+    ["eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleEvalDiv],
+    ["eval(neg(?a)) => calc_neg(?a) where ?a is number", ruleEvalNeg],
+
+    // Multiply: Associativity (works with 3+ args)
+    ["mul(?a, ?b, ?rest...) => mul(prod(?a, ?b), ?rest...)", ruleMulAssocLeft],
 
     // Multiply: Commutativity
     ["mul(?a, ?b) => mul(?b, ?a)", ruleMulCommutative],
 
-    // Multiply: Neutral element (1)
-    ["mul(?a, 1) => ?a", ruleMulNeutralRight],
-    ["mul(1, ?a) => ?a", ruleMulNeutralLeft],
+    // Multiply: Neutral element (1) - works with 2+ args
+    ["mul(?args..., 1, ?rest...) => mul(?args..., ?rest...)", ruleMulNeutralRight],
+    ["mul(?args..., 1, ?rest...) => mul(?args..., ?rest...)", ruleMulNeutralLeft],
 
-    // Multiply: Zero element
-    ["mul(?a, 0) => 0", ruleMulZeroRight],
-    ["mul(0, ?a) => 0", ruleMulZeroLeft],
+    // Multiply: Zero element - any zero makes product zero
+    ["mul(?args..., 0, ?rest...) => 0", ruleMulZeroRight],
+    ["mul(?args..., 0, ?rest...) => 0", ruleMulZeroLeft],
 
     // Divide: Neutral element
     ["div(?a, 1) => ?a", ruleDivNeutralRight],

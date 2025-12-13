@@ -1,7 +1,7 @@
 import * as ohm from 'ohm-js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { AstNode, ASymbol, Constraint, TypeName } from "./ast.js";
+import { AstNode, ASymbol, Constraint, FuncName, TypeName } from "./ast.js";
 
 // Examples:
 // "1" → AstNode(kind='number', value=1)
@@ -45,7 +45,7 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const leftNode = left.toAst();
     const rightNode = right.toAst();
     const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
-    return new AstNode('rule', 'rule', [leftNode, rightNode], constraints);
+    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints);
   },
 
   WhereClause(_where, constraintList) {
@@ -71,23 +71,85 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
   },
 
   AddExpr_add(left, _op, right) {
-    return new AstNode('func', 'add', [left.toAst(), right.toAst()]);
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+
+    // Flatten: collect all terms into a single sum
+    const terms: AstNode[] = [];
+
+    // Collect terms from left side
+    if (leftNode.kind === 'func' && leftNode.value === 'sum') {
+      terms.push(...(leftNode.children || []));
+    } else {
+      terms.push(leftNode);
+    }
+
+    // Collect terms from right side
+    if (rightNode.kind === 'func' && rightNode.value === 'sum') {
+      terms.push(...(rightNode.children || []));
+    } else {
+      terms.push(rightNode);
+    }
+
+    return AstNode.create('func', 'sum', terms);
   },
 
   AddExpr_sub(left, _op, right) {
-    return new AstNode('func', 'sub', [left.toAst(), right.toAst()]);
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+
+    // Flatten: collect all terms into a single sum
+    const terms: AstNode[] = [];
+
+    // Collect terms from left side
+    if (leftNode.kind === 'func' && leftNode.value === 'sum') {
+      terms.push(...(leftNode.children || []));
+    } else {
+      terms.push(leftNode);
+    }
+
+    // Add negated right side
+    const negRight = AstNode.create('func', 'neg', [rightNode]);
+    terms.push(negRight);
+
+    return AstNode.create('func', 'sum', terms);
   },
 
   MulExpr_mul(left, _op, right) {
-    return new AstNode('func', 'mul', [left.toAst(), right.toAst()]);
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+
+    // Flatten: collect all factors into a single mul
+    const factors: AstNode[] = [];
+
+    // Collect factors from left side
+    if (leftNode.kind === 'func' && leftNode.value === 'mul') {
+      factors.push(...(leftNode.children || []));
+    } else {
+      factors.push(leftNode);
+    }
+
+    // Collect factors from right side
+    if (rightNode.kind === 'func' && rightNode.value === 'mul') {
+      factors.push(...(rightNode.children || []));
+    } else {
+      factors.push(rightNode);
+    }
+
+    return AstNode.create('func', 'mul', factors);
   },
 
   MulExpr_div(left, _op, right) {
-    return new AstNode('func', 'div', [left.toAst(), right.toAst()]);
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+
+    // Division doesn't flatten the same way
+    // a / b / c = (a / b) / c, not a / (b * c)
+    return AstNode.create('func', 'div', [leftNode, rightNode]);
   },
 
   UnaryExpr_neg(_op, expr) {
-    return new AstNode('func', 'neg', [expr.toAst()]);
+    return AstNode.create('func', 'neg', [expr.toAst()]);
   },
 
   UnaryExpr_pos(_op, expr) {
@@ -95,16 +157,16 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
   },
 
   ImplicitMul_implicit(num, expr) {
-    return new AstNode('func', 'mul', [num.toAst(), expr.toAst()]);
+    return AstNode.create('func', 'mul', [num.toAst(), expr.toAst()]);
   },
 
   SpreadExpr_spread(expr, _dots) {
     const target = expr.toAst();
-    return new AstNode('spread', '...', [target]);
+    return AstNode.create('spread', '...', [target]);
   },
 
   Primary_paren(_lparen, expr, _rparen) {
-    return new AstNode('func', 'paren', [expr.toAst()]);
+    return AstNode.create('func', 'paren', [expr.toAst()]);
   },
 
   Primary(expr) {
@@ -115,37 +177,37 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const callee = target.toAst();
     const argNodes = args.asIteration().children.map((arg: any) => arg.toAst());
     const funcValue = callee instanceof AstNode ? callee : (callee as string);
-    return new AstNode('func', funcValue, argNodes);
+    return AstNode.create('func', funcValue as FuncName, argNodes);
   },
 
   Symbol_indexed(name, _lbrace, indices, _rbrace) {
     const symbolName = name.sourceString;
     const indexNodes = indices.asIteration().children.map((idx: any) => idx.toAst());
     const symbol = new ASymbol(symbolName, indexNodes);
-    return new AstNode('symbol', symbol);
+    return AstNode.create('symbol', symbol);
   },
 
   Symbol_numbered(name, num) {
     const symbolName = name.sourceString;
     const indexValue = parseInt(num.sourceString, 10);
-    const symbol = new ASymbol(symbolName, [new AstNode('number', indexValue)]);
-    return new AstNode('symbol', symbol);
+    const symbol = new ASymbol(symbolName, [AstNode.create('number', indexValue)]);
+    return AstNode.create('symbol', symbol);
   },
 
   Symbol_plain(name) {
     const symbolName = name.sourceString;
     const symbol = new ASymbol(symbolName);
-    return new AstNode('symbol', symbol);
+    return AstNode.create('symbol', symbol);
   },
 
   List(_lbrack, elements, _rbrack) {
     const elementNodes = elements.asIteration().children.map((element: any) => element.toAst());
-    return new AstNode('list', 'list', elementNodes);
+    return AstNode.create('list', 'list', elementNodes);
   },
 
   Tuple(_lparen, elements, _rparen) {
     const elementNodes = elements.asIteration().children.map((element: any) => element.toAst());
-    return new AstNode('tuple', 'tuple', elementNodes);
+    return AstNode.create('tuple', 'tuple', elementNodes);
   },
 
   PatVar(_question, name, num) {
@@ -153,11 +215,11 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     if (num.children.length > 0) {
       varName += num.sourceString;
     }
-    return new AstNode('patvar', varName);
+    return AstNode.create('patvar', varName);
   },
 
   number(_digits) {
-    return new AstNode('number', parseInt(this.sourceString, 10));
+    return AstNode.create('number', parseInt(this.sourceString, 10));
   },
 
   ident(_first, _rest) {
