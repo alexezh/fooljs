@@ -12,13 +12,36 @@ FoolJS {
   TypeName = "number" | "var" | "symbol_name" | "func_name"
 
   Expression
-    = Spread
+    = AddExpr
+
+  AddExpr
+    = AddExpr "+" MulExpr  -- add
+    | AddExpr "-" MulExpr  -- sub
+    | MulExpr
+
+  MulExpr
+    = MulExpr "*" UnaryExpr  -- mul
+    | MulExpr "/" UnaryExpr  -- div
+    | UnaryExpr
+
+  UnaryExpr
+    = "-" UnaryExpr  -- neg
+    | "+" UnaryExpr  -- pos
+    | ImplicitMul
+
+  ImplicitMul
+    = number Primary  -- implicit
+    | SpreadExpr
+
+  SpreadExpr
+    = Primary "..."  -- spread
     | Primary
 
   Primary
     = FuncCall
     | List
     | Tuple
+    | "(" Expression ")"  -- paren
     | Symbol
     | PatVar
     | number
@@ -31,9 +54,7 @@ FoolJS {
 
   List = "[" ListOf<Expression, ","> "]"
 
-  Tuple = "(" ListOf<Expression, ","> ")"
-
-  Spread = Primary "..."
+  Tuple = "(" NonemptyListOf<Expression, ","> ")"
 
   Symbol
     = ident "{" ListOf<Expression, ","> "}"  -- indexed

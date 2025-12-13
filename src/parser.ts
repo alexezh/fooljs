@@ -70,6 +70,43 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return expr.toAst();
   },
 
+  AddExpr_add(left, _op, right) {
+    return new AstNode('func', 'add', [left.toAst(), right.toAst()]);
+  },
+
+  AddExpr_sub(left, _op, right) {
+    return new AstNode('func', 'sub', [left.toAst(), right.toAst()]);
+  },
+
+  MulExpr_mul(left, _op, right) {
+    return new AstNode('func', 'mul', [left.toAst(), right.toAst()]);
+  },
+
+  MulExpr_div(left, _op, right) {
+    return new AstNode('func', 'div', [left.toAst(), right.toAst()]);
+  },
+
+  UnaryExpr_neg(_op, expr) {
+    return new AstNode('func', 'neg', [expr.toAst()]);
+  },
+
+  UnaryExpr_pos(_op, expr) {
+    return expr.toAst();  // Unary + is just identity
+  },
+
+  ImplicitMul_implicit(num, expr) {
+    return new AstNode('func', 'mul', [num.toAst(), expr.toAst()]);
+  },
+
+  SpreadExpr_spread(expr, _dots) {
+    const target = expr.toAst();
+    return new AstNode('spread', '...', [target]);
+  },
+
+  Primary_paren(_lparen, expr, _rparen) {
+    return new AstNode('func', 'paren', [expr.toAst()]);
+  },
+
   Primary(expr) {
     return expr.toAst();
   },
@@ -109,11 +146,6 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
   Tuple(_lparen, elements, _rparen) {
     const elementNodes = elements.asIteration().children.map((element: any) => element.toAst());
     return new AstNode('tuple', 'tuple', elementNodes);
-  },
-
-  Spread(expr, _dots) {
-    const target = expr.toAst();
-    return new AstNode('spread', '...', [target]);
   },
 
   PatVar(_question, name, num) {
