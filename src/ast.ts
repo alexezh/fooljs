@@ -133,7 +133,7 @@ export const COST = {
 export class AstNode {
   kind: AstNodeKind;
   value: number | string | ASymbol | AstNode;
-  children: AstNode[] | undefined;
+  children: ReadonlyArray<AstNode> | undefined;
   constraints?: Constraint[];
   private cost?: number;
 

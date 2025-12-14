@@ -92,7 +92,7 @@ export function getCost(ast: AstNode): number {
   return 1;
 }
 
-function calculateSumCost(args: AstNode[]): number {
+function calculateSumCost(args: ReadonlyArray<AstNode>): number {
   if (args.length === 0) return 0;
   if (args.length === 1) return args[0].getCost();
 
@@ -147,7 +147,7 @@ function calculateSumCost(args: AstNode[]): number {
   return cost;
 }
 
-function calculateMulCost(args: AstNode[]): number {
+function calculateMulCost(args: ReadonlyArray<AstNode>): number {
   if (args.length === 0) return 0;
   if (args.length === 1) return args[0].getCost();
 
@@ -205,7 +205,7 @@ function calculateMulCost(args: AstNode[]): number {
   return cost;
 }
 
-function calculateDivCost(args: AstNode[]): number {
+function calculateDivCost(args: ReadonlyArray<AstNode>): number {
   if (args.length !== 2) return COST.DIV_COST;
 
   const [dividend, divisor] = args;

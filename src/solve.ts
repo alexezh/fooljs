@@ -1,6 +1,6 @@
 import { AstNode, cloneAst, createAdd, createDiv, createMul, createNeg, createPow, createSqrt, createSub, isFunc, isNumber } from './ast.js';
 
-function expectQuadraticTerms(terms: AstNode[]): {
+function expectQuadraticTerms(terms: ReadonlyArray<AstNode>): {
   A: AstNode;
   B: AstNode;
   C: AstNode;

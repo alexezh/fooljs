@@ -1,5 +1,5 @@
-import { initCore } from "./corefunc.js";
 import { parse } from "./parser.js";
+import { initCore } from "./rules/ruletable.js";
 import { Runtime } from "./runtime.js";
 import { aStarSearch } from "./search.js";
 

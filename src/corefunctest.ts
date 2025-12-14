@@ -1,5 +1,5 @@
 import { parse } from "./parser.js";
-import { coreRuleFunctions } from "./corefunc.js";
+import { coreRuleFunctions } from "./rules/ruletable.js";
 
 let testCount = 0;
 let passCount = 0;
@@ -85,13 +85,6 @@ function corefunctest(): void {
   testRuleFunction("sum(0, 5)", "5", 4);  // Now works anywhere
   testRuleFunction("sum(1, 2, 0, 3)", "sum(1,2,3)", 4);  // Removes zero from middle
   testRuleFunction("sum(5, 1)", null, 4);  // Not 0
-
-  // Rule 5: ruleNeutralLeft - same as ruleNeutralRight (deprecated)
-  console.log("\n-- Rule 5: Neutral Element Left (same as Right) --");
-  testRuleFunction("sum(0, 5)", "5", 5);
-  testRuleFunction("sum(0, y)", "y", 5);
-  testRuleFunction("sum(5, 0)", "5", 5);  // Now works anywhere
-  testRuleFunction("sum(1, 5)", null, 5);  // Not 0
 
   // Rule 6: ruleLiftSum - currently returns undefined (needs fresh symbol generation)
   console.log("\n-- Rule 6: Lift Sum (not implemented) --");
