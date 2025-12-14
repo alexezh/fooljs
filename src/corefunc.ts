@@ -517,38 +517,334 @@ function ruleMulToSum(ast: AstNode): AstNode | undefined {
   return AstNode.create('func', 'sum', sumArgs);
 }
 
+// =============================================================================
+// Equation (eq) rules
+// =============================================================================
+
+// eq(?a, ?b) => eq(?b, ?a) - Symmetry
+function ruleEqSymmetry(ast: AstNode): AstNode | undefined {
+  if (ast.kind !== 'eq') return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [a, b] = args;
+  return AstNode.create('eq', 'eq', [b, a]);
+}
+
+// eq(?a, ?b) => eq(sum(?a, ?c), sum(?b, ?c)) - Add to both sides
+// Note: This is a meta-rule template; in practice we'd need ?c to be provided
+// For now, this returns undefined as it needs additional context
+function ruleEqAddBothSides(ast: AstNode): AstNode | undefined {
+  // This is a template rule - actual implementation would need the term to add
+  return undefined;
+}
+
+// eq(?a, ?b) => eq(mul(?k, ?a), mul(?k, ?b)) - Multiply both sides
+// Similar to above, needs the multiplier
+function ruleEqMulBothSides(ast: AstNode): AstNode | undefined {
+  return undefined;
+}
+
+// =============================================================================
+// Solve rules - Generic goal-based solver
+// =============================================================================
+
+// solve(?e, ?p) => ?e where holds(?p, ?e)
+// Base case: goal is already satisfied
+function ruleSolveGoalMet(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [expr, goal] = args;
+
+  // Check if goal holds
+  if (holdsGoal(goal, expr)) {
+    return expr;
+  }
+
+  return undefined;
+}
+
+// solve(?e, ?p) => solve(?e1, ?p) where not holds(?p, ?e), step(?e) => ?e1
+// Recursive case: take one step and continue solving
+// Note: This needs runtime access for step function
+function ruleSolveStep(ast: AstNode): AstNode | undefined {
+  // This will be implemented when we have runtime access in rules
+  return undefined;
+}
+
+// =============================================================================
+// Solve + eq rules - Equation solving
+// =============================================================================
+
+// solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))
+// Normalize equation to form: something = 0
+function ruleSolveEqNormalize(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [eqNode, goalNode] = args;
+
+  // Check goal is solved_for(?x)
+  if (!isFunc(goalNode, 'solved_for')) return undefined;
+
+  // Check first arg is eq(?lhs, ?rhs)
+  if (eqNode.kind !== 'eq') return undefined;
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [lhs, rhs] = eqArgs;
+
+  // Don't normalize if already in form eq(..., 0)
+  if (isNumber(rhs) && rhs.value === 0) return undefined;
+
+  // Normalize: eq(lhs, rhs) => eq(lhs - rhs, 0)
+  const normalized = AstNode.create('eq', 'eq', [
+    AstNode.create('func', 'sub', [lhs, rhs]),
+    AstNode.create('number', 0)
+  ]);
+
+  return AstNode.create('func', 'solve', [normalized, goalNode]);
+}
+
+// solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs
+// Base case: variable isolated on left
+function ruleSolveEqIsolatedLeft(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [eqNode, goalNode] = args;
+
+  // Check goal is solved_for(?x)
+  if (!isFunc(goalNode, 'solved_for')) return undefined;
+  const goalArgs = getArgs(goalNode);
+  if (goalArgs.length !== 1) return undefined;
+  const targetVar = goalArgs[0];
+
+  // Check first arg is eq(?x, ?rhs)
+  if (eqNode.kind !== 'eq') return undefined;
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [lhs, rhs] = eqArgs;
+
+  // Check if lhs matches the target variable
+  if (lhs.kind === 'symbol' && targetVar.kind === 'symbol') {
+    const lhsSym = lhs.value as ASymbol;
+    const targetSym = targetVar.value as ASymbol;
+    if (lhsSym.name === targetSym.name) {
+      return rhs;
+    }
+  }
+
+  return undefined;
+}
+
+// solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs
+// Base case: variable isolated on right
+function ruleSolveEqIsolatedRight(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [eqNode, goalNode] = args;
+
+  // Check goal is solved_for(?x)
+  if (!isFunc(goalNode, 'solved_for')) return undefined;
+  const goalArgs = getArgs(goalNode);
+  if (goalArgs.length !== 1) return undefined;
+  const targetVar = goalArgs[0];
+
+  // Check first arg is eq(?lhs, ?x)
+  if (eqNode.kind !== 'eq') return undefined;
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [lhs, rhs] = eqArgs;
+
+  // Check if rhs matches the target variable
+  if (rhs.kind === 'symbol' && targetVar.kind === 'symbol') {
+    const rhsSym = rhs.value as ASymbol;
+    const targetSym = targetVar.value as ASymbol;
+    if (rhsSym.name === targetSym.name) {
+      return lhs;
+    }
+  }
+
+  return undefined;
+}
+
+// solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)
+// Linear equation solver: k*x + c = 0  =>  x = -c/k
+function ruleSolveLinear(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [eqNode, goalNode] = args;
+
+  // Check goal is solved_for(?x)
+  if (!isFunc(goalNode, 'solved_for')) return undefined;
+  const goalArgs = getArgs(goalNode);
+  if (goalArgs.length !== 1) return undefined;
+  const targetVar = goalArgs[0];
+  if (targetVar.kind !== 'symbol') return undefined;
+  const targetSym = targetVar.value as ASymbol;
+
+  // Check first arg is eq(sum(mul(?k, ?x), ?c), 0)
+  if (eqNode.kind !== 'eq') return undefined;
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [lhs, rhs] = eqArgs;
+
+  // Check rhs is 0
+  if (!isNumber(rhs) || rhs.value !== 0) return undefined;
+
+  // Check lhs is sum(mul(?k, ?x), ?c)
+  if (!isFunc(lhs, 'sum')) return undefined;
+  const sumArgs = getArgs(lhs);
+  if (sumArgs.length !== 2) return undefined;
+
+  const [term1, term2] = sumArgs;
+
+  // Try both orders: mul(?k, ?x) + ?c or ?c + mul(?k, ?x)
+  let k: AstNode | undefined;
+  let c: AstNode | undefined;
+  let x: AstNode | undefined;
+
+  // Try term1 = mul(?k, ?x), term2 = ?c
+  if (isFunc(term1, 'mul')) {
+    const mulArgs = getArgs(term1);
+    if (mulArgs.length === 2) {
+      const [factor1, factor2] = mulArgs;
+
+      // Check if factor1 is number and factor2 matches target var
+      if (isNumber(factor1) && factor2.kind === 'symbol') {
+        const factor2Sym = factor2.value as ASymbol;
+        if (factor2Sym.name === targetSym.name && isNumber(term2)) {
+          k = factor1;
+          x = factor2;
+          c = term2;
+        }
+      }
+      // Or factor2 is number and factor1 matches target var
+      if (isNumber(factor2) && factor1.kind === 'symbol') {
+        const factor1Sym = factor1.value as ASymbol;
+        if (factor1Sym.name === targetSym.name && isNumber(term2)) {
+          k = factor2;
+          x = factor1;
+          c = term2;
+        }
+      }
+    }
+  }
+
+  // Try term2 = mul(?k, ?x), term1 = ?c
+  if (!k && isFunc(term2, 'mul')) {
+    const mulArgs = getArgs(term2);
+    if (mulArgs.length === 2) {
+      const [factor1, factor2] = mulArgs;
+
+      if (isNumber(factor1) && factor2.kind === 'symbol') {
+        const factor2Sym = factor2.value as ASymbol;
+        if (factor2Sym.name === targetSym.name && isNumber(term1)) {
+          k = factor1;
+          x = factor2;
+          c = term1;
+        }
+      }
+      if (isNumber(factor2) && factor1.kind === 'symbol') {
+        const factor1Sym = factor1.value as ASymbol;
+        if (factor1Sym.name === targetSym.name && isNumber(term1)) {
+          k = factor2;
+          x = factor1;
+          c = term1;
+        }
+      }
+    }
+  }
+
+  if (!k || !c || !x) return undefined;
+
+  // Check k is nonzero
+  const kVal = k.value as number;
+  if (kVal === 0) return undefined;
+
+  // Return -c / k
+  return AstNode.create('func', 'div', [
+    AstNode.create('func', 'neg', [c]),
+    k
+  ]);
+}
+
+// Helper: Check if a goal holds for an expression
+function holdsGoal(goal: AstNode, expr: AstNode): boolean {
+  // For now, implement simple checks
+  // solved_for(?x) holds if expr is the variable ?x or a simple value
+  if (isFunc(goal, 'solved_for')) {
+    const goalArgs = getArgs(goal);
+    if (goalArgs.length === 1) {
+      const targetVar = goalArgs[0];
+
+      // Goal holds if expression is a number (solved to a constant)
+      if (expr.kind === 'number') return true;
+
+      // Goal holds if expression is the target variable itself
+      if (expr.kind === 'symbol' && targetVar.kind === 'symbol') {
+        const exprSym = expr.value as ASymbol;
+        const targetSym = targetVar.value as ASymbol;
+        return exprSym.name === targetSym.name;
+      }
+    }
+  }
+
+  return false;
+}
+
 export const coreRuleFunctions = [
-  ruleAssocLeft,
-  ruleAssocMid,
-  ruleCommutative,
-  ruleSwapEnds,
-  ruleNeutralRight,
-  ruleNeutralLeft,
-  ruleLiftSum,
-  ruleEvalNumber,
-  ruleEvalSymbol,
-  ruleEvalProgressive,
-  ruleEvalDef,
-  ruleEvalDefSimplify,
-  ruleEvalSum,
-  ruleEvalMul,
-  ruleEvalDiv,
-  ruleEvalNeg,
-  ruleMulAssocLeft,
-  ruleMulCommutative,
-  ruleMulNeutralRight,
-  ruleMulNeutralLeft,
-  ruleMulZeroRight,
-  ruleMulZeroLeft,
-  ruleDivNeutralRight,
-  ruleDivSelfToOne,
-  ruleParenRemove,
-  ruleSubToSum,
-  ruleDoubleNeg,
-  ruleNegZero,
-  ruleSumNegSelf,
-  ruleSumToMul,
-  ruleMulToSum
+  ruleAssocLeft,          // 0
+  ruleAssocMid,           // 1
+  ruleCommutative,        // 2
+  ruleSwapEnds,           // 3
+  ruleNeutralRight,       // 4
+  ruleNeutralLeft,        // 5
+  ruleLiftSum,            // 6
+  ruleEvalNumber,         // 7
+  ruleEvalSymbol,         // 8
+  ruleEvalProgressive,    // 9
+  ruleEvalDef,            // 10
+  ruleEvalDefSimplify,    // 11
+  ruleEvalSum,            // 12
+  ruleEvalMul,            // 13
+  ruleEvalDiv,            // 14
+  ruleEvalNeg,            // 15
+  ruleMulAssocLeft,       // 16
+  ruleMulCommutative,     // 17
+  ruleMulNeutralRight,    // 18
+  ruleMulNeutralLeft,     // 19
+  ruleMulZeroRight,       // 20
+  ruleMulZeroLeft,        // 21
+  ruleDivNeutralRight,    // 22
+  ruleDivSelfToOne,       // 23
+  ruleParenRemove,        // 24
+  ruleSubToSum,           // 25
+  ruleDoubleNeg,          // 26
+  ruleNegZero,            // 27
+  ruleSumNegSelf,         // 28
+  ruleSumToMul,           // 29
+  ruleMulToSum,           // 30
+  // Equation rules
+  ruleEqSymmetry,         // 31
+  // Solve rules
+  ruleSolveGoalMet,       // 32
+  ruleSolveEqNormalize,   // 33
+  ruleSolveEqIsolatedLeft,// 34
+  ruleSolveEqIsolatedRight,// 35
+  ruleSolveLinear         // 36
 ];
 
 export function initCore(runtime: Runtime) {
@@ -623,6 +919,19 @@ export function initCore(runtime: Runtime) {
 
     // Special: Multiply to sum expansion (expands mul(n, a) to repeated sum)
     ["mul(?n, ?a) => sum(?a, ?rest...) where ?n is number", ruleMulToSum],
+
+    // Equation rules
+    ["eq(?a, ?b) => eq(?b, ?a)", ruleEqSymmetry],
+
+    // Solve rules - Goal-based solving
+    // Note: holds check is done in the rule function itself
+    ["solve(?e, ?p) => ?e", ruleSolveGoalMet],
+
+    // Solve + eq rules - Equation solving
+    ["solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))", ruleSolveEqNormalize],
+    ["solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs", ruleSolveEqIsolatedLeft],
+    ["solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs", ruleSolveEqIsolatedRight],
+    ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
   ];
 
   for (const [ruleStr, ruleFunc] of coreRules) {

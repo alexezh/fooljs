@@ -14,7 +14,11 @@ export type FuncName =
   | 'paren'
   | 'sqrt'
   | 'log'
-  | 'exp';
+  | 'exp'
+  | 'solve'
+  | 'holds'
+  | 'solved_for'
+  | 'step';
 
 export class ASymbol {
   name: string;
