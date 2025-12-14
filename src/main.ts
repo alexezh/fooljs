@@ -1,6 +1,7 @@
 import { initCore } from "./corefunc.js";
 import { parse } from "./parser.js";
 import { Runtime } from "./runtime.js";
+import { aStarSearch } from "./search.js";
 
 function main(): void {
   //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
@@ -9,6 +10,7 @@ function main(): void {
 
   initCore(Runtime.instance);
   const ast = parse(exprStr);
+  const res = aStarSearch(ast);
   const match = Runtime.instance.matchRule(ast);
   console.log(match?.length);
 }

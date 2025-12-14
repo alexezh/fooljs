@@ -9,6 +9,7 @@
     "test:corefunc": "node --import=tsx/esm src/corefunctest.ts",
     "test:search": "node --import=tsx/esm src/searchtest.ts",
     "test:solve": "node --import=tsx/esm src/solvetest.ts",
+    "test:eqpow": "node --import=tsx/esm src/eqpowtest.ts",
     "demo:infix": "node --import=tsx/esm src/infixtest.ts"
   },
   "dependencies": {

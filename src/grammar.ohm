@@ -1,7 +1,9 @@
 FoolJS {
-  Program = Rule | Expression
+  Program = Rule | Equation | Expression
 
   Rule = Expression "=>" Expression WhereClause?
+
+  Equation = Expression "=" Expression
 
   WhereClause = "where" ConstraintList
 
@@ -20,21 +22,26 @@ FoolJS {
 
   AddExpr
     = AddExpr "+" MulExpr  -- add
-    | AddExpr "-" MulExpr  -- sub
+    | AddExpr minusOp MulExpr  -- sub
     | MulExpr
 
   MulExpr
-    = MulExpr "*" UnaryExpr  -- mul
-    | MulExpr "/" UnaryExpr  -- div
-    | UnaryExpr
-
-  UnaryExpr
-    = "-" UnaryExpr  -- neg
-    | "+" UnaryExpr  -- pos
+    = MulExpr "*" ImplicitMul  -- mul
+    | MulExpr "/" ImplicitMul  -- div
     | ImplicitMul
 
   ImplicitMul
-    = number Primary  -- implicit
+    = number UnaryExpr  -- implicit
+    | UnaryExpr
+
+  UnaryExpr
+    = minusOp UnaryExpr  -- neg
+    | PowExpr
+
+  minusOp = "-" | "–" | "—" | "−"  // Hyphen-minus (U+002D), en-dash (U+2013), em-dash (U+2014), minus sign (U+2212)
+
+  PowExpr
+    = SpreadExpr "^" PowExpr  -- pow
     | SpreadExpr
 
   SpreadExpr

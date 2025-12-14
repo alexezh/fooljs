@@ -48,6 +48,12 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints);
   },
 
+  Equation(left, _eq, right) {
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+    return AstNode.create('eq', 'eq', [leftNode, rightNode]);
+  },
+
   WhereClause(_where, constraintList) {
     return constraintList.toAst();
   },
@@ -160,12 +166,17 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return AstNode.create('func', 'div', [leftNode, rightNode]);
   },
 
-  UnaryExpr_neg(_op, expr) {
-    return AstNode.create('func', 'neg', [expr.toAst()]);
+  PowExpr_pow(base, _op, exponent) {
+    const baseNode = base.toAst();
+    const expNode = exponent.toAst();
+
+    // Power is right-associative: a^b^c = a^(b^c)
+    // The grammar already handles this with PowExpr on the right
+    return AstNode.create('func', 'pow', [baseNode, expNode]);
   },
 
-  UnaryExpr_pos(_op, expr) {
-    return expr.toAst();  // Unary + is just identity
+  UnaryExpr_neg(_op, expr) {
+    return AstNode.create('func', 'neg', [expr.toAst()]);
   },
 
   ImplicitMul_implicit(num, expr) {
