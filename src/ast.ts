@@ -1,7 +1,20 @@
-export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'rule' | 'list' | 'tuple' | 'spread';
+export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'eq' | 'rule' | 'list' | 'tuple' | 'spread';
 
-export type TypeName = 'number' | 'var' | 'symbol_name' | 'func_name';
-export type FuncName = 'sum' | 'mul' | 'div' | 'eval' | 'def' | 'neg' | 'paren' | 'sqrt' | 'log' | 'exp';
+export type TypeName = 'number' | 'var' | 'symbol_name' | 'func_name' | 'nonzero_number';
+export type FuncName =
+  | 'sum'
+  | 'mul'
+  | 'div'
+  | 'add'
+  | 'sub'
+  | 'pow'
+  | 'eval'
+  | 'def'
+  | 'neg'
+  | 'paren'
+  | 'sqrt'
+  | 'log'
+  | 'exp';
 
 export class ASymbol {
   name: string;
@@ -20,15 +33,57 @@ export class ASymbol {
   }
 }
 
+export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign';
+
 export class Constraint {
-  patvar: string;
-  type: TypeName;
-  constructor(patvar: string, type: TypeName) {
-    this.patvar = patvar;
-    this.type = type;
+  kind: ConstraintKind;
+  varName?: string;
+  type?: TypeName;
+  left?: AstNode;
+  right?: AstNode;
+
+  private constructor(kind: ConstraintKind, options: {
+    varName?: string;
+    type?: TypeName;
+    left?: AstNode;
+    right?: AstNode;
+  }) {
+    this.kind = kind;
+    this.varName = options.varName;
+    this.type = options.type;
+    this.left = options.left;
+    this.right = options.right;
   }
+
+  static typeConstraint(varName: string, type: TypeName): Constraint {
+    return new Constraint('type', { varName, type });
+  }
+
+  static ruleConstraint(left: AstNode, right: AstNode): Constraint {
+    return new Constraint('rule', { left, right });
+  }
+
+  static matchConstraint(left: AstNode, right: AstNode): Constraint {
+    return new Constraint('match', { left, right });
+  }
+
+  static assignConstraint(left: AstNode, right: AstNode): Constraint {
+    return new Constraint('assign', { left, right });
+  }
+
   toString(): string {
-    return `${this.patvar} is ${this.type}`
+    switch (this.kind) {
+      case 'type':
+        return `${this.varName} is ${this.type}`;
+      case 'rule':
+        return `${this.left?.toString()}=>${this.right?.toString()}`;
+      case 'match':
+        return `${this.left?.toString()} matches ${this.right?.toString()}`;
+      case 'assign':
+        return `${this.left?.toString()}=${this.right?.toString()}`;
+      default:
+        return '';
+    }
   }
 }
 
@@ -86,6 +141,7 @@ export class AstNode {
   static create(kind: 'func', value: FuncName, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'patvar', value: string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'number', value: number, children?: AstNode[], constraints?: Constraint[]): AstNode;
+  static create(kind: 'eq', value: 'eq', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'rule', value: 'rule', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'list', value: 'list', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'tuple', value: 'tuple', children?: AstNode[], constraints?: Constraint[]): AstNode;
@@ -93,6 +149,10 @@ export class AstNode {
   static create(kind: 'symbol', value: ASymbol, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]): AstNode {
     return new AstNode(kind, value, children);
+  }
+
+  clone(): AstNode {
+    return new AstNode(this.kind, this.value, this.children ? [...this.children] : undefined, this.constraints);
   }
 
   getCost(): number {
@@ -364,4 +424,45 @@ export class AstNode {
     const valueStr = this.value instanceof AstNode ? this.value.toString() : this.value.toString();
     return prefix + valueStr + (childrenStr ?? '') + (constrStr ?? '');
   }
+}
+
+export function createMul(left: AstNode, right: AstNode): AstNode {
+  return AstNode.create('func', 'mul', [left, right]);
+}
+
+export function createAdd(left: AstNode, right: AstNode): AstNode {
+  return AstNode.create('func', 'add', [left, right]);
+}
+
+export function createSub(left: AstNode, right: AstNode): AstNode {
+  return AstNode.create('func', 'sub', [left, right]);
+}
+
+export function createDiv(left: AstNode, right: AstNode): AstNode {
+  return AstNode.create('func', 'div', [left, right]);
+}
+
+export function createNeg(node: AstNode): AstNode {
+  return AstNode.create('func', 'neg', [node]);
+}
+
+export function createPow(base: AstNode, exponent: number): AstNode {
+  return AstNode.create('func', 'pow', [base, AstNode.create('number', exponent)]);
+}
+
+export function createSqrt(node: AstNode): AstNode {
+  return AstNode.create('func', 'sqrt', [node]);
+}
+
+
+export function isFunc(node: AstNode, name: string): boolean {
+  return node.kind === 'func' && node.value === name;
+}
+
+export function isNumber(node: AstNode): node is AstNode {
+  return node.kind === 'number';
+}
+
+export function cloneAst(node: AstNode): AstNode {
+  return node.clone();
 }

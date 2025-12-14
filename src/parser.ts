@@ -60,10 +60,22 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return constraints;
   },
 
-  Constraint(patvar, _is, typeName) {
+  Constraint_type(patvar, _is, typeName) {
     const varName = patvar.toAst().value as string;
     const type = typeName.sourceString as TypeName;
-    return new Constraint(varName, type);
+    return Constraint.typeConstraint(varName, type);
+  },
+
+  Constraint_rule(left, _arrow, right) {
+    return Constraint.ruleConstraint(left.toAst(), right.toAst());
+  },
+
+  Constraint_match(left, _matches, right) {
+    return Constraint.matchConstraint(left.toAst(), right.toAst());
+  },
+
+  Constraint_assign(left, _eq, right) {
+    return Constraint.assignConstraint(left.toAst(), right.toAst());
   },
 
   Expression(expr) {

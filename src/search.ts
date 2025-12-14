@@ -1,115 +1,179 @@
-import { MinHeap } from './minheap.js';
-import { AModel } from './model.js';
+import { AstNode } from "./ast.js";
+import { MinHeap } from "./minheap.js";
+import { Runtime } from "./runtime.js";
 
-function isGoal(model: AModel): boolean {
-  return true;
+/**
+ * Represents a state in the search space
+ */
+class SearchState {
+  node: AstNode;
+  parent?: SearchState;
+  gCost: number;  // Cost from start
+  hCost: number;  // Heuristic (node.getCost())
+  fCost: number;  // Total (g + h)
+
+  constructor(node: AstNode, parent?: SearchState, gCost: number = 0) {
+    this.node = node;
+    this.parent = parent;
+    this.gCost = gCost;
+    this.hCost = node.getCost();
+    this.fCost = this.gCost + this.hCost;
+  }
+
+  /**
+   * Reconstruct the path from start to this state
+   */
+  getPath(): AstNode[] {
+    const path: AstNode[] = [];
+    let current: SearchState | undefined = this;
+
+    while (current) {
+      path.unshift(current.node);
+      current = current.parent;
+    }
+
+    return path;
+  }
+
+  /**
+   * Get a unique key for this state (for visited set)
+   */
+  getKey(): string {
+    return this.node.toString();
+  }
 }
 
-// export function aStarSearch(startModel: AModel): AModel[] | null {
-//   const heap = new MinHeap<AModel>((a, b) => {
-//     const aTotal = a.remainCost;
-//     const bTotal = b.remainCost;
-//     return aTotal - bTotal;
-//   });
+/**
+ * Determines if a node is a goal state (sufficiently simplified)
+ */
+export function isGoal(node: AstNode): boolean {
+  // A node is a goal if it's a simple number
+  if (node.kind === 'number') {
+    return true;
+  }
 
-//   heap.push(startModel);
+  // A node is a goal if it's a simple symbol
+  if (node.kind === 'symbol') {
+    return true;
+  }
 
-//   const visited = new Set<string>();
+  // A node is a goal if it's a simple function with no further simplifications possible
+  // This is conservative - we could expand this, but for now we consider
+  // expressions to not be goals (search will continue trying to simplify)
+  return false;
+}
 
-//   while (heap.length > 0) {
-//     const endOfChain: AModel[] = [];
-//     while (heap.length > 0) {
-//       const model = heap.pop()!;
+/**
+ * A* search to find optimal simplification path
+ *
+ * @param start Starting AST node
+ * @param runtime Runtime with rewrite rules (defaults to Runtime.instance)
+ * @param goalFn Function to determine if node is a goal (defaults to isGoal)
+ * @param maxStates Maximum number of states to explore (prevents infinite loops)
+ * @returns Path of transformations from start to goal, or null if no path found
+ */
+export function aStarSearch(
+  start: AstNode,
+  runtime: Runtime = Runtime.instance,
+  goalFn: (node: AstNode) => boolean = isGoal,
+  maxStates: number = 10000
+): AstNode[] | null {
+  // Initialize open set (priority queue) and closed set (visited states)
+  const openSet = new MinHeap<SearchState>((a, b) => a.fCost - b.fCost);
+  const visited = new Set<string>();
 
-//       const stateKey = modelToKey(model);
-//       if (visited.has(stateKey)) {
-//         continue;
-//       }
-//       visited.add(stateKey);
+  const startState = new SearchState(start);
+  openSet.push(startState);
 
-//       if (isLinearExpressionGoal(model.refs)) {
-//         return getModelPath(model);
-//       }
+  let statesExplored = 0;
 
-//       let isEnd = true;
-//       // Get all possible next states using generators
-//       for (const actionResult of getAllActions(model)) {
-//         const { action, model: nextModel, next } = actionResult;
-//         const nextKey = modelToKey(nextModel);
+  while (openSet.size > 0 && statesExplored < maxStates) {
+    const current = openSet.pop()!;
+    const currentKey = current.getKey();
 
-//         if (!visited.has(nextKey)) {
-//           heap.push(nextModel);
-//           isEnd = false;
+    // Skip if already visited
+    if (visited.has(currentKey)) {
+      continue;
+    }
 
-//           // Continue getting models from this action while remainCost improves
-//           let prevRemainCost = nextModel.remainCost;
-//           for (const furtherModel of next) {
-//             if (furtherModel.remainCost >= prevRemainCost) {
-//               break; // Cost is not improving, stop this action
-//             }
+    visited.add(currentKey);
+    statesExplored++;
 
-//             const furtherKey = modelToKey(furtherModel);
-//             if (!visited.has(furtherKey)) {
-//               heap.push(furtherModel);
-//               prevRemainCost = furtherModel.remainCost;
-//             }
-//           }
-//         }
-//       }
+    // Check if we reached the goal
+    if (goalFn(current.node)) {
+      return current.getPath();
+    }
 
-//       if (isEnd) {
-//         endOfChain.push(model);
-//       }
-//     }
+    // Generate successors by applying all matching rules
+    const successors = runtime.matchRule(current.node);
 
-//     // Execute delayed operations for end-of-chain models and continue search
-//     for (const model of endOfChain) {
-//       const changes = executeLazyCompute(model);
-//       if (changes) {
-//         // New state after execution - add to heap for further exploration
-//         heap.push(model);
-//       }
-//     }
+    for (const successor of successors) {
+      const successorKey = successor.toString();
 
-//     endOfChain.length = 0;
-//   }
+      // Skip if already visited
+      if (visited.has(successorKey)) {
+        continue;
+      }
 
-//   return null;
-// }
+      // Cost to reach this successor is current g-cost + 1 (each rule application costs 1)
+      const newGCost = current.gCost + 1;
+      const successorState = new SearchState(successor, current, newGCost);
 
-// function executeLazyCompute(model: AModel): boolean {
-//   // if (!model.requireCompute) {
-//   //   return false;
-//   // }
-//   let chain: AModel[] = [];
-//   let cur: AModel | undefined = model;
-//   while (cur) {
-//     chain.push(cur);
-//     cur = cur.parent;
-//   }
+      openSet.push(successorState);
+    }
+  }
 
-//   let changed = false;
-//   for (let idx = chain.length - 1; idx >= 0; idx--) {
-//     let cur = chain[idx];
-//     if (cur.computeRefs) {
-//       let hasCompute = false;
-//       for (let idx = 0; idx < cur.computeRefs.length; idx++) {
-//         let compute = cur.computeRefs[idx];
-//         if (compute) {
-//           const refChanged = compute.compute!();
-//           if (refChanged) {
-//             changed = true;
-//             cur.computeRefs[idx] = null;
-//           } else {
-//             hasCompute = true;
-//           }
-//         }
-//       }
-//       if (!hasCompute) {
-//         cur.computeRefs = undefined;
-//       }
-//     }
-//   }
-//   return changed;
-// }
+  // No path found
+  return null;
+}
 
+/**
+ * Greedy simplification - always takes the lowest-cost successor
+ * Faster than A* but may not find optimal solution
+ *
+ * @param start Starting AST node
+ * @param runtime Runtime with rewrite rules (defaults to Runtime.instance)
+ * @param maxSteps Maximum number of simplification steps
+ * @returns Simplified AST node
+ */
+export function simplify(
+  start: AstNode,
+  runtime: Runtime = Runtime.instance,
+  maxSteps: number = 100
+): AstNode {
+  let current = start;
+  let currentCost = current.getCost();
+
+  for (let step = 0; step < maxSteps; step++) {
+    // Generate all possible successors
+    const successors = runtime.matchRule(current);
+
+    // If no successors, we're done
+    if (successors.length === 0) {
+      break;
+    }
+
+    // Find the successor with the lowest cost
+    let bestSuccessor = successors[0];
+    let bestCost = bestSuccessor.getCost();
+
+    for (let i = 1; i < successors.length; i++) {
+      const cost = successors[i].getCost();
+      if (cost < bestCost) {
+        bestSuccessor = successors[i];
+        bestCost = cost;
+      }
+    }
+
+    // If best successor is not better than current, we're done
+    if (bestCost >= currentCost) {
+      break;
+    }
+
+    // Move to best successor
+    current = bestSuccessor;
+    currentCost = bestCost;
+  }
+
+  return current;
+}

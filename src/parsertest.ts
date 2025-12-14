@@ -134,6 +134,24 @@ function parsertest(): void {
     "rule(eval(def(sym(?y),?e)),def(sym(?y),eval(?e)))where y is symbol_name"
   );
 
+  console.log("\n-- Quadratic Solver Constraints --");
+  validateAst(
+    "?x => ?y where solve(?eq0, quadratic_normal_form(?x)) => ?eq1",
+    "rule(?x,?y)where solve(?eq0,quadratic_normal_form(?x))=>?eq1"
+  );
+  validateAst(
+    "?x => ?y where ?eq1 matches eq(sum(mul(?A, pow(?x, 2)), mul(?B, ?x), ?C), 0)",
+    "rule(?x,?y)where ?eq1 matches eq(sum(mul(?A,pow(?x,2)),mul(?B,?x),?C),0)"
+  );
+  validateAst(
+    "?x => ?y where ?D = sub(pow(?B, 2), mul(4, mul(?A, ?C)))",
+    "rule(?x,?y)where ?D=sub(pow(?B,2),mul(4,mul(?A,?C)))"
+  );
+  validateAst(
+    "?x => ?y where ?A is nonzero_number",
+    "rule(?x,?y)where A is nonzero_number"
+  );
+
   // Summary
   console.log("\n=== Test Summary ===");
   console.log(`Total:  ${testCount}`);

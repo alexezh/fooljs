@@ -11,3 +11,5 @@ substitute sum(a, b) = y1 where y =
 
 sum, a, b, c = sum((a + b), c) - number of choices is limited, 1, skip 1, ???
 def sum
+
+solve(x, pred) 

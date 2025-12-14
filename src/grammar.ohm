@@ -7,9 +7,13 @@ FoolJS {
 
   ConstraintList = Constraint ("," Constraint)*
 
-  Constraint = PatVar "is" TypeName
+  Constraint
+    = PatVar "is" TypeName           -- type
+    | Expression "=>" Expression     -- rule
+    | Expression "matches" Expression -- match
+    | Expression "=" Expression      -- assign
 
-  TypeName = "number" | "var" | "symbol_name" | "func_name"
+  TypeName = "number" | "var" | "symbol_name" | "func_name" | "nonzero_number"
 
   Expression
     = AddExpr

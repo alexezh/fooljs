@@ -10,6 +10,10 @@ export class MinHeap<T> {
     this.compare = compare;
   }
 
+  get size(): number {
+    return this.heap.length;
+  }
+
   push(item: T): void {
     this.heap.push(item);
     this.bubbleUp(this.heap.length - 1);
