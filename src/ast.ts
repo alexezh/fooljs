@@ -1,6 +1,15 @@
 import { getCost } from "./ast_cost.js";
 
-export type AstNodeKind = 'patvar' | 'number' | 'symbol' | 'func' | 'eq' | 'rule' | 'list' | 'tuple' | 'spread';
+export type AstNodeKind =
+  'patvar'
+  | 'number'
+  | 'symbol'
+  | 'func'
+  | 'eq'
+  | 'rule'
+  | 'list'
+  | 'tuple'
+  | 'spread';
 
 export type TypeName = 'number' | 'var' | 'symbol_name' | 'func_name' | 'nonzero_number';
 export type FuncName =
@@ -147,6 +156,8 @@ export class AstNode {
   static create(kind: 'func', value: FuncName, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'patvar', value: string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'number', value: number, children?: AstNode[], constraints?: Constraint[]): AstNode;
+  // static create(kind: 'solve', value: 'solve', children?: AstNode[], constraints?: Constraint[]): AstNode;
+  // static create(kind: 'solve_for', value: 'solve_for', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'eq', value: 'eq', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'rule', value: 'rule', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'list', value: 'list', children?: AstNode[], constraints?: Constraint[]): AstNode;

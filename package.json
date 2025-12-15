@@ -10,6 +10,7 @@
     "test:search": "node --import=tsx/esm src/searchtest.ts",
     "test:solve": "node --import=tsx/esm src/solvetest.ts",
     "test:eqpow": "node --import=tsx/esm src/eqpowtest.ts",
+    "test:cost": "node --import=tsx/esm src/costtest.ts",
     "demo:infix": "node --import=tsx/esm src/infixtest.ts"
   },
   "dependencies": {
