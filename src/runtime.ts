@@ -60,11 +60,3 @@ export class Runtime {
     return results;
   }
 }
-
-function computeSum(astNode: AstNode): AstNode {
-  throw new Error('Not implemented');
-}
-
-function computeMul(astNode: AstNode): AstNode {
-  throw new Error('Not implemented');
-}

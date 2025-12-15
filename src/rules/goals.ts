@@ -1,5 +1,5 @@
-import { AstNode, ASymbol, isFunc } from "../ast";
-import { getArgs } from "./corerules";
+import { AstNode, ASymbol, isFunc } from "../ast.js";
+import { getArgs } from "./corerules.js";
 
 // Helper: Check if a goal holds for an expression
 function holdsGoal(goal: AstNode, expr: AstNode): boolean {

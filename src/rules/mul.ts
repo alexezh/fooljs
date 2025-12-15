@@ -1,5 +1,5 @@
-import { AstNode, ASymbol, isNumber } from "../ast";
-import { allEqual, getArgs, isFunc } from "./corerules";
+import { AstNode, ASymbol, isNumber } from "../ast.js";
+import { allEqual, getArgs, isFunc } from "./corerules.js";
 
 // eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number
 export function ruleEvalMul(ast: AstNode): AstNode | undefined {

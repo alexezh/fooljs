@@ -1,12 +1,12 @@
-import { AstNode } from "../ast";
-import { Runtime } from "../runtime";
-import { ruleEqSymmetry, ruleParenRemove } from "./corerules";
-import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation";
-import { ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval";
-import { ruleSolveGoalMet } from "./goals";
-import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul";
-import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules";
-import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum";
+import { AstNode } from "../ast.js";
+import { Runtime } from "../runtime.js";
+import { ruleEqSymmetry, ruleParenRemove } from "./corerules.js";
+import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
+import { ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
+import { ruleSolveGoalMet } from "./goals.js";
+import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
+import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
+import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -132,6 +132,7 @@ export function initCore(runtime: Runtime) {
     ["solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))", ruleSolveEqNormalize],
     ["solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs", ruleSolveEqIsolatedLeft],
     ["solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs", ruleSolveEqIsolatedRight],
+    // Linear equations kx + c = 0 solve for x
     ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
   ];
 

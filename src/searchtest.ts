@@ -1,7 +1,7 @@
 import { parse } from "./parser.js";
 import { aStarSearch, simplify, isGoal } from "./search.js";
 import { Runtime } from "./runtime.js";
-import { initCore } from "./corefunc.js";
+import { initCore } from "./rules/ruletable.js";
 
 console.log("=== Search Tests ===\n");
 

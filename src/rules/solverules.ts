@@ -3,8 +3,8 @@
 // Solve + eq rules - Equation solving
 // =============================================================================
 
-import { AstNode, ASymbol, isFunc, isNumber } from "../ast";
-import { getArgs } from "./corerules";
+import { AstNode, ASymbol, isFunc, isNumber } from "../ast.js";
+import { getArgs } from "./corerules.js";
 
 // solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))
 // Normalize equation to form: something = 0

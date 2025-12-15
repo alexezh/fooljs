@@ -1,5 +1,5 @@
-import { AstNode, isFunc, isNumber } from "../ast";
-import { getArgs } from "./corerules";
+import { AstNode, isFunc, isNumber } from "../ast.js";
+import { getArgs } from "./corerules.js";
 
 // sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)
 export function ruleAssocLeft(ast: AstNode): AstNode | undefined {

@@ -1,5 +1,5 @@
-import { AstNode, FuncName, isFunc, isNumber } from "../ast";
-import { getArgs, isSymbol } from "./corerules";
+import { AstNode, FuncName, isFunc, isNumber } from "../ast.js";
+import { getArgs, isSymbol } from "./corerules.js";
 
 // eval(?n) => ?n where ?n is number
 export function ruleEvalNumber(ast: AstNode): AstNode | undefined {

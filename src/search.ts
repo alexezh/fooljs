@@ -21,6 +21,28 @@ class SearchState {
   }
 
   /**
+   * clone parent of node to point to rewrite
+   */
+  static create(state: SearchState, path: AstNode[], orig: AstNode, rewrite: AstNode, newGCost: number): SearchState {
+    for (var idx = path.length - 1; idx >= 0; idx--) {
+      let parent = path[idx];
+      let children: AstNode[] = [];
+      for (let child of parent.children!) {
+        if (child === orig) {
+          children.push(rewrite);
+        } else {
+          children.push(child);
+        }
+      }
+
+      let parentClone = parent.clone(children);
+      orig = parent;
+      rewrite = parentClone;
+    }
+    return new SearchState(rewrite, state, newGCost)
+  }
+
+  /**
    * Reconstruct the path from start to this state
    */
   getPath(): AstNode[] {
@@ -63,6 +85,25 @@ export function isGoal(node: AstNode): boolean {
   return false;
 }
 
+class OpenSet {
+  public readonly heap = new MinHeap<SearchState>((a: SearchState, b: SearchState) => a.fCost - b.fCost);
+  /**
+   * our nodes are immutable, so we can use them as keys
+   */
+  public readonly nodeMap = new WeakMap<AstNode, SearchState>();
+  public readonly visited = new Set<string>();
+
+  public get size(): number {
+    return this.heap.size;
+  }
+  public push(st: SearchState): void {
+    this.heap.push(st);
+  }
+  public pop(): SearchState | undefined {
+    return this.heap.pop();
+  }
+}
+
 /**
  * A* search to find optimal simplification path
  *
@@ -79,24 +120,25 @@ export function aStarSearch(
   maxStates: number = 10000
 ): AstNode[] | null {
   // Initialize open set (priority queue) and closed set (visited states)
-  const openSet = new MinHeap<SearchState>((a, b) => a.fCost - b.fCost);
-  const visited = new Set<string>();
+  const openSet = new OpenSet();
 
   const startState = new SearchState(start);
   openSet.push(startState);
 
   let statesExplored = 0;
 
+  const path: AstNode[] = [];
+
   while (openSet.size > 0 && statesExplored < maxStates) {
     const current = openSet.pop()!;
     const currentKey = current.getKey();
 
     // Skip if already visited
-    if (visited.has(currentKey)) {
+    if (openSet.visited.has(currentKey)) {
       continue;
     }
 
-    visited.add(currentKey);
+    openSet.visited.add(currentKey);
     statesExplored++;
 
     // Check if we reached the goal
@@ -105,26 +147,43 @@ export function aStarSearch(
     }
 
     // Generate successors by applying all matching rules
-    const successors = runtime.matchRule(current.node);
-
-    for (const successor of successors) {
-      const successorKey = successor.toString();
-
-      // Skip if already visited
-      if (visited.has(successorKey)) {
-        continue;
-      }
-
-      // Cost to reach this successor is current g-cost + 1 (each rule application costs 1)
-      const newGCost = current.gCost + 1;
-      const successorState = new SearchState(successor, current, newGCost);
-
-      openSet.push(successorState);
-    }
+    getRewrites(current, current.node, path, openSet);
   }
 
   // No path found
   return null;
+}
+
+function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet: OpenSet): void {
+  if (openSet.nodeMap.has(node)) {
+    return;
+  }
+
+  const rewriters = Runtime.instance.matchRule(node);
+  for (const rewrite of rewriters) {
+    const successorKey = rewrite.toString();
+
+    // Skip if already visitedx
+    if (openSet.visited.has(successorKey)) {
+      continue;
+    }
+
+    // Cost to reach this successor is current g-cost + 1 (each rule application costs 1)
+    const newGCost = state.gCost + 1;
+    const successorState = SearchState.create(state, path, node, rewrite, newGCost);
+
+    openSet.push(successorState);
+  }
+
+  if (node.children) {
+    for (let child of node.children) {
+      path.push(node);
+      getRewrites(state, child, path, openSet);
+      path.pop();
+    }
+  }
+
+  openSet.nodeMap.set(node, state);
 }
 
 /**

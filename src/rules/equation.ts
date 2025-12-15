@@ -1,7 +1,7 @@
 // solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs
 
-import { AstNode, ASymbol, isNumber } from "../ast";
-import { getArgs, isFunc } from "./corerules";
+import { AstNode, ASymbol, isNumber } from "../ast.js";
+import { getArgs, isFunc } from "./corerules.js";
 
 // Base case: variable isolated on right
 export function ruleSolveEqIsolatedRight(ast: AstNode): AstNode | undefined {

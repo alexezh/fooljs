@@ -137,7 +137,7 @@ export class AstNode {
   constraints?: Constraint[];
   private cost?: number;
 
-  private constructor(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]) {
+  private constructor(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: ReadonlyArray<AstNode>, constraints?: Constraint[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
@@ -157,8 +157,8 @@ export class AstNode {
     return new AstNode(kind, value, children);
   }
 
-  clone(): AstNode {
-    return new AstNode(this.kind, this.value, this.children ? [...this.children] : undefined, this.constraints);
+  clone(children?: AstNode[]): AstNode {
+    return new AstNode(this.kind, this.value, children ?? this.children, this.constraints);
   }
 
   getCost(): number {

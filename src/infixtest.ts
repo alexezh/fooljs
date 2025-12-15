@@ -1,6 +1,6 @@
 import { parse } from "./parser.js";
+import { initCore } from "./rules/ruletable.js";
 import { Runtime } from "./runtime.js";
-import { initCore } from "./corefunc.js";
 
 console.log("=== Infix Expression Parsing Tests ===\n");
 
