@@ -3,7 +3,7 @@ import { Runtime } from "../runtime.js";
 import { ruleEqSymmetry, ruleParenRemove } from "./corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
 import { ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
-import { ruleSolveGoalMet } from "./goals.js";
+import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
 import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
 import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
@@ -45,8 +45,11 @@ export const coreRuleFunctions = [
   ruleSolveGoalMet,       // 32
   ruleSolveEqNormalize,   // 33
   ruleSolveEqIsolatedLeft,// 34
-  ruleSolveEqIsolatedLeft,// 35
-  ruleSolveLinear         // 36
+  ruleSolveEqIsolatedRight,// 35
+  ruleSolveLinear,        // 36
+  // Step rules
+  ruleStep,               // 37
+  ruleSolveStep           // 38
 ];
 
 export function initCore(runtime: Runtime) {
@@ -62,23 +65,6 @@ export function initCore(runtime: Runtime) {
 
     // Sum: Lift sums into the evaluation flow
     ["sum(?a, ?b) => eval(def(sym(?y), sum(?a, ?b))) where ?y is symbol_name", ruleLiftSum],
-
-    // Eval base cases
-    ["eval(?n) => ?n where ?n is number", ruleEvalNumber],
-    ["eval(sym(?x)) => sym(?x) where ?x is symbol_name", ruleEvalSymbol],
-
-    // Eval structural progression (left-to-right argument evaluation)
-    ["eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name", ruleEvalProgressive],
-
-    // Eval handling for definitions
-    ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
-    ["eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name", ruleEvalDefSimplify],
-
-    // Eval computation for arithmetic operations
-    ["eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", ruleEvalSum],
-    ["eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", ruleEvalMul],
-    ["eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleEvalDiv],
-    ["eval(neg(?a)) => calc_neg(?a) where ?a is number", ruleEvalNeg],
 
     // Multiply: Associativity (works with 3+ args)
     ["mul(?a, ?b, ?rest...) => mul(prod(?a, ?b), ?rest...)", ruleMulAssocLeft],
@@ -134,6 +120,29 @@ export function initCore(runtime: Runtime) {
     ["solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs", ruleSolveEqIsolatedRight],
     // Linear equations kx + c = 0 solve for x
     ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
+
+    // Step rule - Bridge between solve and eval
+    ["step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)", ruleStep],
+
+    // Solve driver - Uses step to make progress
+    ["solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1", ruleSolveStep],
+
+    // Eval base cases
+    ["eval(?n) => ?n where ?n is number", ruleEvalNumber],
+    ["eval(sym(?x)) => sym(?x) where ?x is symbol_name", ruleEvalSymbol],
+
+    // Eval structural progression (left-to-right argument evaluation)
+    ["eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name", ruleEvalProgressive],
+
+    // Eval handling for definitions
+    ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
+    ["eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name", ruleEvalDefSimplify],
+
+    // Eval computation for arithmetic operations
+    ["eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", ruleEvalSum],
+    ["eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", ruleEvalMul],
+    ["eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleEvalDiv],
+    ["eval(neg(?a)) => calc_neg(?a) where ?a is number", ruleEvalNeg],
   ];
 
   for (const [ruleStr, ruleFunc] of coreRules) {

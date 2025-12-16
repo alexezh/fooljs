@@ -84,13 +84,13 @@ const solve1 = AstNode.create('func', 'solve', [
 console.log(`Input: ${solve1.toString()}`);
 console.log(`Cost: ${solve1.getCost()}`);
 
-const path1 = aStarSearch(solve1);
-if (path1) {
-  console.log(`Search found path with ${path1.length} steps:`);
-  for (let i = 0; i < path1.length; i++) {
-    console.log(`  Step ${i}: ${path1[i].toString()} (cost: ${path1[i].getCost()})`);
+const path6 = aStarSearch(solve1);
+if (path6) {
+  console.log(`Search found path with ${path6.length} steps:`);
+  for (let i = 0; i < path6.length; i++) {
+    console.log(`  Step ${i}: ${path6[i].toString()} (cost: ${path6[i].getCost()})`);
   }
-  console.log(`Final solution: x = ${path1[path1.length - 1].toString()}`);
+  console.log(`Final solution: x = ${path6[path6.length - 1].toString()}`);
 } else {
   console.log("No search path found");
 }
@@ -107,13 +107,13 @@ console.log(`Input equation: ${eq2.toString()}`);
 console.log(`Solve expression: ${solve2.toString()}`);
 console.log(`Cost: ${solve2.getCost()}`);
 
-const path2 = aStarSearch(solve2);
-if (path2) {
-  console.log(`Search found path with ${path2.length} steps:`);
-  for (let i = 0; i < path2.length; i++) {
-    console.log(`  Step ${i}: ${path2[i].toString()} (cost: ${path2[i].getCost()})`);
+const path7 = aStarSearch(solve2);
+if (path7) {
+  console.log(`Search found path with ${path7.length} steps:`);
+  for (let i = 0; i < path7.length; i++) {
+    console.log(`  Step ${i}: ${path7[i].toString()} (cost: ${path7[i].getCost()})`);
   }
-  console.log(`Final solution: x = ${path2[path2.length - 1].toString()}`);
+  console.log(`Final solution: x = ${path7[path7.length - 1].toString()}`);
 } else {
   console.log("No search path found");
 }
@@ -130,13 +130,13 @@ console.log(`Input equation: ${eq3.toString()}`);
 console.log(`Solve expression: ${solve3.toString()}`);
 console.log(`Cost: ${solve3.getCost()}`);
 
-const path3 = aStarSearch(solve3);
-if (path3) {
-  console.log(`Search found path with ${path3.length} steps:`);
-  for (let i = 0; i < path3.length; i++) {
-    console.log(`  Step ${i}: ${path3[i].toString()} (cost: ${path3[i].getCost()})`);
+const path8 = aStarSearch(solve3);
+if (path8) {
+  console.log(`Search found path with ${path8.length} steps:`);
+  for (let i = 0; i < path8.length; i++) {
+    console.log(`  Step ${i}: ${path8[i].toString()} (cost: ${path8[i].getCost()})`);
   }
-  console.log(`Final solution: x = ${path3[path3.length - 1].toString()}`);
+  console.log(`Final solution: x = ${path8[path8.length - 1].toString()}`);
 } else {
   console.log("No search path found");
 }
@@ -152,13 +152,13 @@ const solve4 = AstNode.create('func', 'solve', [
 console.log(`Input: ${solve4.toString()}`);
 console.log(`Cost: ${solve4.getCost()}`);
 
-const path4 = aStarSearch(solve4);
-if (path4) {
-  console.log(`Search found path with ${path4.length} steps:`);
-  for (let i = 0; i < path4.length; i++) {
-    console.log(`  Step ${i}: ${path4[i].toString()} (cost: ${path4[i].getCost()})`);
+const path9 = aStarSearch(solve4);
+if (path9) {
+  console.log(`Search found path with ${path9.length} steps:`);
+  for (let i = 0; i < path9.length; i++) {
+    console.log(`  Step ${i}: ${path9[i].toString()} (cost: ${path9[i].getCost()})`);
   }
-  console.log(`Final solution: x = ${path4[path4.length - 1].toString()}`);
+  console.log(`Final solution: x = ${path9[path9.length - 1].toString()}`);
 } else {
   console.log("No search path found");
 }
@@ -175,15 +175,15 @@ console.log(`Input equation: ${eq5.toString()}`);
 console.log(`Solve expression: ${solve5.toString()}`);
 console.log(`Initial cost: ${solve5.getCost()}`);
 
-const path5 = aStarSearch(solve5);
-if (path5) {
-  console.log(`\nSearch found path with ${path5.length} steps:`);
-  for (let i = 0; i < path5.length; i++) {
-    const step = path5[i];
+const path10 = aStarSearch(solve5);
+if (path10) {
+  console.log(`\nSearch found path with ${path10.length} steps:`);
+  for (let i = 0; i < path10.length; i++) {
+    const step = path10[i];
     console.log(`  Step ${i}: ${step.toString()}`);
     console.log(`           Cost: ${step.getCost()}`);
   }
-  console.log(`\nFinal solution: x = ${path5[path5.length - 1].toString()}`);
+  console.log(`\nFinal solution: x = ${path10[path10.length - 1].toString()}`);
 } else {
   console.log("\nNo search path found");
 }

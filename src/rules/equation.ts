@@ -133,9 +133,11 @@ export function ruleSolveLinear(ast: AstNode): AstNode | undefined {
   const kVal = k.value as number;
   if (kVal === 0) return undefined;
 
-  // Return -c / k
-  return AstNode.create('func', 'div', [
-    AstNode.create('func', 'neg', [c]),
-    k
+  // Return eval(-c / k) so it can be evaluated to a number
+  return AstNode.create('func', 'eval', [
+    AstNode.create('func', 'div', [
+      AstNode.create('func', 'neg', [c]),
+      k
+    ])
   ]);
 }

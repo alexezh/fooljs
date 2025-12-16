@@ -84,6 +84,14 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return Constraint.assignConstraint(left.toAst(), right.toAst());
   },
 
+  Constraint_not(_not, constraint) {
+    return Constraint.notConstraint(constraint.toAst());
+  },
+
+  Constraint_eq_ast(_eq_ast, _lparen, left, _comma, right, _rparen) {
+    return Constraint.eqAstConstraint(left.toAst(), right.toAst());
+  },
+
   Expression(expr) {
     return expr.toAst();
   },

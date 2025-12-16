@@ -13,6 +13,8 @@
     "test:workflow": "node --import=tsx/esm src/solveworkflowtest.ts",
     "test:eqpow": "node --import=tsx/esm src/eqpowtest.ts",
     "test:cost": "node --import=tsx/esm src/costtest.ts",
+    "test:step": "node --import=tsx/esm src/steptest.ts",
+    "test:searchdebug": "node --import=tsx/esm src/searchdebugtest.ts",
     "demo:infix": "node --import=tsx/esm src/infixtest.ts"
   },
   "dependencies": {

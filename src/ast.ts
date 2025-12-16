@@ -48,7 +48,7 @@ export class ASymbol {
   }
 }
 
-export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign';
+export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign' | 'not' | 'eq_ast';
 
 export class Constraint {
   kind: ConstraintKind;
@@ -56,18 +56,21 @@ export class Constraint {
   type?: TypeName;
   left?: AstNode;
   right?: AstNode;
+  nested?: Constraint; // For 'not' constraint
 
   private constructor(kind: ConstraintKind, options: {
     varName?: string;
     type?: TypeName;
     left?: AstNode;
     right?: AstNode;
+    nested?: Constraint;
   }) {
     this.kind = kind;
     this.varName = options.varName;
     this.type = options.type;
     this.left = options.left;
     this.right = options.right;
+    this.nested = options.nested;
   }
 
   static typeConstraint(varName: string, type: TypeName): Constraint {
@@ -86,6 +89,14 @@ export class Constraint {
     return new Constraint('assign', { left, right });
   }
 
+  static notConstraint(nested: Constraint): Constraint {
+    return new Constraint('not', { nested });
+  }
+
+  static eqAstConstraint(left: AstNode, right: AstNode): Constraint {
+    return new Constraint('eq_ast', { left, right });
+  }
+
   toString(): string {
     switch (this.kind) {
       case 'type':
@@ -96,6 +107,10 @@ export class Constraint {
         return `${this.left?.toString()} matches ${this.right?.toString()}`;
       case 'assign':
         return `${this.left?.toString()}=${this.right?.toString()}`;
+      case 'not':
+        return `not ${this.nested?.toString()}`;
+      case 'eq_ast':
+        return `eq_ast(${this.left?.toString()}, ${this.right?.toString()})`;
       default:
         return '';
     }
