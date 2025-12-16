@@ -1,4 +1,4 @@
-import { AstNode } from "./ast.js";
+import { AstNode, ASymbol } from "./ast.js";
 import { parse } from "./parser.js";
 import { initCore } from "./rules/ruletable.js";
 import { Runtime } from "./runtime.js";
@@ -12,8 +12,13 @@ function main(): void {
 
   initCore(Runtime.instance);
   let ast = parse(exprStr);
-  if (ast.kind === 'func' && ast.value === 'eq') {
-    ast = AstNode.create('func', 'solve', [ast, AstNode.create('func', 'solved_for', [])]);
+  if (ast.kind === 'eq' && ast.value === 'eq') {
+    ast = AstNode.create('func', 'solve', [
+      ast,
+      AstNode.create('func', 'solved_for', [
+        AstNode.create('symbol', new ASymbol('x'))
+      ])
+    ]);
   }
 
   const res = aStarSearch(ast);
