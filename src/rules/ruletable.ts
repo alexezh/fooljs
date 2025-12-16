@@ -7,6 +7,7 @@ import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
 import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
 import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
+import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrtToPow } from "./transcendental.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -49,7 +50,22 @@ export const coreRuleFunctions = [
   ruleSolveLinear,        // 36
   // Step rules
   ruleStep,               // 37
-  ruleSolveStep           // 38
+  ruleSolveStep,          // 38
+  // Transcendental functions
+  ruleEvalPow,            // 39
+  ruleEvalPowExp1,        // 40
+  ruleEvalPowExp0,        // 41
+  ruleEvalPowBase1,       // 42
+  ruleEvalPowBase0Pos,    // 43
+  ruleEvalSqrt,           // 44
+  ruleSqrtToPow,          // 45
+  ruleEvalLn,             // 46
+  ruleEvalLogBase,        // 47
+  ruleLn1,                // 48
+  ruleLnExp,              // 49
+  ruleEvalExp,            // 50
+  ruleExpLn,              // 51
+  ruleExpZero             // 52
 ];
 
 export function initCore(runtime: Runtime) {
@@ -143,6 +159,28 @@ export function initCore(runtime: Runtime) {
     ["eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", ruleEvalMul],
     ["eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleEvalDiv],
     ["eval(neg(?a)) => calc_neg(?a) where ?a is number", ruleEvalNeg],
+
+    // Transcendental functions - Power
+    ["eval(pow(?a, ?b)) => calc_pow(?a, ?b) where ?a is number, ?b is number", ruleEvalPow],
+    ["eval(pow(?x, 1)) => ?x", ruleEvalPowExp1],
+    ["eval(pow(?x, 0)) => 1", ruleEvalPowExp0],
+    ["eval(pow(1, ?y)) => 1", ruleEvalPowBase1],
+    ["eval(pow(0, ?y)) => 0", ruleEvalPowBase0Pos],
+
+    // Transcendental functions - Square root
+    ["eval(sqrt(?a)) => calc_sqrt(?a)", ruleEvalSqrt],
+    ["eval(sqrt(?x)) => pow(?x, div(1, 2))", ruleSqrtToPow],
+
+    // Transcendental functions - Logarithm
+    ["eval(log(?a)) => calc_ln(?a)", ruleEvalLn],
+    ["eval(log(?a, ?b)) => calc_log(?a, ?b)", ruleEvalLogBase],
+    ["eval(log(1)) => 0", ruleLn1],
+    ["eval(log(exp(?x))) => ?x", ruleLnExp],
+
+    // Transcendental functions - Exponential
+    ["eval(exp(?a)) => calc_exp(?a) where ?a is number", ruleEvalExp],
+    ["eval(exp(log(?x))) => ?x", ruleExpLn],
+    ["eval(exp(0)) => 1", ruleExpZero],
   ];
 
   for (const [ruleStr, ruleFunc] of coreRules) {

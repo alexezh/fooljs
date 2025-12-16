@@ -8,7 +8,8 @@ function main(): void {
   //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
   // const exprStr = '4 + 3 * 4';
   //const exprStr = '7x + 2x^2 – 14 + 3x^2 = x – 2'
-  const exprStr = '7x + 2 = 0'
+  const exprStr = '7x + 3x + 2 = 3'
+  //const exprStr = '7x^2 - 2 = 0'
 
   initCore(Runtime.instance);
   let ast = parse(exprStr);

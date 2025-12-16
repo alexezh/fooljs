@@ -15,6 +15,7 @@
     "test:cost": "node --import=tsx/esm src/costtest.ts",
     "test:step": "node --import=tsx/esm src/steptest.ts",
     "test:searchdebug": "node --import=tsx/esm src/searchdebugtest.ts",
+    "test:transcendental": "node --import=tsx/esm src/transcendentaltest.ts",
     "demo:infix": "node --import=tsx/esm src/infixtest.ts"
   },
   "dependencies": {

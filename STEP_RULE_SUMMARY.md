@@ -59,23 +59,25 @@ export function ruleSolveStep(ast: AstNode): AstNode | undefined
 ```
 Drives solving using step transformations.
 
-### 5. Linear Solve Fix (equation.ts)
+### 5. Linear Solve Architecture (equation.ts)
 
-**Critical fix:** Wrap linear solve result in `eval()`:
+**Clean separation:** Keep solve wrapper and let step driver handle evaluation:
 
 ```typescript
-// Before: return div(neg(c), k)
-// After:  return eval(div(neg(c), k))
-
-return AstNode.create('func', 'eval', [
+// Return solve(div(neg(c), k), goal)
+// Let the step driver handle evaluation through step rules
+return AstNode.create('func', 'solve', [
   AstNode.create('func', 'div', [
     AstNode.create('func', 'neg', [c]),
     k
-  ])
+  ]),
+  goalNode
 ]);
 ```
 
-This allows the eval rules to progressively evaluate the expression to a number.
+This maintains separation of concerns:
+- **Equation solving** handles structural transformations
+- **Step driver** handles progressive evaluation via step rules
 
 ### 6. Rule Strings (ruletable.ts)
 
@@ -90,32 +92,34 @@ This allows the eval rules to progressively evaluate the expression to a number.
 
 **A* Search Path:**
 ```
-Step 0: solve(eq(sum(mul(3,x),6),0),solved_for(x))  [cost: 68]
-Step 1: eval(div(neg(6),3))                          [cost: 6]   ← ruleSolveLinear
-Step 2: eval(div(eval(neg(6)),3))                   [cost: 7]   ← ruleEvalProgressive
-Step 3: eval(div(-6,3))                             [cost: 5]   ← ruleEvalNeg
-Step 4: -2                                          [cost: 1]   ← ruleEvalDiv
+Step 0: solve(eq(sum(mul(3,x),6),0),solved_for(x))        [cost: 68]
+Step 1: solve(div(neg(6),3),solved_for(x))                 [cost: 25] ← ruleSolveLinear
+Step 2: solve(eval(div(eval(neg(6)),3)),solved_for(x))    [cost: 27] ← ruleSolveStep + ruleStep
+Step 3: solve(eval(div(-6,3)),solved_for(x))              [cost: 25] ← ruleSolveStep (eval neg)
+Step 4: solve(-2,solved_for(x))                            [cost: 21] ← ruleSolveStep (eval div)
+Step 5: -2                                                  [cost: 1]  ← ruleSolveGoalMet
 ```
 
 ### Why It Works
 
 1. **ruleSolveLinear** recognizes `kx + c = 0` pattern
-2. Returns `eval(div(neg(c), k))` (wrapped in eval)
-3. **ruleEvalProgressive** applies: `eval(f(a, rest...)) => eval(f(eval(a), rest...))`
-4. **ruleEvalNeg** evaluates: `eval(neg(6)) => -6`
-5. **ruleEvalDiv** evaluates: `eval(div(-6,3)) => -2`
-6. **isGoal** recognizes `-2` as a goal (number)
-7. A* returns the path
+2. Returns `solve(div(neg(c), k), goal)` (keeps solve wrapper)
+3. **ruleSolveStep** checks `holdsGoal(goal, div(neg(c), k))` → false, so applies `step`
+4. **ruleStep** wraps in eval: `step(div(neg(6),3))` → `eval(div(eval(neg(6)),3))`
+5. **ruleSolveStep** creates: `solve(eval(div(eval(neg(6)),3)), goal)`
+6. This repeats: **ruleEvalNeg** evaluates `neg(6)` → `-6`, **ruleEvalDiv** evaluates `div(-6,3)` → `-2`
+7. **ruleSolveGoalMet** recognizes `-2` satisfies `solved_for(x)` (it's a number)
+8. Returns `-2` as final answer
 
 ## Test Results
 
 ### Search Tests (npm run test:search)
 
 ✅ **Test 6:** `x = 5` → `5` (2 steps)
-✅ **Test 7:** `2x + 3 = 0` → `-1.5` (5 steps)
+✅ **Test 7:** `2x + 3 = 0` → `-1.5` (6 steps)
 ❌ **Test 8:** `2x + 3 = 7` → No path (needs sub simplification)
 ✅ **Test 9:** `5 = x` → `5` (2 steps)
-✅ **Test 10:** `3x + 6 = 0` → `-2` (5 steps)
+✅ **Test 10:** `3x + 6 = 0` → `-2` (6 steps)
 
 **Success Rate: 4/5 (80%)**
 
