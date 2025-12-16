@@ -8,6 +8,7 @@ import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMu
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
 import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
 import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrtToPow } from "./transcendental.js";
+import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./simplify.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -65,7 +66,11 @@ export const coreRuleFunctions = [
   ruleLnExp,              // 49
   ruleEvalExp,            // 50
   ruleExpLn,              // 51
-  ruleExpZero             // 52
+  ruleExpZero,            // 52
+  // Simplification rules
+  ruleCombineLikeTerms,   // 53
+  ruleSubExpandSum,       // 54
+  ruleCombineNumbers      // 55
 ];
 
 export function initCore(runtime: Runtime) {
@@ -181,6 +186,11 @@ export function initCore(runtime: Runtime) {
     ["eval(exp(?a)) => calc_exp(?a) where ?a is number", ruleEvalExp],
     ["eval(exp(log(?x))) => ?x", ruleExpLn],
     ["eval(exp(0)) => 1", ruleExpZero],
+
+    // Simplification - Like terms and arithmetic
+    ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineLikeTerms],
+    ["eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))", ruleSubExpandSum],
+    ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineNumbers],
   ];
 
   for (const [ruleStr, ruleFunc] of coreRules) {
