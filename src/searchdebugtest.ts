@@ -43,7 +43,7 @@ if (directMatches.length > 0) {
 
 console.log(`\n${"=".repeat(80)}`);
 console.log("Step 3 - Running A* search with increased max states:");
-const path = aStarSearch(solve, Runtime.instance, undefined, 50000);
+const path = aStarSearch(solve, Runtime.instance, undefined, 50000)?.getPath();
 if (path) {
   console.log(`\nSuccess! Found path with ${path.length} steps:`);
   for (let i = 0; i < path.length; i++) {

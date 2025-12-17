@@ -12,6 +12,10 @@ class SearchState {
   hCost: number;  // Heuristic (node.getCost())
   fCost: number;  // Total (g + h)
 
+  get debugStr(): string {
+    return this.node.toString();
+  }
+
   constructor(node: AstNode, parent?: SearchState, gCost: number = 0) {
     this.node = node;
     this.parent = parent;
@@ -63,6 +67,11 @@ class SearchState {
   getKey(): string {
     return this.node.toString();
   }
+}
+
+export function getSolutionString(st: SearchState): string {
+  let path = st.getPath();
+  return path.map(x => x.toString()).join(";");
 }
 
 /**
@@ -118,7 +127,7 @@ export function aStarSearch(
   runtime: Runtime = Runtime.instance,
   goalFn: (node: AstNode) => boolean = isGoal,
   maxStates: number = 10000
-): AstNode[] | null {
+): SearchState | null {
   // Initialize open set (priority queue) and closed set (visited states)
   const openSet = new OpenSet();
 
@@ -132,6 +141,7 @@ export function aStarSearch(
   while (openSet.size > 0 && statesExplored < maxStates) {
     const current = openSet.pop()!;
     const currentKey = current.getKey();
+    console.log(current.debugStr);
 
     // Skip if already visited
     if (openSet.visited.has(currentKey)) {
@@ -143,7 +153,7 @@ export function aStarSearch(
 
     // Check if we reached the goal
     if (goalFn(current.node)) {
-      return current.getPath();
+      return current;
     }
 
     // Generate successors by applying all matching rules

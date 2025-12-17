@@ -54,7 +54,7 @@ console.log(`Result: ${simplified.toString()}`);
 console.log(`Cost: ${simplified.getCost()}\n`);
 
 console.log("Step 4 - Try A* search:");
-const path = aStarSearch(solve, Runtime.instance, undefined, 50000);
+const path = aStarSearch(solve, Runtime.instance, undefined, 50000)?.getPath();
 if (path) {
   console.log(`Found path with ${path.length} steps:`);
   for (let i = 0; i < path.length; i++) {

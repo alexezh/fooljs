@@ -63,6 +63,26 @@ export function ruleEqSymmetry(ast: AstNode): AstNode | undefined {
   return AstNode.create('eq', 'eq', [b, a]);
 }
 
+// eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))
+// Evaluate both sides of an equation independently
+export function ruleEvalEq(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const eqNode = args[0];
+  if (eqNode.kind !== 'eq') return undefined;
+
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [left, right] = eqArgs;
+  return AstNode.create('eq', 'eq', [
+    AstNode.create('func', 'eval', [left]),
+    AstNode.create('func', 'eval', [right])
+  ]);
+}
+
 // eq(?a, ?b) => eq(sum(?a, ?c), sum(?b, ?c)) - Add to both sides
 // Note: This is a meta-rule template; in practice we'd need ?c to be provided
 // For now, this returns undefined as it needs additional context

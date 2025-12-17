@@ -136,3 +136,17 @@ export function ruleEvalNeg(ast: AstNode): AstNode | undefined {
   const result = -(a.value as number);
   return AstNode.create('number', result);
 }
+
+// eval(eval(?x)) => eval(?x)
+// Collapse redundant eval wrappers
+export function ruleEvalCollapse(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const inner = args[0];
+  if (!isFunc(inner, 'eval')) return undefined;
+
+  // Return the inner eval
+  return inner;
+}

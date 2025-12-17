@@ -2,17 +2,10 @@ import { AstNode, ASymbol } from "./ast.js";
 import { parse } from "./parser.js";
 import { initCore } from "./rules/ruletable.js";
 import { Runtime } from "./runtime.js";
-import { aStarSearch } from "./search.js";
+import { aStarSearch, getSolutionString } from "./search.js";
 
-function main(): void {
-  //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
-  // const exprStr = '4 + 3 * 4';
-  //const exprStr = '7x + 2x^2 – 14 + 3x^2 = x – 2'
-  const exprStr = '7x + 3x + 2 = 3'
-  //const exprStr = '7x^2 - 2 = 0'
-
-  initCore(Runtime.instance);
-  let ast = parse(exprStr);
+function parseEquation(s: string): AstNode {
+  let ast = parse(s);
   if (ast.kind === 'eq' && ast.value === 'eq') {
     ast = AstNode.create('func', 'solve', [
       ast,
@@ -22,9 +15,26 @@ function main(): void {
     ]);
   }
 
+  return ast;
+}
+
+function main(): void {
+  //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
+  // const exprStr = '4 + 3 * 4';
+  //const exprStr = '7x + 2x^2 – 14 + 3x^2 = x – 2'
+  const exprStr = '7x + 2 = 3'
+  //const exprStr = '7x^2 - 2 = 0'
+
+  initCore(Runtime.instance);
+  let ast = parseEquation(exprStr);
+
   const res = aStarSearch(ast);
-  const match = Runtime.instance.matchRule(ast);
-  console.log(match?.length);
+  if (res) {
+    const solStr = getSolutionString(res);
+  }
+
+  //const match = Runtime.instance.matchRule(ast);
+  //console.log(match?.length);
 }
 
 main();

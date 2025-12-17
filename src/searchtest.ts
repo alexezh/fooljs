@@ -15,7 +15,7 @@ console.log(`Input: ${expr1.toString()}`);
 console.log(`Cost: ${expr1.getCost()}`);
 console.log(`Is goal: ${isGoal(expr1)}`);
 
-const path1 = aStarSearch(expr1);
+const path1 = aStarSearch(expr1)?.getPath();
 if (path1) {
   console.log(`Found path with ${path1.length} steps:`);
   for (let i = 0; i < path1.length; i++) {
@@ -37,7 +37,7 @@ const expr3 = parse("sum(5, 0)");
 console.log(`Input: ${expr3.toString()} (cost: ${expr3.getCost()})`);
 console.log(`Is goal: ${isGoal(expr3)}`);
 
-const path3 = aStarSearch(expr3);
+const path3 = aStarSearch(expr3)?.getPath();
 if (path3) {
   console.log(`Found path with ${path3.length} steps:`);
   for (let i = 0; i < path3.length; i++) {
@@ -52,7 +52,7 @@ const expr4 = parse("5");
 console.log(`Input: ${expr4.toString()} (cost: ${expr4.getCost()})`);
 console.log(`Is goal: ${isGoal(expr4)}`);
 
-const path4 = aStarSearch(expr4);
+const path4 = aStarSearch(expr4)?.getPath();
 if (path4) {
   console.log(`Path has ${path4.length} step(s):`);
   for (let i = 0; i < path4.length; i++) {
@@ -84,7 +84,7 @@ const solve1 = AstNode.create('func', 'solve', [
 console.log(`Input: ${solve1.toString()}`);
 console.log(`Cost: ${solve1.getCost()}`);
 
-const path6 = aStarSearch(solve1);
+const path6 = aStarSearch(solve1)?.getPath();
 if (path6) {
   console.log(`Search found path with ${path6.length} steps:`);
   for (let i = 0; i < path6.length; i++) {
@@ -107,7 +107,7 @@ console.log(`Input equation: ${eq2.toString()}`);
 console.log(`Solve expression: ${solve2.toString()}`);
 console.log(`Cost: ${solve2.getCost()}`);
 
-const path7 = aStarSearch(solve2);
+const path7 = aStarSearch(solve2)?.getPath();
 if (path7) {
   console.log(`Search found path with ${path7.length} steps:`);
   for (let i = 0; i < path7.length; i++) {
@@ -130,7 +130,7 @@ console.log(`Input equation: ${eq3.toString()}`);
 console.log(`Solve expression: ${solve3.toString()}`);
 console.log(`Cost: ${solve3.getCost()}`);
 
-const path8 = aStarSearch(solve3);
+const path8 = aStarSearch(solve3)?.getPath();
 if (path8) {
   console.log(`Search found path with ${path8.length} steps:`);
   for (let i = 0; i < path8.length; i++) {
@@ -152,7 +152,7 @@ const solve4 = AstNode.create('func', 'solve', [
 console.log(`Input: ${solve4.toString()}`);
 console.log(`Cost: ${solve4.getCost()}`);
 
-const path9 = aStarSearch(solve4);
+const path9 = aStarSearch(solve4)?.getPath();
 if (path9) {
   console.log(`Search found path with ${path9.length} steps:`);
   for (let i = 0; i < path9.length; i++) {
@@ -175,7 +175,7 @@ console.log(`Input equation: ${eq5.toString()}`);
 console.log(`Solve expression: ${solve5.toString()}`);
 console.log(`Initial cost: ${solve5.getCost()}`);
 
-const path10 = aStarSearch(solve5);
+const path10 = aStarSearch(solve5)?.getPath();
 if (path10) {
   console.log(`\nSearch found path with ${path10.length} steps:`);
   for (let i = 0; i < path10.length; i++) {

@@ -179,6 +179,33 @@ export function ruleEvalSqrt(ast: AstNode): AstNode | undefined {
   return AstNode.create('number', result);
 }
 
+// eval(sqrt(pow(?x, 2))) => ?x
+// Simplifies sqrt(x²) to x (assumes x >= 0, or would need abs)
+export function ruleSqrt2(ast: AstNode): AstNode | undefined {
+  if (!isFunc(ast, 'eval')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const inner = args[0];
+  if (!isFunc(inner, 'sqrt')) return undefined;
+
+  const sqrtArgs = getArgs(inner);
+  if (sqrtArgs.length !== 1) return undefined;
+
+  const sqrtArg = sqrtArgs[0];
+  if (isFunc(sqrtArg, 'pow')) {
+    const powArgs = getArgs(sqrtArg);
+    if (powArgs.length === 2) {
+      const [base, exp] = powArgs;
+      // Check if exponent is 2
+      if (isNumber(exp) && exp.value === 2) {
+        return base;
+      }
+    }
+  }
+
+  return undefined;
+}
 // eval(sqrt(?x)) => pow(?x, div(1, 2))
 export function ruleSqrtToPow(ast: AstNode): AstNode | undefined {
   if (!isFunc(ast, 'eval')) return undefined;

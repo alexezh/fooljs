@@ -1,13 +1,13 @@
 import { AstNode } from "../ast.js";
 import { Runtime } from "../runtime.js";
-import { ruleEqSymmetry, ruleParenRemove } from "./corerules.js";
+import { ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
-import { ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
+import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
 import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
 import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
-import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrtToPow } from "./transcendental.js";
+import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./transcendental.js";
 import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./simplify.js";
 
 export const coreRuleFunctions = [
@@ -20,57 +20,60 @@ export const coreRuleFunctions = [
   ruleEvalNumber,         // 7
   ruleEvalSymbol,         // 8
   ruleEvalProgressive,    // 9
-  ruleEvalDef,            // 10
-  ruleEvalDefSimplify,    // 11
-  ruleEvalSum,            // 12
-  ruleEvalMul,            // 13
-  ruleEvalDiv,            // 14
-  ruleEvalNeg,            // 15
-  ruleMulAssocLeft,       // 16
-  ruleMulCommutative,     // 17
-  ruleMulNeutralRight,    // 18
-  ruleMulNeutralLeft,     // 19
-  ruleMulZeroRight,       // 20
-  ruleMulZeroLeft,        // 21
-  ruleDivNeutralRight,    // 22
-  ruleDivSelfToOne,       // 23
-  ruleParenRemove,        // 24
-  ruleSubToSum,           // 25
-  ruleDoubleNeg,          // 26
-  ruleNegZero,            // 27
-  ruleSumNegSelf,         // 28
-  ruleSumToMul,           // 29
-  ruleMulToSum,           // 30
+  ruleEvalCollapse,       // 10
+  ruleEvalDef,            // 11
+  ruleEvalDefSimplify,    // 12
+  ruleEvalSum,            // 13
+  ruleEvalMul,            // 14
+  ruleEvalDiv,            // 15
+  ruleEvalNeg,            // 16
+  ruleMulAssocLeft,       // 17
+  ruleMulCommutative,     // 18
+  ruleMulNeutralRight,    // 19
+  ruleMulNeutralLeft,     // 20
+  ruleMulZeroRight,       // 21
+  ruleMulZeroLeft,        // 22
+  ruleDivNeutralRight,    // 23
+  ruleDivSelfToOne,       // 24
+  ruleParenRemove,        // 25
+  ruleSubToSum,           // 26
+  ruleDoubleNeg,          // 27
+  ruleNegZero,            // 28
+  ruleSumNegSelf,         // 29
+  ruleSumToMul,           // 30
+  ruleMulToSum,           // 31
   // Equation rules
-  ruleEqSymmetry,         // 31
+  ruleEqSymmetry,         // 32
+  ruleEvalEq,             // 33
   // Solve rules
-  ruleSolveGoalMet,       // 32
-  ruleSolveEqNormalize,   // 33
-  ruleSolveEqIsolatedLeft,// 34
-  ruleSolveEqIsolatedRight,// 35
-  ruleSolveLinear,        // 36
+  ruleSolveGoalMet,       // 34
+  ruleSolveEqNormalize,   // 35
+  ruleSolveEqIsolatedLeft,// 36
+  ruleSolveEqIsolatedRight,// 37
+  ruleSolveLinear,        // 38
   // Step rules
-  ruleStep,               // 37
-  ruleSolveStep,          // 38
+  ruleStep,               // 39
+  ruleSolveStep,          // 40
   // Transcendental functions
-  ruleEvalPow,            // 39
-  ruleEvalPowExp1,        // 40
-  ruleEvalPowExp0,        // 41
-  ruleEvalPowBase1,       // 42
-  ruleEvalPowBase0Pos,    // 43
-  ruleEvalSqrt,           // 44
-  ruleSqrtToPow,          // 45
-  ruleEvalLn,             // 46
-  ruleEvalLogBase,        // 47
-  ruleLn1,                // 48
-  ruleLnExp,              // 49
-  ruleEvalExp,            // 50
-  ruleExpLn,              // 51
-  ruleExpZero,            // 52
+  ruleEvalPow,            // 41
+  ruleEvalPowExp1,        // 42
+  ruleEvalPowExp0,        // 43
+  ruleEvalPowBase1,       // 44
+  ruleEvalPowBase0Pos,    // 45
+  ruleEvalSqrt,           // 46
+  ruleSqrt2,              // 47
+  ruleSqrtToPow,          // 48
+  ruleEvalLn,             // 49
+  ruleEvalLogBase,        // 50
+  ruleLn1,                // 51
+  ruleLnExp,              // 52
+  ruleEvalExp,            // 53
+  ruleExpLn,              // 54
+  ruleExpZero,            // 55
   // Simplification rules
-  ruleCombineLikeTerms,   // 53
-  ruleSubExpandSum,       // 54
-  ruleCombineNumbers      // 55
+  ruleCombineLikeTerms,   // 56
+  ruleSubExpandSum,       // 57
+  ruleCombineNumbers      // 58
 ];
 
 export function initCore(runtime: Runtime) {
@@ -130,6 +133,7 @@ export function initCore(runtime: Runtime) {
 
     // Equation rules
     ["eq(?a, ?b) => eq(?b, ?a)", ruleEqSymmetry],
+    ["eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))", ruleEvalEq],
 
     // Solve rules - Goal-based solving
     // Note: holds check is done in the rule function itself
@@ -139,8 +143,6 @@ export function initCore(runtime: Runtime) {
     ["solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))", ruleSolveEqNormalize],
     ["solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs", ruleSolveEqIsolatedLeft],
     ["solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs", ruleSolveEqIsolatedRight],
-    // Linear equations kx + c = 0 solve for x
-    ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
 
     // Step rule - Bridge between solve and eval
     ["step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)", ruleStep],
@@ -154,6 +156,9 @@ export function initCore(runtime: Runtime) {
 
     // Eval structural progression (left-to-right argument evaluation)
     ["eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name", ruleEvalProgressive],
+
+    // Eval collapse redundant wrappers
+    ["eval(eval(?x)) => eval(?x)", ruleEvalCollapse],
 
     // Eval handling for definitions
     ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
@@ -174,6 +179,7 @@ export function initCore(runtime: Runtime) {
 
     // Transcendental functions - Square root
     ["eval(sqrt(?a)) => calc_sqrt(?a)", ruleEvalSqrt],
+    ["eval(sqrt(pow(?x, 2))) => ?x", ruleSqrt2],
     ["eval(sqrt(?x)) => pow(?x, div(1, 2))", ruleSqrtToPow],
 
     // Transcendental functions - Logarithm
@@ -188,9 +194,13 @@ export function initCore(runtime: Runtime) {
     ["eval(exp(0)) => 1", ruleExpZero],
 
     // Simplification - Like terms and arithmetic
+    // TODO: remove
     ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineLikeTerms],
     ["eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))", ruleSubExpandSum],
     ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineNumbers],
+
+    // Linear equations kx + c = 0 solve for x
+    ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
   ];
 
   for (const [ruleStr, ruleFunc] of coreRules) {
