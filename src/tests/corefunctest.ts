@@ -1,5 +1,5 @@
-import { parse } from "./parser.js";
-import { coreRuleFunctions } from "./rules/ruletable.js";
+import { parse } from "../parser.js";
+import { coreRuleFunctions } from "../rules/ruletable.js";
 
 let testCount = 0;
 let passCount = 0;

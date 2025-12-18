@@ -1,4 +1,4 @@
-import { parse } from "./parser.js";
+import { parse } from "../parser.js";
 
 console.log("=== Cost Calculation Tests ===\n");
 

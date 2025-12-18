@@ -1,4 +1,4 @@
-import { parse } from "./parser.js";
+import { parse } from "../parser.js";
 
 console.log("=== Equation and Power Operator Tests ===\n");
 

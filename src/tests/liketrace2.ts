@@ -1,8 +1,8 @@
-import { parse } from "./parser.js";
-import { AstNode, ASymbol } from "./ast.js";
-import { Runtime } from "./runtime.js";
-import { initCore } from "./rules/ruletable.js";
-import { aStarSearch } from "./search.js";
+import { parse } from "../parser.js";
+import { AstNode, ASymbol } from "../ast.js";
+import { Runtime } from "../runtime.js";
+import { initCore } from "../rules/ruletable.js";
+import { aStarSearch } from "../search.js";
 
 console.log("=== Like Terms A* Trace ===\n");
 

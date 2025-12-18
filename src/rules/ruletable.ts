@@ -84,7 +84,7 @@ export function initCore(runtime: Runtime) {
     ["sum(?a, ?mid..., ?b) => sum(sum(?a, ?b), ?rest...)", ruleAssocEnd],
 
     // Sum: Commutativity and neutral element
-    ["sum(?a, ?b) => sum(?b, ?a)", ruleCommutative],
+    //["sum(?a, ?b) => sum(?b, ?a)", ruleCommutative],
     //["sum(?a, ?mid..., ?c) => sum(?c, ?mid..., ?a)", ruleSwapEnds],
     ["sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", ruleNeutralRight],
 
@@ -95,7 +95,7 @@ export function initCore(runtime: Runtime) {
     ["mul(?a, ?b, ?rest...) => mul(prod(?a, ?b), ?rest...)", ruleMulAssocLeft],
 
     // Multiply: Commutativity
-    ["mul(?a, ?b) => mul(?b, ?a)", ruleMulCommutative],
+    //["mul(?a, ?b) => mul(?b, ?a)", ruleMulCommutative],
 
     // Multiply: Neutral element (1) - works with 2+ args
     ["mul(?args..., 1, ?rest...) => mul(?args..., ?rest...)", ruleMulNeutralRight],
@@ -133,7 +133,7 @@ export function initCore(runtime: Runtime) {
     ["mul(?n, ?a) => sum(?a, ?rest...) where ?n is number", ruleMulToSum],
 
     // Equation rules
-    ["eq(?a, ?b) => eq(?b, ?a)", ruleEqSymmetry],
+    //["eq(?a, ?b) => eq(?b, ?a)", ruleEqSymmetry],
     ["eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))", ruleEvalEq],
 
     // Solve rules - Goal-based solving
@@ -162,8 +162,8 @@ export function initCore(runtime: Runtime) {
     ["eval(eval(?x)) => eval(?x)", ruleEvalCollapse],
 
     // Eval handling for definitions
-    ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
-    ["eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name", ruleEvalDefSimplify],
+    // ["eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name", ruleEvalDef],
+    // ["eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name", ruleEvalDefSimplify],
 
     // Eval computation for arithmetic operations
     ["eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", ruleEvalSum],
@@ -196,9 +196,9 @@ export function initCore(runtime: Runtime) {
 
     // Simplification - Like terms and arithmetic
     // TODO: remove
-    ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineLikeTerms],
-    ["eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))", ruleSubExpandSum],
-    ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineNumbers],
+    // ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineLikeTerms],
+    // ["eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))", ruleSubExpandSum],
+    // ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineNumbers],
 
     // Linear equations kx + c = 0 solve for x
     ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],

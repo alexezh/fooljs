@@ -1,8 +1,8 @@
-import { parse } from "./parser.js";
-import { aStarSearch, isGoal } from "./search.js";
-import { Runtime } from "./runtime.js";
-import { initCore } from "./rules/ruletable.js";
-import { AstNode, ASymbol } from "./ast.js";
+import { parse } from "../parser.js";
+import { aStarSearch, isGoal } from "../search.js";
+import { Runtime } from "../runtime.js";
+import { initCore } from "../rules/ruletable.js";
+import { AstNode, ASymbol } from "../ast.js";
 
 console.log("=== Search Tests ===\n");
 

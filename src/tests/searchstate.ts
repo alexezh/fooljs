@@ -1,4 +1,6 @@
-import { AstNode, MatchFuncRet } from "./ast";
+import { AstNode, MatchFuncRet } from "../ast";
+
+let nextId = 1;
 
 /**
  * Represents a state in the search space
@@ -6,6 +8,7 @@ import { AstNode, MatchFuncRet } from "./ast";
  * we want cost of operation be - read values, write whole expression
  */
 export class SearchState {
+  id: number;
   node: AstNode;
   parent?: SearchState;
   /**
@@ -33,6 +36,7 @@ export class SearchState {
   }
 
   constructor(parent: SearchState | undefined, node: AstNode, gCost: number = 0) {
+    this.id = nextId++;
     this.node = node;
     this.parent = parent;
     this.gCost = gCost;

@@ -1,4 +1,4 @@
-import { parse } from "./parser.js";
+import { parse } from "../parser.js";
 
 let testCount = 0;
 let passCount = 0;

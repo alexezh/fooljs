@@ -1,7 +1,7 @@
 import { AstNode } from "./ast.js";
 import { MinHeap } from "./minheap.js";
 import { Runtime } from "./runtime.js";
-import { SearchState } from "./searchstate.js";
+import { SearchState } from "./tests/searchstate.js";
 
 export function getSolutionString(st: SearchState): string {
   let path = st.getPath();
