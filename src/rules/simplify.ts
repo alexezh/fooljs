@@ -2,7 +2,7 @@
 // Simplification rules - Algebraic simplifications for solving
 // =============================================================================
 
-import { AstNode, ASymbol, isNumber } from "../ast.js";
+import { AstNode, ASymbol, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs, isFunc } from "./corerules.js";
 
 // Helper: Check if two nodes are the same symbol
@@ -19,7 +19,7 @@ function sameSymbol(a: AstNode, b: AstNode): boolean {
 
 // eval(sum(?rest..., mul(?a, ?x), mul(?b, ?x), ?more...)) => eval(sum(?rest..., mul(sum(?a, ?b), ?x), ?more...))
 // Combines adjacent like terms
-export function ruleCombineLikeTerms(ast: AstNode): AstNode | undefined {
+export function ruleCombineLikeTerms(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -60,12 +60,18 @@ export function ruleCombineLikeTerms(ast: AstNode): AstNode | undefined {
             ];
 
             if (newTerms.length === 1) {
-              return AstNode.create('func', 'eval', [newTerms[0]]);
+              return {
+                replace: AstNode.create('func', 'eval', [newTerms[0]]),
+                cost: 1 // Creates 1 new eval node
+              };
             }
 
-            return AstNode.create('func', 'eval', [
-              AstNode.create('func', 'sum', newTerms)
-            ]);
+            return {
+              replace: AstNode.create('func', 'eval', [
+                AstNode.create('func', 'sum', newTerms)
+              ]),
+              cost: 4 // Creates 4 new nodes: eval, sum, mul, and sum for coefficient
+            };
           }
 
           // Try reverse order: mul(?x, ?a)
@@ -81,12 +87,18 @@ export function ruleCombineLikeTerms(ast: AstNode): AstNode | undefined {
             ];
 
             if (newTerms.length === 1) {
-              return AstNode.create('func', 'eval', [newTerms[0]]);
+              return {
+                replace: AstNode.create('func', 'eval', [newTerms[0]]),
+                cost: 1 // Creates 1 new eval node
+              };
             }
 
-            return AstNode.create('func', 'eval', [
-              AstNode.create('func', 'sum', newTerms)
-            ]);
+            return {
+              replace: AstNode.create('func', 'eval', [
+                AstNode.create('func', 'sum', newTerms)
+              ]),
+              cost: 4 // Creates 4 new nodes: eval, sum, mul, and sum for coefficient
+            };
           }
         }
       }
@@ -102,7 +114,7 @@ export function ruleCombineLikeTerms(ast: AstNode): AstNode | undefined {
 
 // eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))
 // Expands subtraction of sum to add negation
-export function ruleSubExpandSum(ast: AstNode): AstNode | undefined {
+export function ruleSubExpandSum(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -119,9 +131,12 @@ export function ruleSubExpandSum(ast: AstNode): AstNode | undefined {
   if (isFunc(a, 'sum')) {
     const sumArgs = getArgs(a);
     const newTerms = [...sumArgs, AstNode.create('func', 'neg', [b])];
-    return AstNode.create('func', 'eval', [
-      AstNode.create('func', 'sum', newTerms)
-    ]);
+    return {
+      replace: AstNode.create('func', 'eval', [
+        AstNode.create('func', 'sum', newTerms)
+      ]),
+      cost: 3 // Creates 3 new nodes: eval, sum, and neg
+    };
   }
 
   return undefined;
@@ -130,7 +145,7 @@ export function ruleSubExpandSum(ast: AstNode): AstNode | undefined {
 // eval(sum(?rest..., ?a, ?b, ?more...)) => eval(sum(?rest..., sum(?a, ?b), ?more...))
 // where ?a and ?b are numbers
 // Combines any two numbers in a sum
-export function ruleCombineNumbers(ast: AstNode): AstNode | undefined {
+export function ruleCombineNumbers(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -154,12 +169,18 @@ export function ruleCombineNumbers(ast: AstNode): AstNode | undefined {
         ];
 
         if (newTerms.length === 1) {
-          return AstNode.create('func', 'eval', [newTerms[0]]);
+          return {
+            replace: AstNode.create('func', 'eval', [newTerms[0]]),
+            cost: 1 // Creates 1 new eval node
+          };
         }
 
-        return AstNode.create('func', 'eval', [
-          AstNode.create('func', 'sum', newTerms)
-        ]);
+        return {
+          replace: AstNode.create('func', 'eval', [
+            AstNode.create('func', 'sum', newTerms)
+          ]),
+          cost: 3 // Creates 3 new nodes: eval, outer sum, and inner sum for numbers
+        };
       }
     }
   }

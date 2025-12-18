@@ -1,4 +1,4 @@
-import { AstNode, ASymbol, isFunc } from "../ast.js";
+import { AstNode, ASymbol, isFunc, MatchFuncRet } from "../ast.js";
 import { getArgs } from "./corerules.js";
 import { Runtime } from "../runtime.js";
 
@@ -56,7 +56,7 @@ function holdsGoal(goal: AstNode, expr: AstNode): boolean {
 
 // solve(?e, ?p) => ?e where holds(?p, ?e)
 // Base case: goal is already satisfied
-export function ruleSolveGoalMet(ast: AstNode): AstNode | undefined {
+export function ruleSolveGoalMet(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -65,7 +65,10 @@ export function ruleSolveGoalMet(ast: AstNode): AstNode | undefined {
 
   // Check if goal holds
   if (holdsGoal(goal, expr)) {
-    return expr;
+    return {
+      replace: expr,
+      cost: 0 // No new nodes, just unwrapping
+    };
   }
 
   return undefined;
@@ -77,7 +80,7 @@ export function ruleSolveGoalMet(ast: AstNode): AstNode | undefined {
 
 // step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)
 // Try to make one eval step
-export function ruleStep(ast: AstNode): AstNode | undefined {
+export function ruleStep(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'step')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -91,10 +94,13 @@ export function ruleStep(ast: AstNode): AstNode | undefined {
   // Try each eval result
   for (const result of evalResults) {
     // Skip if structurally identical (avoid infinite loop)
-    if (eqAst(expr, result)) continue;
+    if (eqAst(expr, result.replace)) continue;
 
     // Return the first non-identical result
-    return result;
+    return {
+      replace: result.replace,
+      cost: result.cost // Inherit cost from the eval step
+    };
   }
 
   return undefined;
@@ -106,7 +112,7 @@ export function ruleStep(ast: AstNode): AstNode | undefined {
 
 // solve(?e, ?p) => solve(?e1, ?p) where not holds(?p, ?e), step(?e) => ?e1
 // Make one step toward the goal
-export function ruleSolveStep(ast: AstNode): AstNode | undefined {
+export function ruleSolveStep(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -123,7 +129,10 @@ export function ruleSolveStep(ast: AstNode): AstNode | undefined {
   // Try each step result
   for (const result of stepResults) {
     // Return solve with the stepped expression
-    return AstNode.create('func', 'solve', [result, goal]);
+    return {
+      replace: AstNode.create('func', 'solve', [result.replace, goal]),
+      cost: result.cost + 1 // Inherit step cost plus 1 for new solve node
+    };
   }
 
   return undefined;

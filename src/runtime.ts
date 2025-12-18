@@ -1,11 +1,11 @@
-import { AstNode, ASymbol, Constraint } from "./ast.js";
+import { AstNode, ASymbol, Constraint, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 
 type RuleNode = {
   pattern: AstNode,
   match: AstNode,
   constraints?: Constraint[],
-  matchFunc: (ast: AstNode) => AstNode | undefined
+  matchFunc: MatchFunc | undefined
 }
 
 export class Runtime {
@@ -18,7 +18,7 @@ export class Runtime {
     //this.rules.push(new AstNode("sum", [new AstNode(new ASymbol("a")), new AstNode(new ASymbol("b"))]))
   }
 
-  addRule(args: string | AstNode, matchFunc: (ast: AstNode) => AstNode | undefined): void {
+  addRule(args: string | AstNode, matchFunc: MatchFunc | undefined): void {
     let ruleAst: AstNode;
     if (typeof (args) === "string") {
       ruleAst = parse(args);
@@ -46,11 +46,11 @@ export class Runtime {
     }
   }
 
-  matchRule(inp: AstNode): AstNode[] {
-    const results: AstNode[] = [];
+  matchRule(inp: AstNode): MatchFuncRet[] {
+    const results: { replace: AstNode, cost: number }[] = [];
 
     for (const rule of this.rules) {
-      const result = rule.matchFunc(inp);
+      const result = rule.matchFunc!(inp);
       if (result !== undefined) {
         results.push(result);
       }

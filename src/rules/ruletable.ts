@@ -1,4 +1,4 @@
-import { AstNode } from "../ast.js";
+import { AstNode, MatchFunc } from "../ast.js";
 import { Runtime } from "../runtime.js";
 import { ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
@@ -6,7 +6,7 @@ import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEv
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
 import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
-import { ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
+import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
 import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./transcendental.js";
 import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./simplify.js";
 
@@ -77,14 +77,15 @@ export const coreRuleFunctions = [
 ];
 
 export function initCore(runtime: Runtime) {
-  const coreRules: [string, (ast: AstNode) => AstNode | undefined][] = [
+  const coreRules: [string, MatchFunc | undefined][] = [
     // Sum: Associativity variants (works with 3+ args)
     ["sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)", ruleAssocLeft],
     ["sum(?a, ?b, ?c, ?rest...) => sum(sum(?a, ?c), ?b, ?rest...)", ruleAssocMid],
+    ["sum(?a, ?mid..., ?b) => sum(sum(?a, ?b), ?rest...)", ruleAssocEnd],
 
     // Sum: Commutativity and neutral element
     ["sum(?a, ?b) => sum(?b, ?a)", ruleCommutative],
-    ["sum(?a, ?mid..., ?c) => sum(?c, ?mid..., ?a)", ruleSwapEnds],
+    //["sum(?a, ?mid..., ?c) => sum(?c, ?mid..., ?a)", ruleSwapEnds],
     ["sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", ruleNeutralRight],
 
     // Sum: Lift sums into the evaluation flow

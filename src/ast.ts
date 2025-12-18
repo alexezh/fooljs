@@ -160,8 +160,14 @@ export class AstNode {
   children: ReadonlyArray<AstNode> | undefined;
   constraints?: Constraint[];
   private cost?: number;
+  //private changedNodes?: number;
+  private totalNodes?: number;
 
-  private constructor(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: ReadonlyArray<AstNode>, constraints?: Constraint[]) {
+  private constructor(
+    kind: AstNodeKind,
+    value: number | string | ASymbol | AstNode,
+    children?: ReadonlyArray<AstNode>,
+    constraints?: Constraint[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
@@ -179,8 +185,11 @@ export class AstNode {
   static create(kind: 'tuple', value: 'tuple', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'spread', value: '...', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'symbol', value: ASymbol, children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: AstNodeKind, value: number | string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]): AstNode {
-    return new AstNode(kind, value, children);
+  static create(kind: AstNodeKind,
+    value: number | string | ASymbol | AstNode,
+    children?: AstNode[],
+    constraints?: Constraint[]): AstNode {
+    return new AstNode(kind, value, children, constraints);
   }
 
   clone(children?: AstNode[]): AstNode {
@@ -271,3 +280,6 @@ export function isNumber(node: AstNode): node is AstNode {
 export function cloneAst(node: AstNode): AstNode {
   return node.clone();
 }
+
+export type MatchFuncRet = { replace: AstNode, cost: number }
+export type MatchFunc = (ast: AstNode) => MatchFuncRet | undefined;

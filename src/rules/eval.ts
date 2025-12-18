@@ -1,8 +1,8 @@
-import { AstNode, FuncName, isFunc, isNumber } from "../ast.js";
+import { AstNode, FuncName, isFunc, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs, isSymbol } from "./corerules.js";
 
 // eval(?n) => ?n where ?n is number
-export function ruleEvalNumber(ast: AstNode): AstNode | undefined {
+export function ruleEvalNumber(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -10,11 +10,14 @@ export function ruleEvalNumber(ast: AstNode): AstNode | undefined {
   const n = args[0];
   if (!isNumber(n)) return undefined;
 
-  return n;
+  return {
+    replace: n,
+    cost: 0 // No new nodes, just unwrapping
+  };
 }
 
 // eval(sym(?x)) => sym(?x) where ?x is symbol_name
-export function ruleEvalSymbol(ast: AstNode): AstNode | undefined {
+export function ruleEvalSymbol(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -26,11 +29,14 @@ export function ruleEvalSymbol(ast: AstNode): AstNode | undefined {
   if (symArgs.length !== 1) return undefined;
   if (!isSymbol(symArgs[0])) return undefined;
 
-  return arg;
+  return {
+    replace: arg,
+    cost: 0 // No new nodes, just unwrapping
+  };
 }
 
 // eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name
-export function ruleEvalProgressive(ast: AstNode): AstNode | undefined {
+export function ruleEvalProgressive(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -44,16 +50,19 @@ export function ruleEvalProgressive(ast: AstNode): AstNode | undefined {
   const [first, ...rest] = funcArgs;
 
   // Create eval(?f(eval(?a), ?rest...))
-  return AstNode.create('func', 'eval', [
-    AstNode.create('func', funcCall.value as FuncName, [
-      AstNode.create('func', 'eval', [first]),
-      ...rest
-    ])
-  ]);
+  return {
+    replace: AstNode.create('func', 'eval', [
+      AstNode.create('func', funcCall.value as FuncName, [
+        AstNode.create('func', 'eval', [first]),
+        ...rest
+      ])
+    ]),
+    cost: 3 // Creates 3 new nodes: outer eval, inner func, inner eval
+  };
 }
 
 // eval(def(sym(?y), ?e)) => def(sym(?y), eval(?e)) where ?y is symbol_name
-export function ruleEvalDef(ast: AstNode): AstNode | undefined {
+export function ruleEvalDef(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -71,14 +80,17 @@ export function ruleEvalDef(ast: AstNode): AstNode | undefined {
   if (symArgs.length !== 1) return undefined;
   if (!isSymbol(symArgs[0])) return undefined;
 
-  return AstNode.create('func', 'def', [
-    sym,
-    AstNode.create('func', 'eval', [expr])
-  ]);
+  return {
+    replace: AstNode.create('func', 'def', [
+      sym,
+      AstNode.create('func', 'eval', [expr])
+    ]),
+    cost: 2 // Creates 2 new nodes: def and eval
+  };
 }
 
 // eval(def(sym(?y), ?e)) => eval(?e) where ?y is symbol_name
-export function ruleEvalDefSimplify(ast: AstNode): AstNode | undefined {
+export function ruleEvalDefSimplify(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -96,11 +108,14 @@ export function ruleEvalDefSimplify(ast: AstNode): AstNode | undefined {
   if (symArgs.length !== 1) return undefined;
   if (!isSymbol(symArgs[0])) return undefined;
 
-  return AstNode.create('func', 'eval', [expr]);
+  return {
+    replace: AstNode.create('func', 'eval', [expr]),
+    cost: 1 // Creates 1 new eval node
+  };
 }
 
 // eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number
-export function ruleEvalSum(ast: AstNode): AstNode | undefined {
+export function ruleEvalSum(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -115,11 +130,14 @@ export function ruleEvalSum(ast: AstNode): AstNode | undefined {
   if (!isNumber(a) || !isNumber(b)) return undefined;
 
   const result = (a.value as number) + (b.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(neg(?a)) => calc_neg(?a) where ?a is number
-export function ruleEvalNeg(ast: AstNode): AstNode | undefined {
+export function ruleEvalNeg(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -134,12 +152,15 @@ export function ruleEvalNeg(ast: AstNode): AstNode | undefined {
   if (!isNumber(a)) return undefined;
 
   const result = -(a.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(eval(?x)) => eval(?x)
 // Collapse redundant eval wrappers
-export function ruleEvalCollapse(ast: AstNode): AstNode | undefined {
+export function ruleEvalCollapse(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -148,5 +169,8 @@ export function ruleEvalCollapse(ast: AstNode): AstNode | undefined {
   if (!isFunc(inner, 'eval')) return undefined;
 
   // Return the inner eval
-  return inner;
+  return {
+    replace: inner,
+    cost: 0 // No new nodes, just unwrapping
+  };
 }

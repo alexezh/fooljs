@@ -1,73 +1,7 @@
 import { AstNode } from "./ast.js";
 import { MinHeap } from "./minheap.js";
 import { Runtime } from "./runtime.js";
-
-/**
- * Represents a state in the search space
- */
-class SearchState {
-  node: AstNode;
-  parent?: SearchState;
-  gCost: number;  // Cost from start
-  hCost: number;  // Heuristic (node.getCost())
-  fCost: number;  // Total (g + h)
-
-  get debugStr(): string {
-    return this.node.toString();
-  }
-
-  constructor(node: AstNode, parent?: SearchState, gCost: number = 0) {
-    this.node = node;
-    this.parent = parent;
-    this.gCost = gCost;
-    this.hCost = node.getCost();
-    this.fCost = this.gCost + this.hCost;
-  }
-
-  /**
-   * clone parent of node to point to rewrite
-   */
-  static create(state: SearchState, path: AstNode[], orig: AstNode, rewrite: AstNode, newGCost: number): SearchState {
-    for (var idx = path.length - 1; idx >= 0; idx--) {
-      let parent = path[idx];
-      let children: AstNode[] = [];
-      for (let child of parent.children!) {
-        if (child === orig) {
-          children.push(rewrite);
-        } else {
-          children.push(child);
-        }
-      }
-
-      let parentClone = parent.clone(children);
-      orig = parent;
-      rewrite = parentClone;
-    }
-    return new SearchState(rewrite, state, newGCost)
-  }
-
-  /**
-   * Reconstruct the path from start to this state
-   */
-  getPath(): AstNode[] {
-    const path: AstNode[] = [];
-    let current: SearchState | undefined = this;
-
-    while (current) {
-      path.unshift(current.node);
-      current = current.parent;
-    }
-
-    return path;
-  }
-
-  /**
-   * Get a unique key for this state (for visited set)
-   */
-  getKey(): string {
-    return this.node.toString();
-  }
-}
+import { SearchState } from "./searchstate.js";
 
 export function getSolutionString(st: SearchState): string {
   let path = st.getPath();
@@ -131,7 +65,7 @@ export function aStarSearch(
   // Initialize open set (priority queue) and closed set (visited states)
   const openSet = new OpenSet();
 
-  const startState = new SearchState(start);
+  const startState = new SearchState(undefined, start);
   openSet.push(startState);
 
   let statesExplored = 0;
@@ -169,6 +103,7 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
     return;
   }
 
+  // find all rules which match
   const rewriters = Runtime.instance.matchRule(node);
   for (const rewrite of rewriters) {
     const successorKey = rewrite.toString();
@@ -178,9 +113,7 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
       continue;
     }
 
-    // Cost to reach this successor is current g-cost + 1 (each rule application costs 1)
-    const newGCost = state.gCost + 1;
-    const successorState = SearchState.create(state, path, node, rewrite, newGCost);
+    const successorState = SearchState.create(state, path, node, rewrite);
 
     openSet.push(successorState);
   }
@@ -196,53 +129,3 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
   openSet.nodeMap.set(node, state);
 }
 
-/**
- * Greedy simplification - always takes the lowest-cost successor
- * Faster than A* but may not find optimal solution
- *
- * @param start Starting AST node
- * @param runtime Runtime with rewrite rules (defaults to Runtime.instance)
- * @param maxSteps Maximum number of simplification steps
- * @returns Simplified AST node
- */
-export function simplify(
-  start: AstNode,
-  runtime: Runtime = Runtime.instance,
-  maxSteps: number = 100
-): AstNode {
-  let current = start;
-  let currentCost = current.getCost();
-
-  for (let step = 0; step < maxSteps; step++) {
-    // Generate all possible successors
-    const successors = runtime.matchRule(current);
-
-    // If no successors, we're done
-    if (successors.length === 0) {
-      break;
-    }
-
-    // Find the successor with the lowest cost
-    let bestSuccessor = successors[0];
-    let bestCost = bestSuccessor.getCost();
-
-    for (let i = 1; i < successors.length; i++) {
-      const cost = successors[i].getCost();
-      if (cost < bestCost) {
-        bestSuccessor = successors[i];
-        bestCost = cost;
-      }
-    }
-
-    // If best successor is not better than current, we're done
-    if (bestCost >= currentCost) {
-      break;
-    }
-
-    // Move to best successor
-    current = bestSuccessor;
-    currentCost = bestCost;
-  }
-
-  return current;
-}

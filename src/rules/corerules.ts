@@ -1,4 +1,4 @@
-import { AstNode, ASymbol, FuncName } from "../ast.js";
+import { AstNode, ASymbol, FuncName, MatchFuncRet } from "../ast.js";
 
 // Helper to check if node is a number
 export function isNumber(node: AstNode): boolean {
@@ -41,12 +41,15 @@ export function allEqual(nodes: ReadonlyArray<AstNode>): boolean {
 
 
 // paren(?a) => ?a
-export function ruleParenRemove(ast: AstNode): AstNode | undefined {
+export function ruleParenRemove(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'paren')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
 
-  return args[0];
+  return {
+    replace: args[0],
+    cost: 0 // No new nodes, just unwrapping
+  };
 }
 
 // =============================================================================
@@ -54,18 +57,21 @@ export function ruleParenRemove(ast: AstNode): AstNode | undefined {
 // =============================================================================
 
 // eq(?a, ?b) => eq(?b, ?a) - Symmetry
-export function ruleEqSymmetry(ast: AstNode): AstNode | undefined {
+export function ruleEqSymmetry(ast: AstNode): MatchFuncRet | undefined {
   if (ast.kind !== 'eq') return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
 
   const [a, b] = args;
-  return AstNode.create('eq', 'eq', [b, a]);
+  return {
+    replace: AstNode.create('eq', 'eq', [b, a]),
+    cost: 1 // Creates 1 new eq node
+  };
 }
 
 // eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))
 // Evaluate both sides of an equation independently
-export function ruleEvalEq(ast: AstNode): AstNode | undefined {
+export function ruleEvalEq(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -77,30 +83,33 @@ export function ruleEvalEq(ast: AstNode): AstNode | undefined {
   if (eqArgs.length !== 2) return undefined;
 
   const [left, right] = eqArgs;
-  return AstNode.create('eq', 'eq', [
-    AstNode.create('func', 'eval', [left]),
-    AstNode.create('func', 'eval', [right])
-  ]);
+  return {
+    replace: AstNode.create('eq', 'eq', [
+      AstNode.create('func', 'eval', [left]),
+      AstNode.create('func', 'eval', [right])
+    ]),
+    cost: 3 // Creates 3 new nodes: eq and 2 eval nodes
+  };
 }
 
 // eq(?a, ?b) => eq(sum(?a, ?c), sum(?b, ?c)) - Add to both sides
 // Note: This is a meta-rule template; in practice we'd need ?c to be provided
 // For now, this returns undefined as it needs additional context
-export function ruleEqAddBothSides(ast: AstNode): AstNode | undefined {
+export function ruleEqAddBothSides(ast: AstNode): MatchFuncRet | undefined {
   // This is a template rule - actual implementation would need the term to add
   return undefined;
 }
 
 // eq(?a, ?b) => eq(mul(?k, ?a), mul(?k, ?b)) - Multiply both sides
 // Similar to above, needs the multiplier
-export function ruleEqMulBothSides(ast: AstNode): AstNode | undefined {
+export function ruleEqMulBothSides(ast: AstNode): MatchFuncRet | undefined {
   return undefined;
 }
 
 // solve(?e, ?p) => solve(?e1, ?p) where not holds(?p, ?e), step(?e) => ?e1
 // Recursive case: take one step and continue solving
 // Note: This needs runtime access for step function
-export function ruleSolveStep(ast: AstNode): AstNode | undefined {
+export function ruleSolveStep(ast: AstNode): MatchFuncRet | undefined {
   // This will be implemented when we have runtime access in rules
   return undefined;
 }

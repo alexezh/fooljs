@@ -3,12 +3,12 @@
 // Solve + eq rules - Equation solving
 // =============================================================================
 
-import { AstNode, ASymbol, isFunc, isNumber } from "../ast.js";
+import { AstNode, ASymbol, isFunc, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs } from "./corerules.js";
 
 // solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))
 // Normalize equation to form: something = 0
-export function ruleSolveEqNormalize(ast: AstNode): AstNode | undefined {
+export function ruleSolveEqNormalize(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -34,12 +34,15 @@ export function ruleSolveEqNormalize(ast: AstNode): AstNode | undefined {
     AstNode.create('number', 0)
   ]);
 
-  return AstNode.create('func', 'solve', [normalized, goalNode]);
+  return {
+    replace: AstNode.create('func', 'solve', [normalized, goalNode]),
+    cost: 4 // Creates 4 new nodes: solve, eq, sub, and number 0
+  };
 }
 
 // solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs
 // Base case: variable isolated on left
-export function ruleSolveEqIsolatedLeft(ast: AstNode): AstNode | undefined {
+export function ruleSolveEqIsolatedLeft(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -64,7 +67,10 @@ export function ruleSolveEqIsolatedLeft(ast: AstNode): AstNode | undefined {
     const lhsSym = lhs.value as ASymbol;
     const targetSym = targetVar.value as ASymbol;
     if (lhsSym.name === targetSym.name) {
-      return rhs;
+      return {
+        replace: rhs,
+        cost: 0 // No new nodes, just unwrapping
+      };
     }
   }
 

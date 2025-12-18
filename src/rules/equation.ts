@@ -1,10 +1,10 @@
 // solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs
 
-import { AstNode, ASymbol, isNumber } from "../ast.js";
+import { AstNode, ASymbol, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs, isFunc } from "./corerules.js";
 
 // Base case: variable isolated on right
-export function ruleSolveEqIsolatedRight(ast: AstNode): AstNode | undefined {
+export function ruleSolveEqIsolatedRight(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -29,7 +29,10 @@ export function ruleSolveEqIsolatedRight(ast: AstNode): AstNode | undefined {
     const rhsSym = rhs.value as ASymbol;
     const targetSym = targetVar.value as ASymbol;
     if (rhsSym.name === targetSym.name) {
-      return lhs;
+      return {
+        replace: lhs,
+        cost: 0 // No new nodes, just unwrapping
+      };
     }
   }
 
@@ -38,7 +41,7 @@ export function ruleSolveEqIsolatedRight(ast: AstNode): AstNode | undefined {
 
 // solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)
 // Linear equation solver: k*x + c = 0  =>  x = -c/k
-export function ruleSolveLinear(ast: AstNode): AstNode | undefined {
+export function ruleSolveLinear(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'solve')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 2) return undefined;
@@ -135,11 +138,14 @@ export function ruleSolveLinear(ast: AstNode): AstNode | undefined {
 
   // Return solve(x = -c/k, solved_for(x))
   // Let the step driver handle evaluation through step rules
-  return AstNode.create('func', 'solve', [
-    AstNode.create('func', 'div', [
-      AstNode.create('func', 'neg', [c]),
-      k
+  return {
+    replace: AstNode.create('func', 'solve', [
+      AstNode.create('func', 'div', [
+        AstNode.create('func', 'neg', [c]),
+        k
+      ]),
+      goalNode
     ]),
-    goalNode
-  ]);
+    cost: 3 // Creates 3 new nodes: solve, div, and neg
+  };
 }

@@ -2,7 +2,7 @@
 // Transcendental functions: pow, sqrt, log, exp
 // =============================================================================
 
-import { AstNode, isNumber } from "../ast.js";
+import { AstNode, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs, isFunc } from "./corerules.js";
 
 // =============================================================================
@@ -58,7 +58,7 @@ function calc_exp(a: number): number {
 // =============================================================================
 
 // eval(pow(?a, ?b)) => calc_pow(?a, ?b) where ?a is number, ?b is number
-export function ruleEvalPow(ast: AstNode): AstNode | undefined {
+export function ruleEvalPow(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -73,11 +73,14 @@ export function ruleEvalPow(ast: AstNode): AstNode | undefined {
   if (!isNumber(base) || !isNumber(exp)) return undefined;
 
   const result = calc_pow(base.value as number, exp.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(pow(?x, 1)) => ?x
-export function ruleEvalPowExp1(ast: AstNode): AstNode | undefined {
+export function ruleEvalPowExp1(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -90,14 +93,17 @@ export function ruleEvalPowExp1(ast: AstNode): AstNode | undefined {
 
   const [base, exp] = powArgs;
   if (isOne(exp)) {
-    return base;
+    return {
+      replace: base,
+      cost: 0 // No new nodes, just unwrapping
+    };
   }
 
   return undefined;
 }
 
 // eval(pow(?x, 0)) => 1 where not is_zero(?x)
-export function ruleEvalPowExp0(ast: AstNode): AstNode | undefined {
+export function ruleEvalPowExp0(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -110,14 +116,17 @@ export function ruleEvalPowExp0(ast: AstNode): AstNode | undefined {
 
   const [base, exp] = powArgs;
   if (isZero(exp) && !isZero(base)) {
-    return AstNode.create('number', 1);
+    return {
+      replace: AstNode.create('number', 1),
+      cost: 1 // Creates 1 new number node
+    };
   }
 
   return undefined;
 }
 
 // eval(pow(1, ?y)) => 1
-export function ruleEvalPowBase1(ast: AstNode): AstNode | undefined {
+export function ruleEvalPowBase1(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -130,14 +139,17 @@ export function ruleEvalPowBase1(ast: AstNode): AstNode | undefined {
 
   const [base, _exp] = powArgs;
   if (isOne(base)) {
-    return AstNode.create('number', 1);
+    return {
+      replace: AstNode.create('number', 1),
+      cost: 1 // Creates 1 new number node
+    };
   }
 
   return undefined;
 }
 
 // eval(pow(0, ?y)) => 0 where ?y is positive_number
-export function ruleEvalPowBase0Pos(ast: AstNode): AstNode | undefined {
+export function ruleEvalPowBase0Pos(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -150,7 +162,10 @@ export function ruleEvalPowBase0Pos(ast: AstNode): AstNode | undefined {
 
   const [base, exp] = powArgs;
   if (isZero(base) && isPositiveNumber(exp)) {
-    return AstNode.create('number', 0);
+    return {
+      replace: AstNode.create('number', 0),
+      cost: 1 // Creates 1 new number node
+    };
   }
 
   return undefined;
@@ -161,7 +176,7 @@ export function ruleEvalPowBase0Pos(ast: AstNode): AstNode | undefined {
 // =============================================================================
 
 // eval(sqrt(?a)) => calc_sqrt(?a) where ?a is nonneg_number
-export function ruleEvalSqrt(ast: AstNode): AstNode | undefined {
+export function ruleEvalSqrt(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -176,12 +191,15 @@ export function ruleEvalSqrt(ast: AstNode): AstNode | undefined {
   if (!isNonNegNumber(arg)) return undefined;
 
   const result = calc_sqrt(arg.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(sqrt(pow(?x, 2))) => ?x
 // Simplifies sqrt(x²) to x (assumes x >= 0, or would need abs)
-export function ruleSqrt2(ast: AstNode): AstNode | undefined {
+export function ruleSqrt2(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -199,7 +217,10 @@ export function ruleSqrt2(ast: AstNode): AstNode | undefined {
       const [base, exp] = powArgs;
       // Check if exponent is 2
       if (isNumber(exp) && exp.value === 2) {
-        return base;
+        return {
+          replace: base,
+          cost: 0 // No new nodes, just unwrapping
+        };
       }
     }
   }
@@ -207,7 +228,7 @@ export function ruleSqrt2(ast: AstNode): AstNode | undefined {
   return undefined;
 }
 // eval(sqrt(?x)) => pow(?x, div(1, 2))
-export function ruleSqrtToPow(ast: AstNode): AstNode | undefined {
+export function ruleSqrtToPow(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -218,13 +239,16 @@ export function ruleSqrtToPow(ast: AstNode): AstNode | undefined {
   const sqrtArgs = getArgs(inner);
   if (sqrtArgs.length !== 1) return undefined;
 
-  return AstNode.create('func', 'pow', [
-    sqrtArgs[0],
-    AstNode.create('func', 'div', [
-      AstNode.create('number', 1),
-      AstNode.create('number', 2)
-    ])
-  ]);
+  return {
+    replace: AstNode.create('func', 'pow', [
+      sqrtArgs[0],
+      AstNode.create('func', 'div', [
+        AstNode.create('number', 1),
+        AstNode.create('number', 2)
+      ])
+    ]),
+    cost: 4 // Creates 4 new nodes: pow, div, and 2 numbers
+  };
 }
 
 // =============================================================================
@@ -232,7 +256,7 @@ export function ruleSqrtToPow(ast: AstNode): AstNode | undefined {
 // =============================================================================
 
 // eval(log(?a)) => calc_ln(?a) where ?a is positive_number
-export function ruleEvalLn(ast: AstNode): AstNode | undefined {
+export function ruleEvalLn(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -247,11 +271,14 @@ export function ruleEvalLn(ast: AstNode): AstNode | undefined {
   if (!isPositiveNumber(arg)) return undefined;
 
   const result = calc_ln(arg.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(log(?a, ?b)) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number, not is_one(?b)
-export function ruleEvalLogBase(ast: AstNode): AstNode | undefined {
+export function ruleEvalLogBase(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -268,11 +295,14 @@ export function ruleEvalLogBase(ast: AstNode): AstNode | undefined {
   }
 
   const result = calc_log(arg.value as number, base.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(log(1)) => 0
-export function ruleLn1(ast: AstNode): AstNode | undefined {
+export function ruleLn1(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -284,14 +314,17 @@ export function ruleLn1(ast: AstNode): AstNode | undefined {
   if (logArgs.length !== 1) return undefined;
 
   if (isOne(logArgs[0])) {
-    return AstNode.create('number', 0);
+    return {
+      replace: AstNode.create('number', 0),
+      cost: 1 // Creates 1 new number node
+    };
   }
 
   return undefined;
 }
 
 // eval(log(exp(?x))) => ?x
-export function ruleLnExp(ast: AstNode): AstNode | undefined {
+export function ruleLnExp(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -306,7 +339,10 @@ export function ruleLnExp(ast: AstNode): AstNode | undefined {
   if (isFunc(logArg, 'exp')) {
     const expArgs = getArgs(logArg);
     if (expArgs.length === 1) {
-      return expArgs[0];
+      return {
+        replace: expArgs[0],
+        cost: 0 // No new nodes, just unwrapping
+      };
     }
   }
 
@@ -318,7 +354,7 @@ export function ruleLnExp(ast: AstNode): AstNode | undefined {
 // =============================================================================
 
 // eval(exp(?a)) => calc_exp(?a) where ?a is number
-export function ruleEvalExp(ast: AstNode): AstNode | undefined {
+export function ruleEvalExp(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -333,11 +369,14 @@ export function ruleEvalExp(ast: AstNode): AstNode | undefined {
   if (!isNumber(arg)) return undefined;
 
   const result = calc_exp(arg.value as number);
-  return AstNode.create('number', result);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
 }
 
 // eval(exp(log(?x))) => ?x where ?x is positive_expr
-export function ruleExpLn(ast: AstNode): AstNode | undefined {
+export function ruleExpLn(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -353,7 +392,10 @@ export function ruleExpLn(ast: AstNode): AstNode | undefined {
     const logArgs = getArgs(expArg);
     if (logArgs.length === 1) {
       // Ideally check if logArgs[0] is positive, but for now we'll allow it
-      return logArgs[0];
+      return {
+        replace: logArgs[0],
+        cost: 0 // No new nodes, just unwrapping
+      };
     }
   }
 
@@ -361,7 +403,7 @@ export function ruleExpLn(ast: AstNode): AstNode | undefined {
 }
 
 // eval(exp(0)) => 1
-export function ruleExpZero(ast: AstNode): AstNode | undefined {
+export function ruleExpZero(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
   if (args.length !== 1) return undefined;
@@ -373,7 +415,10 @@ export function ruleExpZero(ast: AstNode): AstNode | undefined {
   if (expArgs.length !== 1) return undefined;
 
   if (isZero(expArgs[0])) {
-    return AstNode.create('number', 1);
+    return {
+      replace: AstNode.create('number', 1),
+      cost: 1 // Creates 1 new number node
+    };
   }
 
   return undefined;
