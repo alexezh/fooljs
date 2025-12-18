@@ -193,3 +193,35 @@ export function ruleSumNegSelf(ast: AstNode): MatchFuncRet | undefined {
 
   return undefined;
 }
+
+// sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number
+export function ruleCalcSum(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'sum')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [a, b] = args;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+
+  const result = (a.value as number) + (b.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// neg(?a) => calc_neg(?a) where ?a is number
+export function ruleCalcNeg(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'neg')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const a = args[0];
+  if (!isNumber(a)) return undefined;
+
+  const result = -(a.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}

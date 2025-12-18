@@ -221,6 +221,39 @@ export function ruleMulToSum(ast: AstNode): MatchFuncRet | undefined {
   const sumArgs = Array(count).fill(a);
   return {
     replace: AstNode.create('func', 'sum', sumArgs),
-    cost: 1 // Creates 1 new sum node
+    cost: 1 + sumArgs.length // Creates 1 new sum node
+  };
+}
+
+// mul(?a, ?b) => calc_mul(?a, ?b) where ?a is number, ?b is number
+export function ruleCalcMul(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'mul')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [a, b] = args;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+
+  const result = (a.value as number) * (b.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// div(?a, ?b) => calc_div(?a, ?b) where ?a is number, ?b is number, ?b != 0
+export function ruleCalcDiv(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'div')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [a, b] = args;
+  if (!isNumber(a) || !isNumber(b)) return undefined;
+  if (b.value === 0) return undefined; // Don't divide by zero
+
+  const result = (a.value as number) / (b.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
   };
 }

@@ -423,3 +423,89 @@ export function ruleExpZero(ast: AstNode): MatchFuncRet | undefined {
 
   return undefined;
 }
+
+// =============================================================================
+// Direct calculation rules (without eval wrapper)
+// =============================================================================
+
+// pow(?a, ?b) => calc_pow(?a, ?b) where ?a is number, ?b is number
+export function ruleCalcPow(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'pow')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [base, exp] = args;
+  if (!isNumber(base) || !isNumber(exp)) return undefined;
+
+  const result = calc_pow(base.value as number, exp.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// sqrt(?a) => calc_sqrt(?a) where ?a is nonneg_number
+export function ruleCalcSqrt(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'sqrt')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const arg = args[0];
+  if (!isNonNegNumber(arg)) return undefined;
+
+  const result = calc_sqrt(arg.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// log(?a) => calc_ln(?a) where ?a is positive_number
+export function ruleCalcLn(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'log')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const arg = args[0];
+  if (!isPositiveNumber(arg)) return undefined;
+
+  const result = calc_ln(arg.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// log(?a, ?b) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number, not is_one(?b)
+export function ruleCalcLogBase(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'log')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [arg, base] = args;
+  if (!isPositiveNumber(arg) || !isPositiveNumber(base) || isOne(base)) {
+    return undefined;
+  }
+
+  const result = calc_log(arg.value as number, base.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}
+
+// exp(?a) => calc_exp(?a) where ?a is number
+export function ruleCalcExp(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'exp')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const arg = args[0];
+  if (!isNumber(arg)) return undefined;
+
+  const result = calc_exp(arg.value as number);
+  return {
+    replace: AstNode.create('number', result),
+    cost: 1 // Creates 1 new number node
+  };
+}

@@ -1,13 +1,13 @@
 import { AstNode, MatchFunc } from "../ast.js";
 import { Runtime } from "../runtime.js";
-import { ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./corerules.js";
+import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
-import { ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
+import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
-import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
-import { ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./transcendental.js";
+import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
+import { ruleCalcExp, ruleCalcLn, ruleCalcLogBase, ruleCalcPow, ruleCalcSqrt, ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./transcendental.js";
 import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./simplify.js";
 
 export const coreRuleFunctions = [
@@ -134,6 +134,7 @@ export function initCore(runtime: Runtime) {
 
     // Equation rules
     //["eq(?a, ?b) => eq(?b, ?a)", ruleEqSymmetry],
+    ["eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)", ruleEqNormalize],
     ["eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))", ruleEvalEq],
 
     // Solve rules - Goal-based solving
@@ -171,6 +172,12 @@ export function initCore(runtime: Runtime) {
     ["eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleEvalDiv],
     ["eval(neg(?a)) => calc_neg(?a) where ?a is number", ruleEvalNeg],
 
+    // Direct computation for arithmetic operations (without eval wrapper)
+    ["sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number", ruleCalcSum],
+    ["mul(?a, ?b) => calc_mul(?a, ?b) where ?a is number, ?b is number", ruleCalcMul],
+    ["div(?a, ?b) => calc_div(?a, ?b) where ?a is number, ?b is number", ruleCalcDiv],
+    ["neg(?a) => calc_neg(?a) where ?a is number", ruleCalcNeg],
+
     // Transcendental functions - Power
     ["eval(pow(?a, ?b)) => calc_pow(?a, ?b) where ?a is number, ?b is number", ruleEvalPow],
     ["eval(pow(?x, 1)) => ?x", ruleEvalPowExp1],
@@ -193,6 +200,13 @@ export function initCore(runtime: Runtime) {
     ["eval(exp(?a)) => calc_exp(?a) where ?a is number", ruleEvalExp],
     ["eval(exp(log(?x))) => ?x", ruleExpLn],
     ["eval(exp(0)) => 1", ruleExpZero],
+
+    // Direct computation for transcendental functions (without eval wrapper)
+    ["pow(?a, ?b) => calc_pow(?a, ?b) where ?a is number, ?b is number", ruleCalcPow],
+    ["sqrt(?a) => calc_sqrt(?a) where ?a is nonneg_number", ruleCalcSqrt],
+    ["log(?a) => calc_ln(?a) where ?a is positive_number", ruleCalcLn],
+    ["log(?a, ?b) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number", ruleCalcLogBase],
+    ["exp(?a) => calc_exp(?a) where ?a is number", ruleCalcExp],
 
     // Simplification - Like terms and arithmetic
     // TODO: remove

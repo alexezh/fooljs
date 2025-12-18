@@ -17,7 +17,7 @@ FoolJS {
     | Expression "matches" Expression -- match
     | Expression "=" Expression      -- assign
 
-  TypeName = "number" | "var" | "symbol_name" | "func_name" | "nonzero_number"
+  TypeName = "number" | "var" | "symbol_name" | "func_name" | "nonzero_number" | "nonneg_number" | "positive_number"
 
   Expression
     = AddExpr

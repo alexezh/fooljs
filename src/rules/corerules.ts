@@ -69,6 +69,26 @@ export function ruleEqSymmetry(ast: AstNode): MatchFuncRet | undefined {
   };
 }
 
+// eq(?a, ?b) => eq(sum(?a, neg(?b)), 0) - Normalize to zero form
+export function ruleEqNormalize(ast: AstNode): MatchFuncRet | undefined {
+  if (ast.kind !== 'eq') return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [a, b] = args;
+
+  // Don't normalize if already in form eq(..., 0)
+  if (isNumber(b) && b.value === 0) return undefined;
+
+  return {
+    replace: AstNode.create('eq', 'eq', [
+      AstNode.create('func', 'sum', [a, AstNode.create('func', 'neg', [b])]),
+      AstNode.create('number', 0)
+    ]),
+    cost: 4 // Creates 4 new nodes: eq, sum, neg, and number 0
+  };
+}
+
 // eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))
 // Evaluate both sides of an equation independently
 export function ruleEvalEq(ast: AstNode): MatchFuncRet | undefined {

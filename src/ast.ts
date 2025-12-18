@@ -11,7 +11,14 @@ export type AstNodeKind =
   | 'tuple'
   | 'spread';
 
-export type TypeName = 'number' | 'var' | 'symbol_name' | 'func_name' | 'nonzero_number';
+export type TypeName = 'number' |
+  'var' |
+  'symbol_name' |
+  'func_name' |
+  'nonzero_number' |
+  'nonneg_number' |
+  'positive_number';
+
 export type FuncName =
   | 'sum'
   | 'mul'
@@ -281,5 +288,5 @@ export function cloneAst(node: AstNode): AstNode {
   return node.clone();
 }
 
-export type MatchFuncRet = { replace: AstNode, cost: number }
+export type MatchFuncRet = { ruleDef?: string, replace: AstNode, cost: number }
 export type MatchFunc = (ast: AstNode) => MatchFuncRet | undefined;

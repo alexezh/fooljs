@@ -37,6 +37,9 @@ export class SearchState {
 
   constructor(parent: SearchState | undefined, node: AstNode, gCost: number = 0) {
     this.id = nextId++;
+    if (this.id === 8) {
+      debugger;
+    }
     this.node = node;
     this.parent = parent;
     this.gCost = gCost;
@@ -48,6 +51,9 @@ export class SearchState {
    * clone parent of node to point to rewrite
    */
   static create(state: SearchState, path: AstNode[], orig: AstNode, rewrite: MatchFuncRet): SearchState {
+    // if (nextId === 8) {
+    //   debugger;
+    // }
     let cur = rewrite.replace;
     for (var idx = path.length - 1; idx >= 0; idx--) {
       let parent = path[idx];
@@ -64,7 +70,7 @@ export class SearchState {
       orig = parent;
       cur = parentClone;
     }
-    return new SearchState(state, rewrite.replace)
+    return new SearchState(state, cur)
   }
 
   /**
