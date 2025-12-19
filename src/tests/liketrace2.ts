@@ -1,13 +1,13 @@
 import { parse } from "../parser.js";
 import { AstNode, ASymbol } from "../ast.js";
 import { Runtime } from "../runtime.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 import { aStarSearch } from "../search.js";
 
 console.log("=== Like Terms A* Trace ===\n");
 
 // Initialize runtime with core rules
-initCore(Runtime.instance);
+initRules(Runtime.instance);
 
 const eq = parse("7x + 3x + 2 = 3");
 const solve = AstNode.create('func', 'solve', [

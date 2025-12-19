@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { Runtime } from "../runtime.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 import { AstNode } from "../ast.js";
 
 /**

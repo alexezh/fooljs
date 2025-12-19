@@ -1,13 +1,13 @@
 import { parse } from "../parser.js";
 import { AstNode, ASymbol } from "../ast.js";
 import { Runtime } from "../runtime.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 import { aStarSearch } from "../search.js";
 
 console.log("=== Simple Solve Test ===\n");
 
 // Initialize runtime with core rules
-initCore(Runtime.instance);
+initRules(Runtime.instance);
 
 // Test 1: x = 5 (should work - from searchtest)
 console.log("-- Test 1: x = 5 --");

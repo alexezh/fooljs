@@ -1,11 +1,11 @@
 import { AstNode, ASymbol } from "../ast.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 import { Runtime } from "../runtime.js";
 
 console.log("=== Solve and Eq Tests ===\n");
 
 // Initialize runtime with core rules
-initCore(Runtime.instance);
+initRules(Runtime.instance);
 
 // Helper to create symbols
 function sym(name: string): AstNode {

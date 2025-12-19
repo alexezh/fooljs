@@ -1,13 +1,13 @@
 import { parse } from "../parser.js";
 import { aStarSearch, isGoal } from "../search.js";
 import { Runtime } from "../runtime.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 import { AstNode, ASymbol } from "../ast.js";
 
 console.log("=== Search Tests ===\n");
 
 // Initialize runtime with core rules
-initCore(Runtime.instance);
+initRules(Runtime.instance);
 
 console.log("\n-- Test 7: Solve linear equation in standard form (2x + 3 = 0) --");
 const eq2 = parse("2x + 3 = 0");

@@ -1,12 +1,12 @@
 import { parse } from "../parser.js";
 import { AstNode, ASymbol } from "../ast.js";
 import { Runtime } from "../runtime.js";
-import { initCore } from "../ruletable.js";
+import { initRules } from "../ruletable.js";
 
 console.log("=== Step Rule Tests ===\n");
 
 // Initialize runtime with core rules
-initCore(Runtime.instance);
+initRules(Runtime.instance);
 
 console.log("-- Test 1: step on div(neg(3), 2) --");
 const expr1 = parse("div(neg(3), 2)");

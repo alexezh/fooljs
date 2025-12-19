@@ -77,7 +77,7 @@ export const coreRuleFunctions = [
   ruleCombineNumbers      // 58
 ];
 
-export function initCore(runtime: Runtime) {
+export function initRules(runtime: Runtime) {
   const coreRules: [string, MatchFunc | undefined][] = [
     // Sum: Associativity variants (works with 3+ args)
     ["sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)", ruleAssocLeft],
