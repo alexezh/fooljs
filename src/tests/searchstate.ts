@@ -49,8 +49,14 @@ export class SearchState {
 
   /**
    * clone parent of node to point to rewrite
+   *
+   * @param state - Parent search state
+   * @param path - Path from root to the node being rewritten
+   * @param orig - Original node being rewritten
+   * @param rewrite - The rewrite result
+   * @param stateScoreAdj - State-based score adjustment (negative = prefer this path)
    */
-  static create(state: SearchState, path: AstNode[], orig: AstNode, rewrite: MatchFuncRet): SearchState {
+  static create(state: SearchState, path: AstNode[], orig: AstNode, rewrite: MatchFuncRet, stateScoreAdj: number = 0): SearchState {
     // if (nextId === 8) {
     //   debugger;
     // }
@@ -70,7 +76,11 @@ export class SearchState {
       orig = parent;
       cur = parentClone;
     }
-    return new SearchState(state, cur)
+
+    // Compute new gCost: parent's gCost + rewrite cost + state-based adjustment
+    const newGCost = state.gCost + rewrite.cost + stateScoreAdj;
+
+    return new SearchState(state, cur, newGCost);
   }
 
   /**

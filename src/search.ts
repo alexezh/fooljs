@@ -103,6 +103,8 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
     return;
   }
 
+  const stateManager = Runtime.instance.getStateManager();
+
   // find all rules which match
   const rewriters = Runtime.instance.matchRule(node);
   for (const rewrite of rewriters) {
@@ -113,7 +115,14 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
       continue;
     }
 
-    const successorState = SearchState.create(state, path, node, rewrite);
+    // Compute state-based score for this (node, rule) pair
+    // Higher weights indicate better transitions
+    const ruleDef = rewrite.ruleDef ?? '';
+    const stateScore = stateManager.scoreRule(node, ruleDef);
+
+    // Create successor state with state-based score adjustment
+    // Negative score means "prefer this", so we subtract it from cost
+    const successorState = SearchState.create(state, path, node, rewrite, -stateScore);
 
     openSet.push(successorState);
   }
