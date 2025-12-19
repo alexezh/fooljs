@@ -1,14 +1,15 @@
-import { AstNode, MatchFunc } from "../ast.js";
-import { Runtime } from "../runtime.js";
-import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./corerules.js";
-import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./equation.js";
-import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./eval.js";
-import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./goals.js";
-import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./mul.js";
-import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./solverules.js";
-import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./sum.js";
-import { ruleCalcExp, ruleCalcLn, ruleCalcLogBase, ruleCalcPow, ruleCalcSqrt, ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./transcendental.js";
-import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./simplify.js";
+import { AstNode, MatchFunc } from "./ast.js";
+import { Runtime } from "./runtime.js";
+import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
+import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./rules/equation.js";
+import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
+import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./rules/goals.js";
+import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./rules/mul.js";
+import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./rules/solverules.js";
+import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./rules/sum.js";
+import { ruleCalcExp, ruleCalcLn, ruleCalcLogBase, ruleCalcPow, ruleCalcSqrt, ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./rules/transcendental.js";
+import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./rules/simplify.js";
+import { ruleCollectMulNonNumber, ruleCollectMulNumber, ruleCollectSumNonNumber, ruleCollectSumNumber, ruleFoldBase, ruleFoldStep, ruleMulFold, ruleSumFold } from "./rules/fold.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -213,6 +214,22 @@ export function initCore(runtime: Runtime) {
     // ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineLikeTerms],
     // ["eval(sub(sum(?terms...), ?b)) => eval(sum(?terms..., neg(?b)))", ruleSubExpandSum],
     // ["eval(sum(?terms...)) => eval(sum(?combined...))", ruleCombineNumbers],
+
+    // Fold - Generic fold over lists
+    ["fold(?f, ?acc, []) => ?acc", ruleFoldBase],
+    ["fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])", ruleFoldStep],
+
+    // Fold - Accumulator for sum
+    ["collect_sum_numbers(acc([?rest...], ?total), ?n) => acc([?rest...], sum(?total, ?n)) where ?n is number", ruleCollectSumNumber],
+    ["collect_sum_numbers(acc([?rest...], ?total), ?e) => acc([?rest..., ?e], ?total)", ruleCollectSumNonNumber],
+
+    // Fold - Accumulator for multiplication
+    ["collect_mul_numbers(acc([?rest...], ?product), ?n) => acc([?rest...], mul(?product, ?n)) where ?n is number", ruleCollectMulNumber],
+    ["collect_mul_numbers(acc([?rest...], ?product), ?e) => acc([?rest..., ?e], ?product)", ruleCollectMulNonNumber],
+
+    // Fold - Apply fold to sum and mul
+    // ["sum(?args...) => fold(collect_sum_numbers, acc([], 0), [?args...])", ruleSumFold],
+    // ["mul(?args...) => fold(collect_mul_numbers, acc([], 1), [?args...])", ruleMulFold],
 
     // Linear equations kx + c = 0 solve for x
     ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],

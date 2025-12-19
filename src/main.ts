@@ -1,6 +1,6 @@
 import { AstNode, ASymbol } from "./ast.js";
 import { parse } from "./parser.js";
-import { initCore } from "./rules/ruletable.js";
+import { initCore } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
 import { aStarSearch, getSolutionString } from "./search.js";
 

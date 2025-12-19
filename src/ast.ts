@@ -36,7 +36,11 @@ export type FuncName =
   | 'solve'
   | 'holds'
   | 'solved_for'
-  | 'step';
+  | 'step'
+  | 'fold'
+  | 'acc'
+  | 'collect_sum_numbers'
+  | 'collect_mul_numbers';
 
 export class ASymbol {
   name: string;

@@ -1,5 +1,5 @@
 import { AstNode, ASymbol } from "../ast.js";
-import { initCore } from "../rules/ruletable.js";
+import { initCore } from "../ruletable.js";
 import { Runtime } from "../runtime.js";
 
 console.log("=== Solve and Eq Tests ===\n");
