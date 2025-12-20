@@ -6,6 +6,84 @@
 // States represent "shapes" of expressions, and transitions encode solving strategies.
 
 import { Runtime } from "./runtime.js";
+import { AstNode } from "./ast.js";
+import { degreeInX, containsVariable } from "./degree.js";
+
+/**
+ * Guard function for linear_in_x state.
+ * Checks if an equation is linear (degree <= 1) in all variables.
+ *
+ * Strategy:
+ * 1. Extract lhs and rhs from eq(lhs, rhs)
+ * 2. Collect all variables from both sides
+ * 3. Check that degree is at most 1 in each variable on both sides
+ * 4. Check that at least one variable appears
+ */
+function isLinearEquation(expr: AstNode, bindings: Record<string, AstNode>): boolean {
+  // Verify this is an equation
+  if (expr.kind !== "func" || expr.value !== "eq") {
+    return false;
+  }
+
+  const children = expr.children ?? [];
+  if (children.length !== 2) {
+    return false;
+  }
+
+  const [lhs, rhs] = children;
+
+  // Collect all variable names from both sides
+  const variables = new Set<string>();
+  collectVariables(lhs, variables);
+  collectVariables(rhs, variables);
+
+  // No variables means this is not a linear equation (just constants)
+  if (variables.size === 0) {
+    return false;
+  }
+
+  // Check degree in each variable on both lhs and rhs - must be at most 1
+  for (const varName of variables) {
+    const degLhs = degreeInX(lhs, varName);
+    const degRhs = degreeInX(rhs, varName);
+
+    if (degLhs === null || degRhs === null || degLhs > 1 || degRhs > 1) {
+      // Either non-polynomial or degree > 1 (e.g., quadratic)
+      return false;
+    }
+  }
+
+  // All variables have degree <= 1 on both sides, and at least one variable exists
+  return true;
+}
+
+/**
+ * Collect all variable names from an expression.
+ */
+function collectVariables(node: AstNode, vars: Set<string>): void {
+  function visit(n: AstNode): void {
+    if (n.kind === "symbol") {
+      const sym = n.value;
+      // Type guard for ASymbol
+      if (typeof sym === "object" && sym !== null && "name" in sym) {
+        // Only collect simple variables (no index)
+        if (sym.index == null || sym.index.length === 0) {
+          vars.add(sym.name as string);
+        }
+        // Also recurse into index if present
+        for (const idx of sym.index ?? []) {
+          visit(idx);
+        }
+      }
+    }
+
+    for (const ch of n.children ?? []) {
+      visit(ch);
+    }
+  }
+
+  visit(node);
+}
 
 /**
  * Initialize standard equation-solving states and transitions.
@@ -44,6 +122,37 @@ export function initStates(runtime: Runtime): void {
     "isolated_rhs",
     "eq(?lhs, ?x)",
     ["?x"]
+  );
+
+  // ==========================================================================
+  // Linear Equation States (General)
+  // ==========================================================================
+
+  // Linear equation: equation where both sides contain only variables to first power
+  // and constants. Variables and constants can appear on either side.
+  //
+  // Examples:
+  //   eq(x, 5)              - variable on left, constant on right
+  //   eq(3, x)              - constant on left, variable on right
+  //   eq(sum(x, 2), 5)      - linear expression = constant
+  //   eq(x, sum(y, 3))      - variable = linear expression
+  //   eq(sum(2, x), sum(3, y)) - linear expressions on both sides
+  //
+  // Validation:
+  // - Pattern: eq(?lhs, ?rhs) matches all equations
+  // - Guard: isLinearEquation() checks degree <= 1 in all variables
+  //
+  // The guard performs:
+  // 1. Tree traversal to verify no powers > 1
+  // 2. Verification that only variables to power 1 and constants appear
+  // 3. Checks that at least one variable is present
+
+  // General linear equation (any form) with semantic guard
+  runtime.addState(
+    "linear_in_x",
+    "eq(?lhs, ?rhs)",
+    [],
+    isLinearEquation  // Semantic guard for degree checking
   );
 
   // ==========================================================================
@@ -286,6 +395,14 @@ export function describeStates(runtime: Runtime): string {
   lines.push("=".repeat(70));
   lines.push("EQUATION SOLVING STATES");
   lines.push("=".repeat(70));
+  lines.push("");
+
+  lines.push("LINEAR EQUATIONS (GENERAL):");
+  lines.push("  linear_in_x        : eq(?lhs, ?rhs) where both sides are linear");
+  lines.push("                       (variables to power 1 and constants only)");
+  lines.push("                       Variables/constants can be on either side");
+  lines.push("                       Uses semantic guard to validate degree <= 1");
+  lines.push("                       Correctly rejects non-linear equations");
   lines.push("");
 
   lines.push("LINEAR EQUATIONS:");

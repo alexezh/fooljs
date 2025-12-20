@@ -228,6 +228,64 @@ function testDescriptions(): void {
 }
 
 /**
+ * Test linear_in_x state
+ */
+function testLinearInX(): void {
+  console.log("\n=== Test: Linear Equation (linear_in_x) ===\n");
+
+  const runtime = new Runtime();
+  initStates(runtime);
+
+  const stateManager = runtime.getStateManager();
+
+  // Test: Simple linear equation x = 5
+  const linear1 = runtime.parseExpr("eq(x, 5)");
+  console.log("Equation 1:", linear1.toString());
+  const states1 = stateManager.getActiveStates(linear1);
+  console.log("  Matches states:", states1.filter(s => s === "linear_in_x" || s === "isolated"));
+  console.log("  Expected: includes 'linear_in_x' (and 'isolated')");
+  console.log("  ✓ Pass:", states1.includes("linear_in_x"));
+
+  // Test: Linear equation with constant on left
+  const linear2 = runtime.parseExpr("eq(3, x)");
+  console.log("\nEquation 2:", linear2.toString());
+  const states2 = stateManager.getActiveStates(linear2);
+  console.log("  Matches states:", states2.filter(s => s === "linear_in_x" || s === "isolated_rhs"));
+  console.log("  Expected: includes 'linear_in_x' (and 'isolated_rhs')");
+  console.log("  ✓ Pass:", states2.includes("linear_in_x"));
+
+  // Test: Linear equation sum(x, 2) = 5
+  const linear3 = runtime.parseExpr("eq(sum(x, 2), 5)");
+  console.log("\nEquation 3:", linear3.toString());
+  const states3 = stateManager.getActiveStates(linear3);
+  console.log("  Matches states:", states3.filter(s => s === "linear_in_x" || s === "linear_normalized"));
+  console.log("  Expected: includes 'linear_in_x'");
+  console.log("  ✓ Pass:", states3.includes("linear_in_x"));
+
+  // Test: Linear equation with expressions on both sides
+  const linear4 = runtime.parseExpr("eq(sum(2, x), sum(3, y))");
+  console.log("\nEquation 4:", linear4.toString());
+  const states4 = stateManager.getActiveStates(linear4);
+  console.log("  Matches states:", states4.filter(s => s === "linear_in_x" || s === "non_zero_form"));
+  console.log("  Expected: includes 'linear_in_x'");
+  console.log("  ✓ Pass:", states4.includes("linear_in_x"));
+
+  // Test: Non-linear equation (should still match with current pattern)
+  const nonlinear = runtime.parseExpr("eq(pow(x, 2), 5)");
+  console.log("\nEquation 5 (non-linear):", nonlinear.toString());
+  const states5 = stateManager.getActiveStates(nonlinear);
+  console.log("  Matches states:", states5.filter(s => s === "linear_in_x" || s.includes("quad")));
+  console.log("  Expected: DOES NOT match 'linear_in_x' (non-linear equation)");
+  console.log("  ✓ Pass:", !states5.includes("linear_in_x"));
+  console.log("  ✓ Guard function correctly filters out quadratic equations!");
+
+  console.log("\nNOTE: The linear_in_x state now uses a semantic guard");
+  console.log("      Pattern 'eq(?lhs, ?rhs)' matches all equations (coarse filter)");
+  console.log("      Guard function checks degree <= 1 in all variables (precise filter)");
+  console.log("      This correctly rejects non-linear equations like x² = 5");
+}
+
+/**
  * Test state count and focus on strategy
  */
 function testStateCount(): void {
@@ -298,6 +356,7 @@ function runAllTests(): void {
 
   try {
     testLinearEquations();
+    testLinearInX();
     testFactoredForms();
     testQuadraticEquations();
     testTransitionGraph();

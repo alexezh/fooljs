@@ -1,6 +1,6 @@
 import { AstNode, ASymbol, Constraint, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
-import { StateManager } from "./state.js";
+import { StateManager, StateGuard } from "./state.js";
 
 type RuleNode = {
   def: string,
@@ -262,8 +262,8 @@ export class Runtime {
    * Convenience methods for state management
    */
 
-  addState(name: string, patternStr: string, params: string[] = []): void {
-    this.stateManager.addState(name, patternStr, params);
+  addState(name: string, patternStr: string, params: string[] = [], guard?: StateGuard): void {
+    this.stateManager.addState(name, patternStr, params, guard);
   }
 
   addTransition(fromState: string, rule: string, toState: string, weight: number = 1.0): void {

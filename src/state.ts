@@ -15,27 +15,39 @@ import { AstNode } from "./ast.js";
 import { Runtime } from "./runtime.js";
 
 /**
+ * Guard function type for state validation.
+ * Takes the matched expression and pattern bindings, returns true if state should match.
+ */
+export type StateGuard = (expr: AstNode, bindings: Record<string, AstNode>) => boolean;
+
+/**
  * A State is a named pattern over expressions.
  *
  * Example:
  *   state quad_leading1(?x) := eq(sum(pow(?x, 2), mul(?k, ?x), ?d), 0)
  *
  * Any concrete equation matching this pattern is "in" this state.
+ *
+ * States can optionally have a guard function for additional semantic checks
+ * beyond pattern matching (e.g., checking polynomial degree).
  */
 export class State {
   name: string;
   pattern: AstNode;
   params: string[]; // e.g., ['?x'] - the pattern variables that parameterize this state
+  guard?: StateGuard; // Optional semantic guard for additional validation
 
-  constructor(name: string, pattern: AstNode, params: string[] = []) {
+  constructor(name: string, pattern: AstNode, params: string[] = [], guard?: StateGuard) {
     this.name = name;
     this.pattern = pattern;
     this.params = params;
+    this.guard = guard;
   }
 
   toString(): string {
     const paramsStr = this.params.length > 0 ? `(${this.params.join(', ')})` : '';
-    return `${this.name}${paramsStr} := ${this.pattern.toString()}`;
+    const guardStr = this.guard ? ' [guarded]' : '';
+    return `${this.name}${paramsStr} := ${this.pattern.toString()}${guardStr}`;
   }
 }
 
@@ -83,10 +95,11 @@ export class StateManager {
    * @param name - The state name (e.g., "quad_leading1")
    * @param patternStr - The pattern as a string (e.g., "eq(sum(pow(?x, 2), mul(?k, ?x), ?d), 0)")
    * @param params - Optional parameter list (e.g., ["?x"])
+   * @param guard - Optional guard function for additional semantic validation
    */
-  addState(name: string, patternStr: string, params: string[] = []): void {
+  addState(name: string, patternStr: string, params: string[] = [], guard?: StateGuard): void {
     const pattern = this.runtime.parseExpr(patternStr);
-    const state = new State(name, pattern, params);
+    const state = new State(name, pattern, params, guard);
     this.states.set(name, state);
   }
 
@@ -138,6 +151,7 @@ export class StateManager {
 
   /**
    * Find all states whose pattern matches the given expression.
+   * Also checks guard functions if present.
    *
    * @param expr - The expression to match against state patterns
    * @returns Array of state names that match
@@ -148,7 +162,20 @@ export class StateManager {
     for (const [stateName, state] of this.states) {
       const matchResult = this.runtime.matchPattern(state.pattern, expr);
       if (matchResult !== undefined) {
-        activeStates.push(stateName);
+        // Pattern matched, now check guard if present
+        if (state.guard) {
+          // Convert Map to Record for guard function
+          const bindings: Record<string, AstNode> = {};
+          for (const [key, value] of matchResult) {
+            bindings[key] = value;
+          }
+          if (state.guard(expr, bindings)) {
+            activeStates.push(stateName);
+          }
+        } else {
+          // No guard, pattern match is sufficient
+          activeStates.push(stateName);
+        }
       }
     }
 
