@@ -3,7 +3,6 @@ import { parse } from "./parser.js";
 import { initRules } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
 import { aStarSearch, getSolutionString } from "./search.js";
-import { initStates } from "./statetable.js";
 
 function parseEquation(s: string): AstNode {
   let ast = parse(s);
@@ -27,7 +26,7 @@ function main(): void {
   //const exprStr = '7x^2 - 2 = 0'
 
   initRules(Runtime.instance);
-  initStates(Runtime.instance);
+  //initStates(Runtime.instance);
   let ast = parseEquation(exprStr);
 
   const res = aStarSearch(ast);

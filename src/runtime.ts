@@ -1,6 +1,6 @@
 import { AstNode, ASymbol, Constraint, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
-import { StateManager, StateGuard } from "./state.js";
+//import { StateManager, StateGuard } from "./state.js";
 
 type RuleNode = {
   def: string,
@@ -13,12 +13,12 @@ type RuleNode = {
 export class Runtime {
   private rules: RuleNode[] = [];
   private byFunc = new Map<string, RuleNode>();
-  private stateManager: StateManager;
+  //private stateManager: StateManager;
 
   static instance: Runtime = new Runtime();
 
   constructor() {
-    this.stateManager = new StateManager(this);
+    //this.stateManager = new StateManager(this);
   }
 
   init(): void {
@@ -28,9 +28,9 @@ export class Runtime {
   /**
    * Get the state manager for this runtime.
    */
-  getStateManager(): StateManager {
-    return this.stateManager;
-  }
+  // getStateManager(): StateManager {
+  //   return this.stateManager;
+  // }
 
   addRule(args: string, matchFunc: MatchFunc | undefined): void {
     let ruleAst: AstNode;
@@ -162,7 +162,7 @@ export class Runtime {
       if (patArgs.length !== 2 || exprArgs.length !== 2) return false;
 
       return this.matchPatternInternal(patArgs[0], exprArgs[0], bindings) &&
-             this.matchPatternInternal(patArgs[1], exprArgs[1], bindings);
+        this.matchPatternInternal(patArgs[1], exprArgs[1], bindings);
     }
 
     // List: match elements
@@ -262,19 +262,19 @@ export class Runtime {
    * Convenience methods for state management
    */
 
-  addState(name: string, patternStr: string, params: string[] = [], guard?: StateGuard): void {
-    this.stateManager.addState(name, patternStr, params, guard);
-  }
+  // addState(name: string, patternStr: string, params: string[] = [], guard?: StateGuard): void {
+  //   this.stateManager.addState(name, patternStr, params, guard);
+  // }
 
-  addTransition(fromState: string, rule: string, toState: string, weight: number = 1.0): void {
-    this.stateManager.addTransition(fromState, rule, toState, weight);
-  }
+  // addTransition(fromState: string, rule: string, toState: string, weight: number = 1.0): void {
+  //   this.stateManager.addTransition(fromState, rule, toState, weight);
+  // }
 
-  updateTransitionWeight(fromState: string, rule: string, deltaWeight: number): void {
-    this.stateManager.updateTransitionWeight(fromState, rule, deltaWeight);
-  }
+  // updateTransitionWeight(fromState: string, rule: string, deltaWeight: number): void {
+  //   this.stateManager.updateTransitionWeight(fromState, rule, deltaWeight);
+  // }
 
-  printStateGraph(): string {
-    return this.stateManager.printGraph();
-  }
+  // printStateGraph(): string {
+  //   return this.stateManager.printGraph();
+  // }
 }
