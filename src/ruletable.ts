@@ -220,12 +220,12 @@ export function initRules(runtime: Runtime) {
     ["fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])", ruleFoldStep],
 
     // Fold - Accumulator for sum
-    ["collect_sum_numbers(acc([?rest...], ?total), ?n) => acc([?rest...], sum(?total, ?n)) where ?n is number", ruleCollectSumNumber],
-    ["collect_sum_numbers(acc([?rest...], ?total), ?e) => acc([?rest..., ?e], ?total)", ruleCollectSumNonNumber],
+    // ["collect_sum_numbers(acc([?rest...], ?total), ?n) => acc([?rest...], sum(?total, ?n)) where ?n is number", ruleCollectSumNumber],
+    // ["collect_sum_numbers(acc([?rest...], ?total), ?e) => acc([?rest..., ?e], ?total)", ruleCollectSumNonNumber],
 
     // Fold - Accumulator for multiplication
-    ["collect_mul_numbers(acc([?rest...], ?product), ?n) => acc([?rest...], mul(?product, ?n)) where ?n is number", ruleCollectMulNumber],
-    ["collect_mul_numbers(acc([?rest...], ?product), ?e) => acc([?rest..., ?e], ?product)", ruleCollectMulNonNumber],
+    // ["collect_mul_numbers(acc([?rest...], ?product), ?n) => acc([?rest...], mul(?product, ?n)) where ?n is number", ruleCollectMulNumber],
+    // ["collect_mul_numbers(acc([?rest...], ?product), ?e) => acc([?rest..., ?e], ?product)", ruleCollectMulNonNumber],
 
     // Fold - Apply fold to sum and mul
     // ["sum(?args...) => fold(collect_sum_numbers, acc([], 0), [?args...])", ruleSumFold],

@@ -4,7 +4,6 @@ export type SkillKind = "rewrite_rule" | "macro_action" | "tagger";
 
 export interface SkillDescriptor {
   id: string;
-  kind: SkillKind;
   name: string;
 
   // For rules: DSL rule string; for macro: plan; for tagger: pattern+guard.

@@ -1,5 +1,6 @@
 import { AstNode, ASymbol, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
+import { Path, Goal } from "./planner/plannercore.js";
 import { RuleNode, Runtime } from "./runtime.js";
 
 export class RuntimeImpl implements Runtime {
@@ -11,6 +12,33 @@ export class RuntimeImpl implements Runtime {
 
   constructor() {
     //this.stateManager = new StateManager(this);
+  }
+  getAt(root: AstNode, path: Path): AstNode {
+    throw new Error("Method not implemented.");
+  }
+  setAt(root: AstNode, path: Path, newSubtree: AstNode): AstNode {
+    throw new Error("Method not implemented.");
+  }
+  walk(root: AstNode, cb: (node: AstNode, path: Path) => void): void {
+    throw new Error("Method not implemented.");
+  }
+  matches(patternStr: string, node: AstNode): boolean {
+    throw new Error("Method not implemented.");
+  }
+  tryApplyRuleAt(ruleId: string, root: AstNode, path: Path): AstNode | null {
+    throw new Error("Method not implemented.");
+  }
+  goalMet(root: AstNode, goal: Goal): boolean {
+    throw new Error("Method not implemented.");
+  }
+  equivalent(a: AstNode, b: AstNode): boolean {
+    throw new Error("Method not implemented.");
+  }
+  sampleGrounding?(root: AstNode): Record<string, number> {
+    throw new Error("Method not implemented.");
+  }
+  evalWithEnv?(expr: AstNode, env: Record<string, number>): number {
+    throw new Error("Method not implemented.");
   }
 
   init(): void {

@@ -3,6 +3,7 @@ import { AbstractionProposer, LlmClient, Orchestrator, SkillExecutor, SkillRegis
 import { parse } from "./parser.js";
 import { initRules } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
+import { RuntimeImpl } from "./runtimeimpl.js";
 import { aStarSearch, getSolutionString } from "./search.js";
 
 function parseEquation(s: string): AstNode {
@@ -26,7 +27,7 @@ function main_search(): void {
   const exprStr = '7x + 2 = 3'
   //const exprStr = '7x^2 - 2 = 0'
 
-  initRules(Runtime.instance);
+  initRules(RuntimeImpl.instance);
   //initStates(Runtime.instance);
   let ast = parseEquation(exprStr);
 
@@ -83,9 +84,9 @@ function seedBaselineSkills(registry: SkillRegistry) {
 
   registry.add({
     id: "NormalizeEq",
-    kind: "macro_action",
     name: "Normalize equation to zero-form",
     payload: {
+      kind: "macro_action",
       steps: [{ ruleId: "ruleEqNormalize" }],
       budget: 1,
     },
@@ -94,9 +95,9 @@ function seedBaselineSkills(registry: SkillRegistry) {
 
   registry.add({
     id: "SimplifyLocal",
-    kind: "macro_action",
     name: "Local simplification pass (bounded)",
     payload: {
+      kind: "macro_action",
       steps: [
         { ruleId: "ruleParenRemove" },
         { ruleId: "ruleDoubleNeg" },
@@ -112,9 +113,9 @@ function seedBaselineSkills(registry: SkillRegistry) {
 
   registry.add({
     id: "SolveLinearZeroForm",
-    kind: "macro_action",
     name: "Solve kx + c = 0  (schema)",
     payload: {
+      kind: "macro_action",
       // In your ruleset, this might be one rule (ruleSolveLinear) after normalization.
       steps: [{ ruleId: "ruleSolveLinear" }],
       budget: 1,
@@ -231,11 +232,11 @@ async function main(runtime: Runtime) {
   // Inspect what new skills were accepted
   console.log("=== SKILLS IN REGISTRY ===");
   for (const s of registry.list()) {
-    console.log(`${s.id} (${s.kind}) - ${s.name}`);
+    console.log(`${s.id} (${s.payload.kind}) - ${s.name}`);
   }
 }
 
 // Call main(runtime) from your bootstrap after initCore(runtime), etc.
 // main(runtime).catch(console.error);
 
-await main(Runtime.instance);
+await main(RuntimeImpl.instance);

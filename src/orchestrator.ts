@@ -23,7 +23,7 @@
 import { Policy } from "./planner/policy.js";
 import { SolveTrace } from "./planner/solvetrace.js";
 import { Runtime } from "./runtime.js";
-import { SkillDescriptor } from "./skilldescriptor.js";
+import { MacroActionPayload, RewriteRulePayload, SkillDescriptor, TaggerPayload } from "./skilldescriptor.js";
 
 // ----------------------------
 // 1) Skill representations
@@ -105,20 +105,10 @@ export class LlmClient {
 // - candidate SkillDescriptor(s)
 // Parse format: JSON (strict), so verifier can consume.
 
-export class AbstractionProposer {
-  constructor(private readonly llm: LlmClient) { }
+const systemPrompt = `
+You propose NEW abstractions for a symbolic rewrite/solve system.
 
-  async proposeFromTraces(input: {
-    traces: SolveTrace[];
-    maxProposals?: number;
-    domainNotes?: string;
-  }): Promise<SkillDescriptor[]> {
-    const system: ChatMessage = {
-      role: "system",
-      content:
-        `You propose NEW abstractions for a symbolic rewrite/planning system.
-
-Return ONLY valid JSON (no markdown), as:
+Return ONLY valid JSON (no markdown, no extra text), in this schema:
 {
   "proposals": [
     {
@@ -132,12 +122,85 @@ Return ONLY valid JSON (no markdown), as:
   ]
 }
 
-Constraints:
-- For rewrite_rule payload: { "rule": "<dsl rule string>", "preconditions": ["...optional..."] }
-- For macro_action payload: { "steps": [ { "ruleId": "...", "when": "optional predicate" } ], "budget": number }
-- For tagger payload: { "pattern": "<dsl pattern>", "notes": "optional", "priority": number }
-- Proposals must be general (transferable), not tied to a single specific numeric example.
-- Keep proposals few and high-value.`,
+=== DSL syntax ===
+Expressions:
+- numbers: 1, 42
+- symbols: x, y, a1, x2
+- pattern variables: ?x, ?lhs, ?rest...
+- function calls: f(arg1, arg2, ...)
+- lists: [a, b, c] with variadics like [?x, ?xs...]
+- rewrite rules: "<lhs> => <rhs>" optionally with "where" constraints
+
+Pattern variables:
+- ?x matches one node
+- ?rest... matches 0+ nodes (only inside argument lists or list literals)
+
+Constraints (ONLY these predicates are allowed):
+- number
+- nonneg_number
+- positive_number
+- symbol_name
+- func_name
+
+Allowed function/operator names (do NOT invent new ones):
+sum, mul, div, sub, neg, pow, sqrt, paren,
+eq, solve, solved_for, step, eval,
+sym, def,
+count, fold, acc, prod,
+log, exp.
+
+=== Proposal payloads ===
+
+1) rewrite_rule payload:
+{
+  "rule": "<DSL rule string>",
+  "ruleType": "simp" | "normalize" | "compute" | "strategy",
+  "whenPattern": "<optional DSL pattern guard>",
+  "measureImproved": ["<optional strings>"],
+  "notes": "<optional>"
+}
+
+Requirements:
+- ruleType in {"simp","normalize","compute"} MUST preserve semantics (equivalence).
+- ruleType="strategy" MAY change shape without guaranteed equivalence, but MUST include:
+  - whenPattern (required)
+  - measureImproved (required)
+Strategy rules should be rare and high-value.
+
+2) macro_action payload:
+{
+  "steps": [
+    { "rule": "<DSL rule string>", "whenPattern": "<optional DSL pattern>", "focus": "root|same" }
+  ],
+  "budget": <number>
+}
+
+Macro-action steps contain full DSL rules (NOT ruleIds). Keep budget small (<= 12).
+
+3) tagger payload:
+{
+  "pattern": "<DSL pattern>",
+  "tag": "<string>",
+  "priority": <number>
+}
+
+=== Guidance ===
+- Prefer general reusable transformations (normalization, simplification, collecting constants/like-terms).
+- Avoid creating pairs of inverse rules that would loop.
+- Keep proposals few (<=5) and high value.
+`;
+
+export class AbstractionProposer {
+  constructor(private readonly llm: LlmClient) { }
+
+  async proposeFromTraces(input: {
+    traces: SolveTrace[];
+    maxProposals?: number;
+    domainNotes?: string;
+  }): Promise<SkillDescriptor[]> {
+    const system: ChatMessage = {
+      role: "system",
+      content: systemPrompt,
     };
 
     const user: ChatMessage = {
@@ -196,20 +259,20 @@ export class SymbolicVerifier {
   constructor(private readonly runtime: Runtime) { }
 
   verify(skill: SkillDescriptor, testSet: any[]): VerificationResult {
-    switch (skill.kind) {
+    switch (skill.payload.kind) {
       case "rewrite_rule":
-        return this.verifyRewriteRule(skill, testSet);
+        return this.verifyRewriteRule(skill.payload, testSet);
       case "macro_action":
-        return this.verifyMacroAction(skill, testSet);
+        return this.verifyMacroAction(skill.payload, testSet);
       case "tagger":
-        return this.verifyTagger(skill, testSet);
+        return this.verifyTagger(skill.payload, testSet);
       default:
         return { ok: false, reason: `Unknown skill kind: ${(skill as any).kind}` };
     }
   }
 
-  private verifyRewriteRule(skill: SkillDescriptor, testSet: any[]): VerificationResult {
-    const ruleStr = skill.payload?.rule;
+  private verifyRewriteRule(payload: RewriteRulePayload, testSet: any[]): VerificationResult {
+    const ruleStr = payload?.ruleId;
     if (typeof ruleStr !== "string" || ruleStr.length < 3) {
       return { ok: false, reason: "Missing payload.rule string" };
     }
@@ -232,9 +295,9 @@ export class SymbolicVerifier {
     return { ok: true };
   }
 
-  private verifyMacroAction(skill: SkillDescriptor, testSet: any[]): VerificationResult {
-    const steps = skill.payload?.steps;
-    const budget = skill.payload?.budget ?? 10;
+  private verifyMacroAction(payload: MacroActionPayload, testSet: any[]): VerificationResult {
+    const steps = payload?.steps;
+    const budget = payload?.budget ?? 10;
     if (!Array.isArray(steps) || steps.length === 0) {
       return { ok: false, reason: "Missing payload.steps" };
     }
@@ -272,8 +335,8 @@ export class SymbolicVerifier {
     return { ok: true };
   }
 
-  private verifyTagger(skill: SkillDescriptor, _testSet: any[]): VerificationResult {
-    const pattern = skill.payload?.pattern;
+  private verifyTagger(payload: TaggerPayload, _testSet: any[]): VerificationResult {
+    const pattern = payload?.pattern;
     if (typeof pattern !== "string") return { ok: false, reason: "Missing payload.pattern" };
 
     // Taggers don't change semantics; verify they compile and run without crashing.
@@ -314,7 +377,7 @@ export class SkillExecutor {
     const s = this.registry.get(skillId);
     if (!s) return { nextRoot: root, applied: false };
 
-    if (s.kind === "rewrite_rule") {
+    if (s.payload.kind === "rewrite_rule") {
       // You can store a ruleId in payload, or compile rule string to ruleId at registration time.
       const ruleId = s.payload?.ruleId;
       if (typeof ruleId !== "string") return { nextRoot: root, applied: false };
@@ -323,7 +386,7 @@ export class SkillExecutor {
       return next ? { nextRoot: next, applied: true } : { nextRoot: root, applied: false };
     }
 
-    if (s.kind === "macro_action") {
+    if (s.payload.kind === "macro_action") {
       const steps = s.payload?.steps ?? [];
       const budget = s.payload?.budget ?? 8;
       let cur = root;
@@ -392,7 +455,7 @@ export class Orchestrator {
       }
 
       const available = this.registry.list()
-        .filter(s => s.kind === "macro_action" || s.kind === "rewrite_rule");
+        .filter(s => s.payload.kind === "macro_action" || s.payload.kind === "rewrite_rule");
 
       const choice = this.policy.chooseAction({
         root,
