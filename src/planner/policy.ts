@@ -26,7 +26,7 @@ export interface Policy {
     root: any;
     goal: any;
     focusCandidates: number[][];
-    availableSkills: SkillDescriptor[];
+    registry: SkillRegistry;
   }): { skillId: string; focus: number[] } | null;
 
   // Learn from outcomes

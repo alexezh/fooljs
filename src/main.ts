@@ -1,6 +1,6 @@
 import { AstNode, ASymbol } from "./ast.js";
 import { LlmClientLlama } from "./llmclient.js";
-import { AbstractionProposer, LlmClient, Orchestrator, SkillExecutor, SkillRegistry, SymbolicVerifier } from "./orchestrator.js";
+import { AbstractionProposer, LlmClient, Orchestrator, SymbolicVerifier } from "./orchestrator.js";
 import { parse } from "./parser.js";
 import { Goal } from "./planner/plannercore.js";
 import { initRules } from "./ruletable.js";
@@ -8,6 +8,8 @@ import { Runtime } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
 import { aStarSearch, getSolutionString } from "./search.js";
 import { SkillDescriptor } from "./skilldescriptor.js";
+import { SkillExecutor } from "./skillexecutor.js";
+import { SkillRegistry } from "./skillregistry.js";
 
 function parseEquation(s: string): AstNode {
   let ast = parse(s);
@@ -152,7 +154,7 @@ class DumbPolicy {
     return candidates.map((c, i) => ({ ...c, score: candidates.length - i }));
   }
 
-  chooseAction({ root, goal, focusCandidates, availableSkills }: { root: AstNode, goal: Goal, focusCandidates, availableSkills: SkillDescriptor[] }) {
+  chooseAction({ root, goal, focusCandidates, registry }: { root: AstNode, goal: Goal, focusCandidates, registry: SkillRegistry }) {
     console.log(`\n[DumbPolicy] Step ${this.stepCount}, Available skills:`, availableSkills.map((s: any) => s.id));
 
     const has = (idPattern: string) => availableSkills.some((s: SkillDescriptor) => s.id.includes(idPattern));
