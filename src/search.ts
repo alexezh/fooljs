@@ -1,6 +1,7 @@
 import { AstNode } from "./ast.js";
 import { MinHeap } from "./minheap.js";
 import { Runtime } from "./runtime.js";
+import { RuntimeImpl } from "./runtimeimpl.js";
 import { SearchState } from "./tests/searchstate.js";
 
 export function getSolutionString(st: SearchState): string {
@@ -58,7 +59,7 @@ class OpenSet {
  */
 export function aStarSearch(
   start: AstNode,
-  runtime: Runtime = Runtime.instance,
+  runtime: Runtime = RuntimeImpl.instance,
   goalFn: (node: AstNode) => boolean = isGoal,
   maxStates: number = 10000
 ): SearchState | null {
@@ -106,7 +107,7 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
   //const stateManager = Runtime.instance.getStateManager();
 
   // find all rules which match
-  const rewriters = Runtime.instance.matchRule(node);
+  const rewriters = RuntimeImpl.instance.matchRule(node);
   for (const rewrite of rewriters) {
     const successorKey = rewrite.toString();
 

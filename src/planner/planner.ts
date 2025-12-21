@@ -16,8 +16,10 @@
 // - A simple trainable policy interface (bandit/Q-style)
 // - A solver/planner loop that wires them together
 
+import { AstNode } from "../ast.js";
+import { Runtime } from "../runtime.js";
 import { DefaultFocusSelector } from "./defaultfocus.js";
-import { FeatureExtractor, FeatureVector, FocusSelector, Goal, MetaAction, Runtime } from "./plannercore.js";
+import { FeatureExtractor, FeatureVector, FocusSelector, Goal, MetaAction } from "./plannercore.js";
 import { ActionCandidate, candidateKey, Policy, RankedCandidate } from "./policy.js";
 
 // ----------------------------
@@ -52,7 +54,7 @@ export class Planner {
     private readonly cfg: PlannerConfig = { maxSteps: 50, maxFocus: 20, tryTopK: 5 }
   ) { }
 
-  run(initialRoot: any, goal: Goal): PlannerResult {
+  run(initialRoot: AstNode, goal: Goal): PlannerResult {
     let root = initialRoot;
     const trace: PlannerResult["trace"] = [];
 

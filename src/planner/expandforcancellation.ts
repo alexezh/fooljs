@@ -1,6 +1,7 @@
 // Example meta-action: ExpandForCancellation (apply distributive expansion rules if useful)
 
-import { ActionResult, Goal, MetaAction, Path, Runtime } from "./plannercore.js";
+import { Runtime } from "../runtime.js";
+import { ActionResult, Goal, MetaAction, Path } from "./plannercore.js";
 
 // Here we keep it as a placeholder; you wire your own rule ids + heuristics.
 export class ExpandForCancellation implements MetaAction {

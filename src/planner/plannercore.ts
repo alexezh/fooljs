@@ -1,3 +1,6 @@
+import { AstNode } from "../ast";
+import type { Runtime } from "../runtime";
+
 export type Path = Array<number>; // e.g. child indices from root
 
 export type Goal =
@@ -5,24 +8,6 @@ export type Goal =
   | { kind: "simplify" }
   | { kind: "solve_for"; x: string } // variable name (or your ASymbol)
   | { kind: "normalize" };
-
-export interface Runtime {
-  // Tree navigation / update
-  getAt(root: any, path: Path): any;
-  setAt(root: any, path: Path, newSubtree: any): any;
-  walk(root: any, cb: (node: any, path: Path) => void): void;
-
-  // Matching and rule application (you have these already)
-  matches(patternStr: string, node: any): boolean;
-  tryApplyRuleAt(ruleId: string, root: any, path: Path): any | null;
-
-  // Optional: apply best single rewrite among a set at a location
-  // (or just call tryApplyRuleAt in a loop)
-  // tryApplyAnyRuleAt(ruleIds: string[], root: any, path: Path): any | null;
-
-  // Optional: goal checks
-  goalMet(root: any, goal: Goal): boolean;
-}
 
 // ----------------------------
 // 1) Features (pluggable, no AST details here)
@@ -32,11 +17,11 @@ export type FeatureVector = Record<string, number | boolean | string>;
 
 export interface FeatureExtractor {
   // Return features for (root, goal, focusPath)
-  extract(runtime: Runtime, root: any, goal: Goal, focus: Path): FeatureVector;
+  extract(runtime: Runtime, root: AstNode, goal: Goal, focus: Path): FeatureVector;
 
   // Optional: compute a scalar progress score for reward shaping
   // (bigger is better)
-  score?(runtime: Runtime, root: any, goal: Goal): number;
+  score?(runtime: Runtime, root: AstNode, goal: Goal): number;
 }
 
 // ----------------------------
@@ -45,7 +30,7 @@ export interface FeatureExtractor {
 
 export interface FocusSelector {
   // Return a list of focus points (paths). Keep it bounded.
-  select(runtime: Runtime, root: any, goal: Goal, maxFocus: number): Path[];
+  select(runtime: Runtime, root: AstNode, goal: Goal, maxFocus: number): Path[];
 }
 
 // ----------------------------
@@ -68,8 +53,8 @@ export interface MetaAction {
   id: ActionId;
 
   // Quick filter: should this action be considered at this focus?
-  applicable(runtime: Runtime, root: any, goal: Goal, focus: Path): boolean;
+  applicable(runtime: Runtime, root: AstNode, goal: Goal, focus: Path): boolean;
 
   // Apply bounded work. Must terminate quickly.
-  apply(runtime: Runtime, root: any, goal: Goal, focus: Path): ActionResult | null;
+  apply(runtime: Runtime, root: AstNode, goal: Goal, focus: Path): ActionResult | null;
 }

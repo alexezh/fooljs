@@ -1,0 +1,473 @@
+// =============================================================================
+// Skeleton: LLM proposes abstractions → Symbolic core verifies → RL decides when to use
+// Using a REST Chat API to talk to an LLM (OpenAI-compatible style).
+// =============================================================================
+//
+// Notes:
+// - This is a wiring skeleton, not a full engine.
+// - You already have: Runtime (AST, matcher, rule application), equivalence checks, etc.
+// - "Abstractions" here can be:
+//    (A) new RULES (rewrite rules)
+//    (B) new MACRO-ACTIONS (bounded sequences of rule ids)
+//    (C) new MATCHERS / TAGGERS (state predicates)
+// - We keep math semantics in your symbolic core; LLM proposals are always verified.
+//
+// Key modules:
+// 1) LlmClient: REST chat API wrapper
+// 2) AbstractionProposer: prompt+parse proposals
+// 3) SymbolicVerifier: test + equivalence + termination checks
+// 4) SkillRegistry: store accepted skills (rules/macros/taggers)
+// 5) Policy (RL): choose when to invoke which macro/skill
+// 6) Orchestrator: training loop + online loop
+
+import { Policy } from "./planner/policy.js";
+import { SolveTrace } from "./planner/solvetrace.js";
+import { Runtime } from "./runtime.js";
+import { SkillDescriptor } from "./skilldescriptor.js";
+
+// ----------------------------
+// 1) Skill representations
+// ----------------------------
+
+export class SkillRegistry {
+  private skills: Map<string, SkillDescriptor> = new Map();
+
+  list(): SkillDescriptor[] {
+    return [...this.skills.values()];
+  }
+
+  get(id: string): SkillDescriptor | undefined {
+    return this.skills.get(id);
+  }
+
+  add(skill: SkillDescriptor): void {
+    if (this.skills.has(skill.id)) return;
+    this.skills.set(skill.id, skill);
+  }
+}
+
+// ----------------------------
+// 2) REST Chat API client (OpenAI-compatible style)
+// ----------------------------
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+export interface ChatResponse {
+  content: string;
+  raw?: any;
+}
+
+export class LlmClient {
+  constructor(
+    private readonly endpointUrl: string,
+    private readonly apiKey: string,
+    private readonly model: string
+  ) { }
+
+  async chat(messages: ChatMessage[], opts?: { temperature?: number }): Promise<ChatResponse> {
+    const body = {
+      model: this.model,
+      messages,
+      temperature: opts?.temperature ?? 0.2,
+    };
+
+    const res = await fetch(this.endpointUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`LLM chat failed: ${res.status} ${text}`);
+    }
+
+    const json = await res.json();
+    // OpenAI-ish: json.choices[0].message.content
+    const content = json?.choices?.[0]?.message?.content ?? "";
+    return { content, raw: json };
+  }
+}
+
+// ----------------------------
+// 3) LLM → propose abstractions
+// ----------------------------
+//
+// Input:
+// - traces (successful trajectories) or failure cases
+// Output:
+// - candidate SkillDescriptor(s)
+// Parse format: JSON (strict), so verifier can consume.
+
+export class AbstractionProposer {
+  constructor(private readonly llm: LlmClient) { }
+
+  async proposeFromTraces(input: {
+    traces: SolveTrace[];
+    maxProposals?: number;
+    domainNotes?: string;
+  }): Promise<SkillDescriptor[]> {
+    const system: ChatMessage = {
+      role: "system",
+      content:
+        `You propose NEW abstractions for a symbolic rewrite/planning system.
+
+Return ONLY valid JSON (no markdown), as:
+{
+  "proposals": [
+    {
+      "id": "string",
+      "kind": "rewrite_rule" | "macro_action" | "tagger",
+      "name": "string",
+      "payload": { ... },
+      "tags": ["..."],
+      "rationale": "short"
+    }
+  ]
+}
+
+Constraints:
+- For rewrite_rule payload: { "rule": "<dsl rule string>", "preconditions": ["...optional..."] }
+- For macro_action payload: { "steps": [ { "ruleId": "...", "when": "optional predicate" } ], "budget": number }
+- For tagger payload: { "pattern": "<dsl pattern>", "notes": "optional", "priority": number }
+- Proposals must be general (transferable), not tied to a single specific numeric example.
+- Keep proposals few and high-value.`,
+    };
+
+    const user: ChatMessage = {
+      role: "user",
+      content:
+        `Traces (JSON):
+${JSON.stringify(input.traces).slice(0, 60_000)}  // cap to avoid huge payload
+
+Domain notes:
+${input.domainNotes ?? ""}
+
+Please produce up to ${input.maxProposals ?? 5} proposals.`,
+    };
+
+    const resp = await this.llm.chat([system, user], { temperature: 0.2 });
+    const parsed = safeJsonParse(resp.content);
+    const proposals = Array.isArray(parsed?.proposals) ? parsed.proposals : [];
+
+    // Convert to SkillDescriptors
+    return proposals.map((p: any) => ({
+      id: String(p.id),
+      kind: p.kind,
+      name: String(p.name),
+      payload: p.payload,
+      tags: p.tags ?? [],
+      createdFrom: {
+        traceId: input.traces[0]?.traceId,
+        llmModel: (this.llm as any).model ?? "unknown",
+        timestamp: new Date().toISOString(),
+      },
+    }));
+  }
+}
+
+function safeJsonParse(s: string): any {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+// ----------------------------
+// 4) Symbolic core → verify proposals
+// ----------------------------
+//
+// Verification strategies (pick what you can support):
+// - Equivalence check using canonicalization / rewriting to normal form
+// - Random testing via evaluation with random variable assignments
+// - Termination / no-blowup checks for macros (bounded steps, size caps)
+// - Non-regression tests on a labeled set
+
+export interface VerificationResult {
+  ok: boolean;
+  reason?: string;
+  evidence?: any;
+}
+
+export class SymbolicVerifier {
+  constructor(private readonly runtime: Runtime) { }
+
+  verify(skill: SkillDescriptor, testSet: any[]): VerificationResult {
+    switch (skill.kind) {
+      case "rewrite_rule":
+        return this.verifyRewriteRule(skill, testSet);
+      case "macro_action":
+        return this.verifyMacroAction(skill, testSet);
+      case "tagger":
+        return this.verifyTagger(skill, testSet);
+      default:
+        return { ok: false, reason: `Unknown skill kind: ${(skill as any).kind}` };
+    }
+  }
+
+  private verifyRewriteRule(skill: SkillDescriptor, testSet: any[]): VerificationResult {
+    const ruleStr = skill.payload?.rule;
+    if (typeof ruleStr !== "string" || ruleStr.length < 3) {
+      return { ok: false, reason: "Missing payload.rule string" };
+    }
+
+    // Skeleton approach:
+    // - For each test expr, try to apply rule at root if it matches,
+    // - If it applies, ensure equivalence holds.
+    for (const expr of testSet) {
+      // Only test when applicable (you likely have a matcher for LHS inside the runtime)
+      // Here we assume you can register a temporary ruleId or interpret the ruleStr directly.
+      // If you can't apply ruleStr directly, convert it to a ruleId first in your system.
+      const applied = tryApplyEphemeralRule(this.runtime, ruleStr, expr);
+      if (!applied) continue;
+
+      if (!this.runtime.equivalent(expr, applied)) {
+        return { ok: false, reason: "Equivalence failed on some test", evidence: { expr, applied, ruleStr } };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  private verifyMacroAction(skill: SkillDescriptor, testSet: any[]): VerificationResult {
+    const steps = skill.payload?.steps;
+    const budget = skill.payload?.budget ?? 10;
+    if (!Array.isArray(steps) || steps.length === 0) {
+      return { ok: false, reason: "Missing payload.steps" };
+    }
+
+    // Basic checks: bounded, no catastrophic blowup, preserves equivalence
+    for (const expr of testSet) {
+      let cur = expr;
+      let appliedAny = false;
+
+      for (let i = 0; i < Math.min(budget, steps.length); i++) {
+        const step = steps[i];
+        const rid = step?.ruleId;
+        if (typeof rid !== "string") continue;
+
+        // In a real macro, you apply at a focus; here we apply at root for skeleton.
+        const next = this.runtime.tryApplyRuleAt(rid, cur, []);
+        if (next) {
+          appliedAny = true;
+
+          // Equivalence check at every step (strong but safe)
+          if (!this.runtime.equivalent(cur, next)) {
+            return { ok: false, reason: "Macro step broke equivalence", evidence: { rid, before: cur, after: next } };
+          }
+
+          // Optional blowup guard: size cap (if you can measure size)
+          // if (this.runtime.size(next) > this.runtime.size(cur) * 10) ...
+          cur = next;
+        }
+      }
+
+      // Macro might be a no-op for this expr; that's OK.
+      void appliedAny;
+    }
+
+    return { ok: true };
+  }
+
+  private verifyTagger(skill: SkillDescriptor, _testSet: any[]): VerificationResult {
+    const pattern = skill.payload?.pattern;
+    if (typeof pattern !== "string") return { ok: false, reason: "Missing payload.pattern" };
+
+    // Taggers don't change semantics; verify they compile and run without crashing.
+    // You can also measure precision/recall on labeled patterns later.
+    // Here: trivial sanity check by calling matches on something representative.
+    // (Replace with real compilation/guard checks in your system.)
+    try {
+      this.runtime.matches(pattern, _testSet[0] ?? {});
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, reason: `Tagger pattern caused error: ${String(e?.message ?? e)}` };
+    }
+  }
+}
+
+// Placeholder: you will replace with your own "register temp rule" or "apply from string" method.
+function tryApplyEphemeralRule(_rt: Runtime, _ruleStr: string, _expr: any): any | null {
+  // In your system you likely have runtime.addRule(ruleStr, fn) and can create a temporary ID.
+  return null;
+}
+
+// ----------------------------
+// 5) RL decides when to use accepted abstractions (skills)
+// ----------------------------
+//
+// You already have a policy skeleton. The idea is:
+// - SkillRegistry holds accepted meta-actions/macros
+// - Policy chooses among them during solve
+// - We log experience and update policy
+//
+// Here, "availableSkills" is everything in the registry that is relevant to this goal.
+
+export class SkillExecutor {
+  constructor(private readonly runtime: Runtime, private readonly registry: SkillRegistry) { }
+
+  // Execute a skill at focus. For macro_action, apply its steps.
+  tryExecute(skillId: string, root: any, focus: number[], goal: any): { nextRoot: any; applied: boolean } {
+    const s = this.registry.get(skillId);
+    if (!s) return { nextRoot: root, applied: false };
+
+    if (s.kind === "rewrite_rule") {
+      // You can store a ruleId in payload, or compile rule string to ruleId at registration time.
+      const ruleId = s.payload?.ruleId;
+      if (typeof ruleId !== "string") return { nextRoot: root, applied: false };
+
+      const next = this.runtime.tryApplyRuleAt(ruleId, root, focus);
+      return next ? { nextRoot: next, applied: true } : { nextRoot: root, applied: false };
+    }
+
+    if (s.kind === "macro_action") {
+      const steps = s.payload?.steps ?? [];
+      const budget = s.payload?.budget ?? 8;
+      let cur = root;
+      let applied = false;
+
+      for (let i = 0; i < Math.min(budget, steps.length); i++) {
+        const rid = steps[i]?.ruleId;
+        if (typeof rid !== "string") continue;
+
+        const next = this.runtime.tryApplyRuleAt(rid, cur, focus);
+        if (next) {
+          cur = next;
+          applied = true;
+        }
+      }
+      return { nextRoot: cur, applied };
+    }
+
+    // tagger doesn't execute
+    return { nextRoot: root, applied: false };
+  }
+}
+
+// ----------------------------
+// 6) Orchestrator: online solve + periodic LLM proposal + verification + policy update
+// ----------------------------
+
+export interface OrchestratorConfig {
+  maxSteps: number;
+  focusLimit: number;
+
+  // How often to ask LLM for new abstractions
+  proposeEveryNSuccesses: number;
+
+  // How many proposals to request each time
+  maxProposals: number;
+}
+
+export class Orchestrator {
+  private successCounter = 0;
+
+  constructor(
+    private readonly runtime: Runtime,
+    private readonly registry: SkillRegistry,
+    private readonly policy: Policy,
+    private readonly proposer: AbstractionProposer,
+    private readonly verifier: SymbolicVerifier,
+    private readonly executor: SkillExecutor,
+    private readonly cfg: OrchestratorConfig
+  ) { }
+
+  async solveOne(input: { expr: any; goal: any; focusCandidates: number[][]; testSetForVerify: any[] }): Promise<any> {
+    let root = input.expr;
+    const trace: SolveTrace = {
+      traceId: `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      goal: input.goal,
+      start: input.expr,
+      steps: [],
+      success: false,
+    };
+
+    for (let t = 0; t < this.cfg.maxSteps; t++) {
+      if (this.runtime.goalMet(root, input.goal)) {
+        trace.success = true;
+        break;
+      }
+
+      const available = this.registry.list()
+        .filter(s => s.kind === "macro_action" || s.kind === "rewrite_rule");
+
+      const choice = this.policy.chooseAction({
+        root,
+        goal: input.goal,
+        focusCandidates: input.focusCandidates,
+        availableSkills: available,
+      });
+
+      if (!choice) break;
+
+      const before = root;
+      const { nextRoot, applied } = this.executor.tryExecute(choice.skillId, root, choice.focus, input.goal);
+      if (!applied) {
+        // Optionally penalize / teach policy that this choice was ineffective
+        this.policy.observe?.({
+          rootBefore: before,
+          rootAfter: before,
+          chosen: choice,
+          reward: -0.05,
+          success: false,
+        });
+        continue;
+      }
+
+      root = nextRoot;
+
+      trace.steps.push({
+        focus: choice.focus,
+        appliedRuleId: choice.skillId, // skillId (macro or rule) used
+        before,
+        after: root,
+      });
+
+      // Reward: sparse success + small step cost (you will likely use shaped reward)
+      const success = this.runtime.goalMet(root, input.goal);
+      const reward = (success ? 1.0 : 0.0) - 0.01;
+
+      this.policy.observe?.({
+        rootBefore: before,
+        rootAfter: root,
+        chosen: choice,
+        reward,
+        success,
+      });
+    }
+
+    if (trace.success) {
+      this.successCounter++;
+
+      // Periodically ask the LLM for new abstractions based on recent traces
+      if (this.successCounter % this.cfg.proposeEveryNSuccesses === 0) {
+        await this.learnNewSkillsFromTraces([trace], input.testSetForVerify);
+      }
+    }
+
+    return { result: root, trace };
+  }
+
+  private async learnNewSkillsFromTraces(traces: SolveTrace[], testSet: any[]): Promise<void> {
+    // 1) LLM proposes abstractions
+    const proposals = await this.proposer.proposeFromTraces({
+      traces,
+      maxProposals: this.cfg.maxProposals,
+      domainNotes:
+        "Use the existing DSL rule format and keep macros bounded. Prefer general reusable abstractions.",
+    });
+
+    // 2) Symbolic core verifies
+    for (const p of proposals) {
+      const vr = this.verifier.verify(p, testSet);
+      if (!vr.ok) continue;
+
+      // 3) If verified, register skill so RL can choose it in the future
+      // In a real system, you'd compile rule strings into runtime rule IDs here.
+      this.registry.add(p);
+    }
+  }
+}

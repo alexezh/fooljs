@@ -1,4 +1,5 @@
-import { FocusSelector, Goal, Path, Runtime } from "./plannercore.js";
+import { Runtime } from "../runtime.js";
+import { FocusSelector, Goal, Path } from "./plannercore.js";
 
 // A reasonable default: try root + all eq nodes + all pow nodes + limited depth.
 export class DefaultFocusSelector implements FocusSelector {

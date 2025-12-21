@@ -1,6 +1,7 @@
 // Example meta-action: SimplifyLocal (apply a small set of simplification rules repeatedly)
 
-import { ActionResult, Goal, MetaAction, Path, Runtime } from "./plannercore.js";
+import { Runtime } from "../runtime.js";
+import { ActionResult, Goal, MetaAction, Path } from "./plannercore.js";
 
 // The rules list is provided by you (existing rule IDs).
 export class SimplifyLocal implements MetaAction {

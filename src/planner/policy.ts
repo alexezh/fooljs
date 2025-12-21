@@ -1,3 +1,4 @@
+import { SkillDescriptor } from "../skilldescriptor.js";
 import { ActionId, FeatureVector, Path } from "./plannercore.js";
 
 export interface Policy {
@@ -15,6 +16,26 @@ export interface Policy {
     reward: number;
     afterFeatures?: FeatureVector;
     success?: boolean;
+  }): void;
+}
+
+// RL policy chooses among available skills/actions (existing in your system)
+export interface Policy {
+  // Decide whether to invoke a macro/skill now, and which one.
+  chooseAction(input: {
+    root: any;
+    goal: any;
+    focusCandidates: number[][];
+    availableSkills: SkillDescriptor[];
+  }): { skillId: string; focus: number[] } | null;
+
+  // Learn from outcomes
+  observe?(evt: {
+    rootBefore: any;
+    rootAfter: any;
+    chosen: { skillId: string; focus: number[] };
+    reward: number;
+    success: boolean;
   }): void;
 }
 
