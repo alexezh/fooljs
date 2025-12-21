@@ -38,7 +38,10 @@ export interface MacroActionPayload {
 
 export interface MacroStep {
   // Existing rule ID in Runtime
-  ruleId: string;
+  ruleId?: string;
+
+  // Serialized AST pattern (e.g., "eq(sum(mul(?k, ?x), ?c), 0)")
+  pattern?: string;
 
   // Optional guard evaluated before applying the rule
   // Keeps macros general and reusable

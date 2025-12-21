@@ -249,6 +249,66 @@ export class AstNode {
     const valueStr = this.value instanceof AstNode ? this.value.toString() : this.value.toString();
     return prefix + valueStr + (childrenStr ?? '') + (constrStr ?? '');
   }
+
+  /**
+   * Returns a canonical shape representation of the AST.
+   * Numbers are replaced with "NUM", symbols with "SYM".
+   * Arguments are sorted in canonical order for commutative operations (sum, mul).
+   *
+   * Examples:
+   * - "eq(sum(mul(2,x),4),0)" -> "eq(sum(NUM,mul(NUM,SYM)),NUM)"
+   * - "eq(sum(mul(3,x),mul(2,x),5),0)" -> "eq(sum(NUM,mul(NUM,SYM),mul(NUM,SYM)),NUM)"
+   */
+  toShapeString(): string {
+    // Commutative operations that should have their arguments sorted
+    const commutativeOps = new Set(['sum', 'mul']);
+
+    if (this.kind === 'number') {
+      return 'NUM';
+    }
+
+    if (this.kind === 'symbol') {
+      return 'SYM';
+    }
+
+    if (this.kind === 'patvar') {
+      return '?VAR';
+    }
+
+    if (this.kind === 'list') {
+      const items = this.children ?? [];
+      const shapes = items.map(x => x.toShapeString());
+      return `[${shapes.join(',')}]`;
+    }
+
+    if (this.kind === 'tuple') {
+      const items = this.children ?? [];
+      const shapes = items.map(x => x.toShapeString());
+      return `(${shapes.join(',')})`;
+    }
+
+    if (this.kind === 'spread') {
+      const target = this.children && this.children[0];
+      const targetShape = target ? target.toShapeString() : '';
+      return `${targetShape}...`;
+    }
+
+    // For functions and other nodes with children
+    const valueStr = this.value instanceof AstNode ? this.value.toShapeString() : this.value.toString();
+
+    if (this.children && this.children.length > 0) {
+      let childShapes = this.children.map(x => x.toShapeString());
+
+      // Sort arguments for commutative operations to ensure canonical order
+      if (this.kind === 'func' && typeof this.value === 'string' && commutativeOps.has(this.value)) {
+        childShapes = [...childShapes].sort();
+      }
+
+      return `${valueStr}(${childShapes.join(',')})`;
+    }
+
+    return valueStr;
+  }
 }
 
 export function createMul(left: AstNode, right: AstNode): AstNode {

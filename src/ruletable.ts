@@ -376,18 +376,18 @@ export function initRules(runtime: Runtime) {
     // -------------------------
     // Solve linear (added by you)
     // -------------------------
-    {
-      id: "solve_simple_linear",
-      rule: "solve(eq(sum(?x, ?c), 0), solved_for(?x)) => neg(?c)",
-      fn: ruleSolveSimpleLinear,
-      tags: [...T.solve, ...T.eq, "linear", "compute", "progress"],
-    },
-    {
-      id: "solve_linear_kx_plus_c",
-      rule: "solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)",
-      fn: ruleSolveLinear,
-      tags: [...T.solve, ...T.eq, "linear", "compute", "progress"],
-    },
+    // {
+    //   id: "solve_simple_linear",
+    //   rule: "solve(eq(sum(?x, ?c), 0), solved_for(?x)) => neg(?c)",
+    //   fn: ruleSolveSimpleLinear,
+    //   tags: [...T.solve, ...T.eq, "linear", "compute", "progress"],
+    // },
+    // {
+    //   id: "solve_linear_kx_plus_c",
+    //   rule: "solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)",
+    //   fn: ruleSolveLinear,
+    //   tags: [...T.solve, ...T.eq, "linear", "compute", "progress"],
+    // },
   ];
 
   for (const r of rules) add(runtime, r);

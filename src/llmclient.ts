@@ -12,19 +12,33 @@ export interface ChatResponse {
   raw?: any;
 }
 
+export interface EmbeddingResponse {
+  embedding: number[];
+  raw?: any;
+}
+
 export interface LlmClient {
   chat(messages: ChatMessage[], opts?: { temperature?: number }): Promise<ChatResponse>;
+  embed?(text: string): Promise<EmbeddingResponse>;
 }
 
 /**
  * LlmClientLlama: client for llama.cpp server with OpenAI-compatible API
- * Default endpoint: http://localhost:8080/v1/chat/completions
+ * Default chat endpoint: http://localhost:8080/v1/chat/completions
+ * Default embeddings endpoint: http://localhost:8080/v1/embeddings
  */
 export class LlmClientLlama implements LlmClient {
+  private readonly embeddingsUrl: string;
+
   constructor(
     private readonly endpointUrl: string = "http://localhost:8080/v1/chat/completions",
-    private readonly model: string = "llama"
-  ) { }
+    private readonly model: string = "llama",
+    private readonly embeddingModel: string = "nomic-embed-text"
+  ) {
+    // Derive embeddings endpoint from chat endpoint
+    const baseUrl = endpointUrl.replace(/\/v1\/chat\/completions$/, '');
+    this.embeddingsUrl = `${baseUrl}/v1/embeddings`;
+  }
 
   async chat(messages: ChatMessage[], opts?: { temperature?: number }): Promise<ChatResponse> {
     const body = {
@@ -50,6 +64,31 @@ export class LlmClientLlama implements LlmClient {
     // OpenAI-compatible: json.choices[0].message.content
     const content = json?.choices?.[0]?.message?.content ?? "";
     return { content, raw: json };
+  }
+
+  async embed(text: string): Promise<EmbeddingResponse> {
+    const body = {
+      model: this.embeddingModel,
+      input: text,
+    };
+
+    const res = await fetch(this.embeddingsUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`LLM embed failed: ${res.status} ${text}`);
+    }
+
+    const json = await res.json();
+    // OpenAI-compatible: json.data[0].embedding
+    const embedding = json?.data?.[0]?.embedding ?? [];
+    return { embedding, raw: json };
   }
 }
 

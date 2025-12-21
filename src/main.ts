@@ -81,49 +81,61 @@ function makeVerifySet(): AstNode[] {
 // 1) Bootstrapping: baseline skills in registry
 // ----------------------------
 
-function seedBaselineSkills(registry: SkillRegistry) {
-  // IMPORTANT: These "skills" are wrappers around rule IDs you already have.
-  // Store ruleId references rather than raw rule strings for safety.
+async function seedBaselineSkills(registry: SkillRegistry) {
+  // Use serialized AST patterns instead of ruleIds for skill identification
+  // These patterns are used for embedding-based lookup
 
-  registry.add({
-    id: "NormalizeEq",
+  await registry.add({
+    id: "eq(sum(?a, neg(?b)), 0)",
     name: "Normalize equation to zero-form",
     payload: {
       kind: "macro_action",
-      steps: [{ ruleId: "ruleEqNormalize" }],
+      steps: [{
+        pattern: "eq(?a, ?b)",
+        ruleId: "eq_normalize_to_zero_form"
+      }],
       budget: 1,
     },
     tags: ["eq", "normalize"],
   });
 
-  registry.add({
-    id: "SimplifyLocal",
+  await registry.add({
+    id: "sum(?simplified...)",
     name: "Local simplification pass (bounded)",
     payload: {
       kind: "macro_action",
       steps: [
-        { ruleId: "ruleParenRemove" },
-        { ruleId: "ruleDoubleNeg" },
-        { ruleId: "ruleNegZero" },
-        { ruleId: "ruleNeutralRight" },
-        { ruleId: "ruleCombineNumbers" },
-        { ruleId: "ruleCombineLikeTerms" }
+        { pattern: "paren(?a)", ruleId: "paren_remove" },
+        { pattern: "neg(neg(?a))", ruleId: "neg_double" },
+        { pattern: "neg(0)", ruleId: "neg_zero" },
+        { pattern: "sum(?args..., 0, ?rest...)", ruleId: "sum_neutral_drop_0" },
+        { pattern: "sum(?a, ?b)", ruleId: "calc_sum_numbers" },
+        { pattern: "sum(?terms...)", ruleId: "combine_like_terms" }
       ],
       budget: 12,
     },
     tags: ["simplify"],
   });
 
-  registry.add({
-    id: "SolveLinearZeroForm",
-    name: "Solve kx + c = 0  (schema)",
+  await registry.add({
+    id: "macro_solve_simple_linear_via_steps",
+    name: "Solve ax + c = 0 (generic steps, no special rule)",
     payload: {
       kind: "macro_action",
-      // In your ruleset, this might be one rule (ruleSolveLinear) after normalization.
-      steps: [{ ruleId: "ruleSolveLinear" }],
-      budget: 1,
+      budget: 8,
+      steps: [
+        { pattern: "solve(eq(?lhs, ?rhs), solved_for(?x))", ruleId: "solve_eq_normalize", focus: "same" },
+
+        // Let solve/step do the work: move constant, simplify
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
+
+        { pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left", focus: "same" },
+        { pattern: "solve(eq(?lhs, ?x), solved_for(?x))", ruleId: "solve_isolated_right", focus: "same" }
+      ],
     },
-    tags: ["solve", "linear"],
+    tags: ["solve", "linear", "procedure", "generic"]
   });
 }
 
@@ -143,26 +155,39 @@ class DumbPolicy {
   chooseAction({ root, goal, focusCandidates, availableSkills }: { root: AstNode, goal: Goal, focusCandidates, availableSkills: SkillDescriptor[] }) {
     console.log(`\n[DumbPolicy] Step ${this.stepCount}, Available skills:`, availableSkills.map((s: any) => s.id));
 
-    const has = (id: string) => availableSkills.some((s: SkillDescriptor) => s.id === id);
+    const has = (idPattern: string) => availableSkills.some((s: SkillDescriptor) => s.id.includes(idPattern));
+    const find = (idPattern: string) => availableSkills.find((s: SkillDescriptor) => s.id.includes(idPattern));
 
     // Simple strategy: try each skill in sequence
     if (goal.kind === "solve_for") {
       // First try normalizing
-      if (this.stepCount === 0 && has("NormalizeEq")) {
-        console.log(`[DumbPolicy] Choosing NormalizeEq at root`);
-        return { skillId: "NormalizeEq", focus: [] };
+      if (this.stepCount === 0 && has("neg(?b)")) {
+        const skill = find("neg(?b)");
+        console.log(`[DumbPolicy] Choosing normalize skill at root`);
+        return { skillId: skill!.id, focus: [] };
       }
 
       // Then try simplifying
-      if (this.stepCount === 1 && has("SimplifyLocal")) {
-        console.log(`[DumbPolicy] Choosing SimplifyLocal at focus [0]`);
-        return { skillId: "SimplifyLocal", focus: [0] };
+      if (this.stepCount === 1 && has("simplified")) {
+        const skill = find("simplified");
+        console.log(`[DumbPolicy] Choosing simplify skill at focus [0]`);
+        return { skillId: skill!.id, focus: [0] };
       }
 
-      // Finally try solving
-      if (this.stepCount >= 2 && has("SolveLinearZeroForm")) {
-        console.log(`[DumbPolicy] Choosing SolveLinearZeroForm at root`);
-        return { skillId: "SolveLinearZeroForm", focus: [] };
+      // Finally try solving - prefer more specific patterns
+      if (this.stepCount >= 2) {
+        // Try simple linear first
+        if (has("eq(sum(?x, ?c), 0)")) {
+          const skill = find("eq(sum(?x, ?c), 0)");
+          console.log(`[DumbPolicy] Choosing simple linear solve at root`);
+          return { skillId: skill!.id, focus: [] };
+        }
+        // Then try kx+c pattern
+        if (has("eq(sum(mul(?k, ?x), ?c), 0)")) {
+          const skill = find("eq(sum(mul(?k, ?x), ?c), 0)");
+          console.log(`[DumbPolicy] Choosing linear solve at root`);
+          return { skillId: skill!.id, focus: [] };
+        }
       }
     }
 
@@ -213,7 +238,7 @@ async function testBasicOrchestrator() {
   const verifier = new SymbolicVerifier(runtime);
 
   const registry = new SkillRegistry();
-  seedBaselineSkills(registry);
+  await seedBaselineSkills(registry);
 
   console.log("=== SKILLS IN REGISTRY ===");
   for (const s of registry.list()) {
@@ -331,7 +356,10 @@ async function testTrainingProblems() {
   for (let i = 0; i < trainingProblems.length; i++) {
     const { input, expected } = trainingProblems[i];
     console.log(`\n=== Problem ${i + 1}: ${input} ===`);
-    console.log(`Expected form: ${expected}\n`);
+    console.log(`Expected form: ${expected}`);
+
+    const rawExpr = parse(input);
+    console.log(`Shape:        ${rawExpr.toShapeString()}\n`);
 
     const expr = parseEquation(input);
     console.log("Parsed:", expr.toString());
@@ -424,7 +452,7 @@ async function main(runtime: Runtime) {
   const verifier = new SymbolicVerifier(runtime);
 
   const registry = new SkillRegistry();
-  seedBaselineSkills(registry);
+  await seedBaselineSkills(registry);
 
   const executor = new SkillExecutor(runtime, registry);
 
