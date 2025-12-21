@@ -2,12 +2,13 @@
 
 import { Runtime } from "../runtime.js";
 import { degreeInX, isLinearInX, isQuadraticInX } from "../degree.js";
+import { RuntimeImpl } from "../runtimeimpl.js";
 
 console.log("======================================================================");
 console.log("DEGREE ANALYSIS TESTS");
 console.log("======================================================================\n");
 
-const runtime = new Runtime();
+const runtime = new RuntimeImpl();
 
 // Test: degree of linear expressions
 console.log("=== Linear Expressions ===\n");

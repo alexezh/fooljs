@@ -4,7 +4,7 @@ import { ActionId, FeatureVector } from "./plannercore.js";
 import { ActionCandidate, candidateKey, dot, Policy, RankedCandidate } from "./policy.js";
 
 // (Skeleton: you can swap for NN later.)
-export class LinearBanditPolicy implements Policy {
+export class LinearBanditPolicy /*implements Policy */ {
   private w: Record<ActionId, Record<string, number>> = {};
 
   constructor(private readonly learningRate = 0.05) { }

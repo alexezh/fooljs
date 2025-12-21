@@ -1,6 +1,7 @@
 import { parse } from "../parser.js";
 import { initRules } from "../ruletable.js";
 import { Runtime } from "../runtime.js";
+import { RuntimeImpl } from "../runtimeimpl.js";
 
 console.log("=== Infix Expression Parsing Tests ===\n");
 
@@ -38,7 +39,7 @@ console.log();
 
 // Test 5: Apply rules
 console.log("-- Test 5: Apply rules --");
-const runtime = new Runtime();
+const runtime = new RuntimeImpl();
 initRules(runtime);
 
 let expr5 = "x - x";

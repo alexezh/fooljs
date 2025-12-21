@@ -20,7 +20,10 @@
 // 5) Policy (RL): choose when to invoke which macro/skill
 // 6) Orchestrator: training loop + online loop
 
+import { AstNode } from "./ast.js";
 import { ChatMessage, LlmClient } from "./llmclient.js";
+import { Goal } from "./planner/plannercore.js";
+export type { LlmClient } from "./llmclient.js";
 import { Policy } from "./planner/policy.js";
 import { SolveTrace } from "./planner/solvetrace.js";
 import { Runtime } from "./runtime.js";
@@ -390,7 +393,10 @@ export class Orchestrator {
     private readonly cfg: OrchestratorConfig
   ) { }
 
-  async solveOne(input: { expr: any; goal: any; focusCandidates: number[][]; testSetForVerify: any[] }): Promise<any> {
+  async solveOne(input: { expr: AstNode; goal: Goal; focusCandidates: number[][]; testSetForVerify: any[] }): Promise<{
+    result: AstNode,
+    trace: SolveTrace
+  }> {
     let root = input.expr;
     const trace: SolveTrace = {
       traceId: `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`,

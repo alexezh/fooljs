@@ -50,5 +50,13 @@ export interface Runtime {
   // (or you can supply your own generator)
   sampleGrounding?(root: AstNode): Record<string, number>; // e.g., {x: 3, y: -1}
   evalWithEnv?(expr: AstNode, env: Record<string, number>): number; // optional
+  parseExpr?(exprStr: string): AstNode; // for pattern parsing
+  matchPattern?(pattern: AstNode, expr: AstNode): Map<string, AstNode> | undefined; // for matching
 }
+
+// Re-export RuntimeImpl as a class with static instance for backward compatibility
+import { RuntimeImpl } from "./runtimeimpl.js";
+export const Runtime = {
+  instance: RuntimeImpl.instance
+};
 
