@@ -269,3 +269,17 @@ export function parse(text: string): AstNode {
   }
   return semantics(match).toAst();
 }
+
+export function parseEquation(s: string): AstNode {
+  let ast = parse(s);
+  if (ast.kind === 'func' && ast.value === 'eq') {
+    ast = AstNode.create('func', 'solve', [
+      ast,
+      AstNode.create('func', 'solved_for', [
+        AstNode.create('symbol', new ASymbol('x'))
+      ])
+    ]);
+  }
+
+  return ast;
+}

@@ -1,5 +1,6 @@
 import { SkillDescriptor } from "../skilldescriptor.js";
 import { ActionId, FeatureVector, Path } from "./plannercore.js";
+import type { SkillRegistry } from "../skillregistry.js";
 
 export interface Policy {
   // Rank candidates given features. Higher score tried first.
@@ -27,7 +28,7 @@ export interface Policy {
     goal: any;
     focusCandidates: number[][];
     registry: SkillRegistry;
-  }): { skillId: string; focus: number[] } | null;
+  }): Promise<{ skillId: string; focus: number[] } | null>;
 
   // Learn from outcomes
   observe?(evt: {

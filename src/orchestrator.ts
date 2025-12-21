@@ -344,7 +344,7 @@ export class Orchestrator {
       const available = this.registry.list()
         .filter(s => s.payload.kind === "macro_action" || s.payload.kind === "rewrite_rule");
 
-      const choice = this.policy.chooseAction({
+      const choice = await this.policy.chooseAction({
         root,
         goal: input.goal,
         focusCandidates: input.focusCandidates,
