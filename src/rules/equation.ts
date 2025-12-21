@@ -18,7 +18,7 @@ export function ruleSolveEqIsolatedRight(ast: AstNode): MatchFuncRet | undefined
   const targetVar = goalArgs[0];
 
   // Check first arg is eq(?lhs, ?x)
-  if (eqNode.kind !== 'eq') return undefined;
+  if (!isFunc(eqNode, 'eq')) return undefined;
   const eqArgs = getArgs(eqNode);
   if (eqArgs.length !== 2) return undefined;
 
@@ -57,7 +57,7 @@ export function ruleSolveLinear(ast: AstNode): MatchFuncRet | undefined {
   const targetSym = targetVar.value as ASymbol;
 
   // Check first arg is eq(sum(mul(?k, ?x), ?c), 0)
-  if (eqNode.kind !== 'eq') return undefined;
+  if (!isFunc(eqNode, 'eq')) return undefined;
   const eqArgs = getArgs(eqNode);
   if (eqArgs.length !== 2) return undefined;
 
@@ -136,16 +136,77 @@ export function ruleSolveLinear(ast: AstNode): MatchFuncRet | undefined {
   const kVal = k.value as number;
   if (kVal === 0) return undefined;
 
-  // Return solve(x = -c/k, solved_for(x))
-  // Let the step driver handle evaluation through step rules
+  // Return -c/k (the solution)
   return {
-    replace: AstNode.create('func', 'solve', [
-      AstNode.create('func', 'div', [
-        AstNode.create('func', 'neg', [c]),
-        k
-      ]),
-      goalNode
+    replace: AstNode.create('func', 'div', [
+      AstNode.create('func', 'neg', [c]),
+      k
     ]),
-    cost: 3 // Creates 3 new nodes: solve, div, and neg
+    cost: 2 // Creates 2 new nodes: div and neg
+  };
+}
+
+// solve(eq(sum(?x, ?c), 0), solved_for(?x)) => neg(?c)
+// Simple linear equation solver: x + c = 0  =>  x = -c
+// Handles the case where the variable appears by itself (not multiplied by a coefficient)
+export function ruleSolveSimpleLinear(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'solve')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [eqNode, goalNode] = args;
+
+  // Check goal is solved_for(?x)
+  if (!isFunc(goalNode, 'solved_for')) return undefined;
+  const goalArgs = getArgs(goalNode);
+  if (goalArgs.length !== 1) return undefined;
+  const targetVar = goalArgs[0];
+  if (targetVar.kind !== 'symbol') return undefined;
+  const targetSym = targetVar.value as ASymbol;
+
+  // Check first arg is eq(sum(?x, ?c), 0)
+  if (!isFunc(eqNode, 'eq')) return undefined;
+  const eqArgs = getArgs(eqNode);
+  if (eqArgs.length !== 2) return undefined;
+
+  const [lhs, rhs] = eqArgs;
+
+  // Check rhs is 0
+  if (!isNumber(rhs) || rhs.value !== 0) return undefined;
+
+  // Check lhs is sum(?x, ?c) or sum(?c, ?x)
+  if (!isFunc(lhs, 'sum')) return undefined;
+  const sumArgs = getArgs(lhs);
+  if (sumArgs.length !== 2) return undefined;
+
+  const [term1, term2] = sumArgs;
+
+  let x: AstNode | undefined;
+  let c: AstNode | undefined;
+
+  // Try term1 = ?x (symbol), term2 = ?c (number)
+  if (term1.kind === 'symbol' && isNumber(term2)) {
+    const term1Sym = term1.value as ASymbol;
+    if (term1Sym.name === targetSym.name) {
+      x = term1;
+      c = term2;
+    }
+  }
+
+  // Try term2 = ?x (symbol), term1 = ?c (number)
+  if (!x && term2.kind === 'symbol' && isNumber(term1)) {
+    const term2Sym = term2.value as ASymbol;
+    if (term2Sym.name === targetSym.name) {
+      x = term2;
+      c = term1;
+    }
+  }
+
+  if (!x || !c) return undefined;
+
+  // Return -c (the solution)
+  return {
+    replace: AstNode.create('func', 'neg', [c]),
+    cost: 1 // Creates 1 new node: neg
   };
 }

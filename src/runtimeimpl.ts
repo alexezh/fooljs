@@ -149,21 +149,26 @@ export class RuntimeImpl implements Runtime {
 
     // Random testing: evaluate both with random variable assignments
     const numTests = 10;
+    let successfulTests = 0;
     for (let i = 0; i < numTests; i++) {
       const env = this.sampleGrounding(a);
       try {
         const valA = this.evalWithEnv(a, env);
         const valB = this.evalWithEnv(b, env);
+        successfulTests++;
         if (Math.abs(valA - valB) > 1e-10) {
           return false;
         }
       } catch (e) {
-        // Evaluation error (e.g., division by zero) - skip this test
+        // Evaluation error (e.g., division by zero, non-numeric expression)
+        // If we can't evaluate either expression, we can't claim equivalence
         continue;
       }
     }
 
-    return true;
+    // Only return true if we had at least one successful test
+    // If all tests failed to evaluate, the expressions are likely not equivalent
+    return successfulTests > 0;
   }
 
   /**

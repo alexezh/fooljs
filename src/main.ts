@@ -10,7 +10,7 @@ import { aStarSearch, getSolutionString } from "./search.js";
 
 function parseEquation(s: string): AstNode {
   let ast = parse(s);
-  if (ast.kind === 'eq' && ast.value === 'eq') {
+  if (ast.kind === 'func' && ast.value === 'eq') {
     ast = AstNode.create('func', 'solve', [
       ast,
       AstNode.create('func', 'solved_for', [
@@ -308,6 +308,113 @@ async function testBasicOrchestrator() {
   console.log("======================================================================");
 }
 
+// ----------------------------
+// 5) Training problems test
+// ----------------------------
+
+async function testTrainingProblems() {
+  console.log("\n======================================================================");
+  console.log("TRAINING PROBLEMS TEST");
+  console.log("======================================================================\n");
+
+  const runtime = RuntimeImpl.instance;
+  initRules(runtime);
+
+  const trainingProblems = [
+    { input: "eq(sum(x, 7), 0)", expected: "eq(x, neg(7))" },
+    { input: "eq(sum(mul(2, x), 4), 0)", expected: "eq(x, div(neg(4), 2))" },
+    { input: "eq(sum(mul(3, x), 9), 0)", expected: "eq(x, div(neg(9), 3))" },
+    { input: "eq(sum(mul(3, x), mul(2, x), 5), 0)", expected: "eq(x, ...)" }, // more complex
+  ];
+
+  for (let i = 0; i < trainingProblems.length; i++) {
+    const { input, expected } = trainingProblems[i];
+    console.log(`\n=== Problem ${i + 1}: ${input} ===`);
+    console.log(`Expected form: ${expected}\n`);
+
+    const expr = parseEquation(input);
+    console.log("Parsed:", expr.toString());
+
+    // Try to find matching rules
+    const matches = runtime.matchRule(expr);
+    console.log(`Found ${matches.length} matching rules`);
+
+    if (matches.length > 0) {
+      // Show first few matches
+      for (let j = 0; j < Math.min(3, matches.length); j++) {
+        const match = matches[j];
+        console.log(`  ${j + 1}. ${match.ruleDef?.slice(0, 60)}...`);
+        console.log(`     Result: ${match.replace.toString()}`);
+      }
+    }
+
+    // Try to solve step by step
+    let current = expr;
+    let steps = 0;
+    const maxSteps = 10;
+
+    console.log("\nSolving step by step:");
+    while (steps < maxSteps) {
+      console.log(`  Step ${steps}: ${current.toString()}`);
+
+      // Check if solved
+      const goal = { kind: "solve_for" as const, x: "x" };
+      if (runtime.goalMet(current, goal)) {
+        console.log(`  ✓ SOLVED!`);
+        break;
+      }
+
+      // Try to apply a rule
+      const ruleMatches = runtime.matchRule(current);
+      if (ruleMatches.length === 0) {
+        console.log(`  ✗ No more rules match`);
+        break;
+      }
+
+      // Apply first rule that changes something
+      // Prefer direct solve rules over step rules
+      let applied = false;
+
+      // First try non-step rules
+      for (const match of ruleMatches) {
+        if (match.ruleDef?.includes('step(?e)')) continue; // Skip step rules
+        if (!runtime.equivalent(current, match.replace)) {
+          current = match.replace;
+          applied = true;
+          console.log(`  → Applied: ${match.ruleDef?.slice(0, 50)}...`);
+          break;
+        }
+      }
+
+      // If no non-step rule applied, try step rules
+      if (!applied) {
+        for (const match of ruleMatches) {
+          if (!runtime.equivalent(current, match.replace)) {
+            current = match.replace;
+            applied = true;
+            console.log(`  → Applied: ${match.ruleDef?.slice(0, 50)}...`);
+            break;
+          }
+        }
+      }
+
+      if (!applied) {
+        console.log(`  ✗ No rules make progress`);
+        break;
+      }
+
+      steps++;
+    }
+
+    console.log(`\nFinal result: ${current.toString()}`);
+    console.log("---");
+  }
+
+  console.log("\n======================================================================");
+  console.log("TRAINING PROBLEMS TEST COMPLETED");
+  console.log("======================================================================");
+}
+
 async function main(runtime: Runtime) {
   // 3.1 LLM REST client (OpenAI-compatible chat endpoint)
   const llm = new LlmClientLlama();
@@ -390,7 +497,10 @@ async function main(runtime: Runtime) {
 }
 
 // Run basic tests (no LLM required)
-//await testBasicOrchestrator();
+await testBasicOrchestrator();
+
+// Run training problems test
+await testTrainingProblems();
 
 // Uncomment to run full orchestrator with LLM
-await main(RuntimeImpl.instance);
+// await main(RuntimeImpl.instance);

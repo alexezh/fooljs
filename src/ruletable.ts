@@ -1,7 +1,7 @@
 import { AstNode, MatchFunc } from "./ast.js";
 import { Runtime } from "./runtime.js";
 import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
-import { ruleSolveEqIsolatedRight, ruleSolveLinear } from "./rules/equation.js";
+import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./rules/goals.js";
 import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./rules/mul.js";
@@ -52,29 +52,30 @@ export const coreRuleFunctions = [
   ruleSolveEqIsolatedLeft,// 36
   ruleSolveEqIsolatedRight,// 37
   ruleSolveLinear,        // 38
+  ruleSolveSimpleLinear,  // 39
   // Step rules
-  ruleStep,               // 39
-  ruleSolveStep,          // 40
+  ruleStep,               // 40
+  ruleSolveStep,          // 41
   // Transcendental functions
-  ruleEvalPow,            // 41
-  ruleEvalPowExp1,        // 42
-  ruleEvalPowExp0,        // 43
-  ruleEvalPowBase1,       // 44
-  ruleEvalPowBase0Pos,    // 45
-  ruleEvalSqrt,           // 46
-  ruleSqrt2,              // 47
-  ruleSqrtToPow,          // 48
-  ruleEvalLn,             // 49
-  ruleEvalLogBase,        // 50
-  ruleLn1,                // 51
-  ruleLnExp,              // 52
-  ruleEvalExp,            // 53
-  ruleExpLn,              // 54
-  ruleExpZero,            // 55
+  ruleEvalPow,            // 42
+  ruleEvalPowExp1,        // 43
+  ruleEvalPowExp0,        // 44
+  ruleEvalPowBase1,       // 45
+  ruleEvalPowBase0Pos,    // 46
+  ruleEvalSqrt,           // 47
+  ruleSqrt2,              // 48
+  ruleSqrtToPow,          // 49
+  ruleEvalLn,             // 50
+  ruleEvalLogBase,        // 51
+  ruleLn1,                // 52
+  ruleLnExp,              // 53
+  ruleEvalExp,            // 54
+  ruleExpLn,              // 55
+  ruleExpZero,            // 56
   // Simplification rules
-  ruleCombineLikeTerms,   // 56
-  ruleSubExpandSum,       // 57
-  ruleCombineNumbers      // 58
+  ruleCombineLikeTerms,   // 57
+  ruleSubExpandSum,       // 58
+  ruleCombineNumbers      // 59
 ];
 
 export function initRules(runtime: Runtime) {
@@ -231,7 +232,9 @@ export function initRules(runtime: Runtime) {
     // ["sum(?args...) => fold(collect_sum_numbers, acc([], 0), [?args...])", ruleSumFold],
     // ["mul(?args...) => fold(collect_mul_numbers, acc([], 1), [?args...])", ruleMulFold],
 
-    // Linear equations kx + c = 0 solve for x
+    // Simple linear equations x + c = 0 solve for x (no coefficient on x)
+    ["solve(eq(sum(?x, ?c), 0), solved_for(?x)) => neg(?c)", ruleSolveSimpleLinear],
+    // Linear equations kx + c = 0 solve for x (with coefficient)
     ["solve(eq(sum(mul(?k, ?x), ?c), 0), solved_for(?x)) => div(neg(?c), ?k)", ruleSolveLinear],
   ];
 
