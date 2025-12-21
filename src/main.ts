@@ -1,4 +1,5 @@
 import { AstNode, ASymbol } from "./ast.js";
+import { LlmClientLlama } from "./llmclient.js";
 import { AbstractionProposer, LlmClient, Orchestrator, SkillExecutor, SkillRegistry, SymbolicVerifier } from "./orchestrator.js";
 import { parse } from "./parser.js";
 import { initRules } from "./ruletable.js";
@@ -153,10 +154,7 @@ const dumbPolicy = {
 
 async function main(runtime: Runtime) {
   // 3.1 LLM REST client (OpenAI-compatible chat endpoint)
-  const llm = new LlmClient(
-    process.env.LLM_CHAT_URL!, // e.g. "https://api.openai.com/v1/chat/completions"
-    process.env.LLM_API_KEY!,
-    process.env.LLM_MODEL ?? "gpt-4.1-mini"
+  const llm = new LlmClientLlama(
   );
 
   const proposer = new AbstractionProposer(llm);
