@@ -3,8 +3,29 @@ import { parse } from "./parser.js";
 import { Goal, Path } from "./planner/plannercore.js";
 //import { StateManager, StateGuard } from "./state.js";
 
+export type RuleId = string;
+
+export type RuleTag =
+  | "sum" | "mul" | "div" | "neg" | "paren"
+  | "eq" | "solve" | "eval" | "step"
+  | "assoc" | "neutral" | "normalize" | "compute" | "simplify"
+  | "structural" | "progress" | "fold" | "list"
+  | "transcendental" | "power" | "sqrt" | "log" | "exp"
+  | "danger_expand"
+  | "linear" | "compute" | "progress"; // e.g. rules that can blow up size (keep for future)
+
+export interface RuleMeta {
+  id: RuleId;
+  rule: string;
+  tags: RuleTag[];
+  fn?: MatchFunc;
+}
+
+
 export type RuleNode = {
   def: string,
+  tags: RuleTag[],
+  id: RuleId,
   pattern: AstNode,
   match: AstNode,
   constraints?: Constraint[],
@@ -12,7 +33,7 @@ export type RuleNode = {
 }
 
 export interface Runtime {
-  addRule(args: string, matchFunc: MatchFunc | undefined): void;
+  addRule(m: RuleMeta): void;
   matchRule(inp: AstNode): MatchFuncRet[];
 
   // Tree navigation / update

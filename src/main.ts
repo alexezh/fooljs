@@ -7,6 +7,7 @@ import { initRules } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
 import { aStarSearch, getSolutionString } from "./search.js";
+import { SkillDescriptor } from "./skilldescriptor.js";
 
 function parseEquation(s: string): AstNode {
   let ast = parse(s);
@@ -139,10 +140,10 @@ class DumbPolicy {
     return candidates.map((c, i) => ({ ...c, score: candidates.length - i }));
   }
 
-  chooseAction({ root, goal, focusCandidates, availableSkills }: any) {
+  chooseAction({ root, goal, focusCandidates, availableSkills }: { root: AstNode, goal: Goal, focusCandidates, availableSkills: SkillDescriptor[] }) {
     console.log(`\n[DumbPolicy] Step ${this.stepCount}, Available skills:`, availableSkills.map((s: any) => s.id));
 
-    const has = (id: string) => availableSkills.some((s: any) => s.id === id);
+    const has = (id: string) => availableSkills.some((s: SkillDescriptor) => s.id === id);
 
     // Simple strategy: try each skill in sequence
     if (goal.kind === "solve_for") {
@@ -497,10 +498,10 @@ async function main(runtime: Runtime) {
 }
 
 // Run basic tests (no LLM required)
-await testBasicOrchestrator();
+//await testBasicOrchestrator();
 
 // Run training problems test
-await testTrainingProblems();
+//await testTrainingProblems();
 
 // Uncomment to run full orchestrator with LLM
-// await main(RuntimeImpl.instance);
+await main(RuntimeImpl.instance);

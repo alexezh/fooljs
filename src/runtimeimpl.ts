@@ -1,11 +1,13 @@
 import { AstNode, ASymbol, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
-import { RuleNode, Runtime } from "./runtime.js";
+import { RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
 
 export class RuntimeImpl implements Runtime {
   private rules: RuleNode[] = [];
   private byFunc = new Map<string, RuleNode>();
+  private byId: Map<RuleId, RuleMeta> = new Map();
+  private byTag: Map<RuleTag, RuleNode[]> = new Map();
   //private stateManager: StateManager;
 
   static instance: Runtime = new RuntimeImpl();
@@ -251,24 +253,25 @@ export class RuntimeImpl implements Runtime {
   //   return this.stateManager;
   // }
 
-  addRule(args: string, matchFunc: MatchFunc | undefined): void {
+  addRule(m: RuleMeta): void {
+    /** Optional: keep meta accessible for features/policy */
+    this.byId.set(m.id, m);
+
     let ruleAst: AstNode;
-    if (typeof (args) === "string") {
-      ruleAst = parse(args);
-    } else {
-      ruleAst = args;
-    }
+    ruleAst = parse(m.rule);
 
     if (ruleAst.kind !== "rule") {
       throw "Should be rule"
     }
 
     let node: RuleNode = {
-      def: args,
+      def: m.rule,
+      id: m.id,
+      tags: m.tags,
       pattern: ruleAst.children![0],
       match: ruleAst.children![1],
       constraints: ruleAst.constraints,
-      matchFunc: matchFunc
+      matchFunc: m.fn
     }
     this.rules.push(node);
     if (node.pattern.kind === "func") {
@@ -277,6 +280,15 @@ export class RuntimeImpl implements Runtime {
       } else {
         this.byFunc.set(node.pattern.value as string, node);
       }
+    }
+
+    for (let tag of m.tags) {
+      let e = this.byTag.get(tag);
+      if (!e) {
+        e = [];
+        this.byTag.set(tag, e);
+      }
+      e.push(node);
     }
   }
 
