@@ -40,6 +40,9 @@ export type FuncName =
   | 'fold'
   | 'acc'
   | 'bucket_same'
+  | 'pick'
+  | 'rest'
+  | 'rebuild_group'
   | 'collect_sum_numbers'
   | 'collect_mul_numbers';
 

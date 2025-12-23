@@ -1,5 +1,5 @@
 import { SkillDescriptor } from "../skilldescriptor.js";
-import { ActionId, FeatureVector, Path } from "./plannercore.js";
+import { FeatureVector, Path } from "./plannercore.js";
 import type { SkillRegistry } from "../skillregistry.js";
 import { SkillId } from "../runtime.js";
 
@@ -47,7 +47,7 @@ export interface Policy {
 
 export interface ActionCandidate {
   focus: Path;
-  actionId: ActionId;
+  actionId: string;
   // Optional: the action can include a paramization key ("mode"), not shown here.
 }
 

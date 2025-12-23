@@ -33,28 +33,3 @@ export interface FocusSelector {
   select(runtime: Runtime, root: AstNode, goal: Goal, maxFocus: number): Path[];
 }
 
-// ----------------------------
-// 3) Meta-actions (trainable verbs)
-// ----------------------------
-
-export type ActionId = string;
-
-export interface ActionResult {
-  nextRoot: any;
-  // Optional: record what happened for training/debug
-  info?: {
-    appliedRuleIds?: string[];
-    focus?: Path;
-    notes?: string;
-  };
-}
-
-export interface MetaAction {
-  id: ActionId;
-
-  // Quick filter: should this action be considered at this focus?
-  applicable(runtime: Runtime, root: AstNode, goal: Goal, focus: Path): boolean;
-
-  // Apply bounded work. Must terminate quickly.
-  apply(runtime: Runtime, root: AstNode, goal: Goal, focus: Path): ActionResult | null;
-}
