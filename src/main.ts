@@ -5,7 +5,7 @@ import { AbstractionProposer, LlmClient, Orchestrator, SymbolicVerifier } from "
 import { parse, parseEquation } from "./parser.js";
 import { Goal } from "./planner/plannercore.js";
 import { initRules } from "./ruletable.js";
-import { Runtime } from "./runtime.js";
+import { RuleId, Runtime, SkillId } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
 import { aStarSearch, getSolutionString } from "./search.js";
 import { SkillDescriptor } from "./skilldescriptor.js";
@@ -75,13 +75,13 @@ async function seedBaselineSkills(registry: SkillRegistry) {
   // These patterns are used for embedding-based lookup
 
   await registry.add({
-    id: "eq(sum(?a, neg(?b)), 0)",
+    id: "eq(sum(?a, neg(?b)), 0)" as SkillId,
     name: "Normalize equation to zero-form",
     payload: {
       kind: "macro_action",
       steps: [{
         pattern: "eq(?a, ?b)",
-        ruleId: "eq_normalize_to_zero_form"
+        ruleId: "eq_normalize_to_zero_form" as RuleId
       }],
       budget: 1,
     },
@@ -89,17 +89,17 @@ async function seedBaselineSkills(registry: SkillRegistry) {
   });
 
   await registry.add({
-    id: "sum(?simplified...)",
-    name: "Local simplification pass (bounded)",
+    id: "sum(?simplified...)" as SkillId,
+    name: "Local simplification pass (bounded)" as RuleId,
     payload: {
       kind: "macro_action",
       steps: [
-        { pattern: "paren(?a)", ruleId: "paren_remove" },
-        { pattern: "neg(neg(?a))", ruleId: "neg_double" },
-        { pattern: "neg(0)", ruleId: "neg_zero" },
-        { pattern: "sum(?args..., 0, ?rest...)", ruleId: "sum_neutral_drop_0" },
-        { pattern: "sum(?a, ?b)", ruleId: "calc_sum_numbers" },
-        { pattern: "sum(?terms...)", ruleId: "combine_like_terms" }
+        { pattern: "paren(?a)", ruleId: "paren_remove" as RuleId },
+        { pattern: "neg(neg(?a))", ruleId: "neg_double" as RuleId },
+        { pattern: "neg(0)", ruleId: "neg_zero" as RuleId },
+        { pattern: "sum(?args..., 0, ?rest...)", ruleId: "sum_neutral_drop_0" as RuleId },
+        { pattern: "sum(?a, ?b)", ruleId: "calc_sum_numbers" as RuleId },
+        { pattern: "sum(?terms...)", ruleId: "combine_like_terms" as RuleId }
       ],
       budget: 12,
     },
@@ -107,21 +107,25 @@ async function seedBaselineSkills(registry: SkillRegistry) {
   });
 
   await registry.add({
-    id: "macro_solve_simple_linear_via_steps",
+    id: "macro_solve_simple_linear_via_steps" as SkillId,
     name: "Solve ax + c = 0 (generic steps, no special rule)",
     payload: {
       kind: "macro_action",
       budget: 8,
       steps: [
-        { pattern: "solve(eq(?lhs, ?rhs), solved_for(?x))", ruleId: "solve_eq_normalize", focus: "same" },
+        { pattern: "solve(eq(?lhs, ?rhs), solved_for(?x))", ruleId: "solve_eq_normalize" as RuleId, focus: "same" },
 
         // Let solve/step do the work: move constant, simplify
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step", focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
 
-        { pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left", focus: "same" },
-        { pattern: "solve(eq(?lhs, ?x), solved_for(?x))", ruleId: "solve_isolated_right", focus: "same" }
+        { pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left" as RuleId, focus: "same" },
+        { pattern: "solve(eq(?lhs, ?x), solved_for(?x))", ruleId: "solve_isolated_right" as RuleId, focus: "same" }
       ],
     },
     tags: ["solve", "linear", "procedure", "generic"]
@@ -134,6 +138,7 @@ async function main(runtime: Runtime) {
   // 3.1 LLM REST client (OpenAI-compatible chat endpoint)
   const llm = new LlmClientLlama();
 
+  initRules(RuntimeImpl.instance);
   const proposer = new AbstractionProposer(llm);
   const verifier = new SymbolicVerifier(runtime);
 

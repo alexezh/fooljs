@@ -1,13 +1,11 @@
-import { AstNode, ASymbol, MatchFunc, MatchFuncRet } from "./ast.js";
+import { AstNode, ASymbol, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
-import { RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
+import { RuleRegistry } from "./ruleregistry.js";
+import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
 
 export class RuntimeImpl implements Runtime {
-  private rules: RuleNode[] = [];
-  private byFunc = new Map<string, RuleNode>();
-  private byId: Map<RuleId, RuleMeta> = new Map();
-  private byTag: Map<RuleTag, RuleNode[]> = new Map();
+  private rules: RuleRegistry = new RuleRegistry();
   //private stateManager: StateManager;
 
   static instance: Runtime = new RuntimeImpl();
@@ -79,24 +77,22 @@ export class RuntimeImpl implements Runtime {
    * Try to apply a rule at a specific path in the tree.
    * Returns the new root if successful, null otherwise.
    */
-  tryApplyRuleAt(ruleId: string, root: AstNode, path: Path): AstNode | null {
+  tryApplyRuleAt(ruleBody: RuleBody, root: AstNode, path: Path): AstNode | null {
     // Find the rule by ID (ruleId is the def string for now)
-    const rule = this.rules.find(r => r.def === ruleId);
-    if (!rule || !rule.matchFunc) {
-      return null;
-    }
+    const rules = this.rules.findRule(ruleBody);
 
     // Get the node at the path
     const target = this.getAt(root, path);
 
-    // Try to apply the rule
-    const result = rule.matchFunc(target);
-    if (!result || !result.replace) {
-      return null;
+    for (let rule of rules) {
+      // Try to apply the rule
+      const result = rule.matchFunc(target);
+      if (result) {
+        return this.setAt(root, path, result.replace);
+      }
     }
 
-    // Replace the target with the result
-    return this.setAt(root, path, result.replace);
+    return null;
   }
 
   /**
@@ -254,57 +250,11 @@ export class RuntimeImpl implements Runtime {
   // }
 
   addRule(m: RuleMeta): void {
-    /** Optional: keep meta accessible for features/policy */
-    this.byId.set(m.id, m);
-
-    let ruleAst: AstNode;
-    ruleAst = parse(m.rule);
-
-    if (ruleAst.kind !== "rule") {
-      throw "Should be rule"
-    }
-
-    let node: RuleNode = {
-      def: m.rule,
-      id: m.id,
-      tags: m.tags,
-      pattern: ruleAst.children![0],
-      match: ruleAst.children![1],
-      constraints: ruleAst.constraints,
-      matchFunc: m.fn
-    }
-    this.rules.push(node);
-    if (node.pattern.kind === "func") {
-      if (typeof (node.pattern.value) !== "string") {
-        debugger;
-      } else {
-        this.byFunc.set(node.pattern.value as string, node);
-      }
-    }
-
-    for (let tag of m.tags) {
-      let e = this.byTag.get(tag);
-      if (!e) {
-        e = [];
-        this.byTag.set(tag, e);
-      }
-      e.push(node);
-    }
+    return this.rules.addRule(m);
   }
 
   matchRule(inp: AstNode): MatchFuncRet[] {
-    const results: MatchFuncRet[] = [];
-
-    for (const rule of this.rules) {
-      const result = rule.matchFunc!(inp);
-      if (result !== undefined) {
-        result.ruleDef = rule.def;
-        results.push(result);
-      }
-      continue;
-    }
-
-    return results;
+    return this.matchRule(inp);
   }
 
   /**

@@ -3,7 +3,9 @@ import { parse } from "./parser.js";
 import { Goal, Path } from "./planner/plannercore.js";
 //import { StateManager, StateGuard } from "./state.js";
 
-export type RuleId = string;
+export type RuleId = string & { __tag_ruleid: never };
+export type SkillId = string & { __tag_skillid: never };
+export type RuleBody = string & { __tag_rulebody: never };
 
 export type RuleTag =
   | "sum" | "mul" | "div" | "neg" | "paren"
@@ -29,7 +31,7 @@ export type RuleNode = {
   pattern: AstNode,
   match: AstNode,
   constraints?: Constraint[],
-  matchFunc: MatchFunc | undefined
+  matchFunc: MatchFunc
 }
 
 export interface Runtime {

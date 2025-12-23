@@ -1,5 +1,6 @@
 import { AstNode } from "./ast";
 import { LlmClient } from "./llmclient";
+import { SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
 
 interface SkillEntry {
@@ -18,7 +19,7 @@ export class SkillRegistry {
     return [...this.skills.values()].map(e => e.descriptor);
   }
 
-  get(id: string): SkillDescriptor | undefined {
+  get(id: SkillId): SkillDescriptor | undefined {
     return this.skills.get(id)?.descriptor;
   }
 

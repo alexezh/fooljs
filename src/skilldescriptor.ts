@@ -1,9 +1,10 @@
 import { Goal } from "./planner/plannercore";
+import { RuleId, SkillId } from "./runtime";
 
 export type SkillKind = "rewrite_rule" | "macro_action" | "tagger";
 
 export interface SkillDescriptor {
-  id: string;
+  id: SkillId;
   name: string;
 
   // For rules: DSL rule string; for macro: plan; for tagger: pattern+guard.
@@ -38,7 +39,7 @@ export interface MacroActionPayload {
 
 export interface MacroStep {
   // Existing rule ID in Runtime
-  ruleId?: string;
+  ruleId?: RuleId;
 
   // Serialized AST pattern (e.g., "eq(sum(mul(?k, ?x), ?c), 0)")
   pattern?: string;

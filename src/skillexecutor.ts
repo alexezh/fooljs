@@ -9,14 +9,16 @@
 //
 // Here, "availableSkills" is everything in the registry that is relevant to this goal.
 
-import { Runtime } from "./runtime";
+import { AstNode } from "./ast";
+import { Goal } from "./planner/plannercore";
+import { RuleBody, Runtime, SkillId } from "./runtime";
 import { SkillRegistry } from "./skillregistry";
 
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime, private readonly registry: SkillRegistry) { }
 
   // Execute a skill at focus. For macro_action, apply its steps.
-  tryExecute(skillId: string, root: any, focus: number[], goal: any): { nextRoot: any; applied: boolean } {
+  tryExecute(skillId: SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
     const s = this.registry.get(skillId);
     if (!s) return { nextRoot: root, applied: false };
 
@@ -27,19 +29,16 @@ export class SkillExecutor {
 
       const next = this.runtime.tryApplyRuleAt(ruleId, root, focus);
       return next ? { nextRoot: next, applied: true } : { nextRoot: root, applied: false };
-    }
-
-    if (s.payload.kind === "macro_action") {
+    } else if (s.payload.kind === "macro_action") {
       const steps = s.payload?.steps ?? [];
       const budget = s.payload?.budget ?? 8;
       let cur = root;
       let applied = false;
 
       for (let i = 0; i < Math.min(budget, steps.length); i++) {
-        const rid = steps[i]?.ruleId;
-        if (typeof rid !== "string") continue;
+        const pattern = steps[i]?.pattern;
 
-        const next = this.runtime.tryApplyRuleAt(rid, cur, focus);
+        const next = this.runtime.tryApplyRuleAt(pattern as RuleBody, cur, focus);
         if (next) {
           cur = next;
           applied = true;

@@ -1,5 +1,5 @@
 import { AstNode, MatchFunc } from "./ast.js";
-import { RuleMeta, RuleTag, Runtime } from "./runtime.js";
+import { RuleId, RuleMeta, RuleTag, Runtime } from "./runtime.js";
 import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
@@ -106,31 +106,31 @@ export function initRules(runtime: Runtime) {
     // Sum
     // -------------------------
     {
-      id: "sum_assoc_left",
+      id: "sum_assoc_left" as RuleId,
       rule: "sum(?a, ?b, ?rest...) => sum(sum(?a, ?b), ?rest...)",
       fn: ruleAssocLeft,
       tags: [...T.sum, ...T.structural, ...T.assoc],
     },
     {
-      id: "sum_assoc_mid",
+      id: "sum_assoc_mid" as RuleId,
       rule: "sum(?a, ?b, ?c, ?rest...) => sum(sum(?a, ?c), ?b, ?rest...)",
       fn: ruleAssocMid,
       tags: [...T.sum, ...T.structural, ...T.assoc],
     },
     {
-      id: "sum_assoc_end",
+      id: "sum_assoc_end" as RuleId,
       rule: "sum(?a, ?mid..., ?b) => sum(sum(?a, ?b), ?rest...)",
       fn: ruleAssocEnd,
       tags: [...T.sum, ...T.structural, ...T.assoc],
     },
     {
-      id: "sum_neutral_drop_0",
+      id: "sum_neutral_drop_0" as RuleId,
       rule: "sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)",
       fn: ruleNeutralRight,
       tags: [...T.sum, ...T.simplify, ...T.neutral],
     },
     {
-      id: "sum_lift_to_eval_def",
+      id: "sum_lift_to_eval_def" as RuleId,
       rule: "sum(?a, ?b) => eval(def(sym(?y), sum(?a, ?b))) where ?y is symbol_name",
       fn: ruleLiftSum,
       tags: [...T.sum, ...T.eval, "progress", "structural"],
@@ -140,31 +140,31 @@ export function initRules(runtime: Runtime) {
     // Mul
     // -------------------------
     {
-      id: "mul_assoc_left",
+      id: "mul_assoc_left" as RuleId,
       rule: "mul(?a, ?b, ?rest...) => mul(prod(?a, ?b), ?rest...)",
       fn: ruleMulAssocLeft,
       tags: [...T.mul, ...T.structural, ...T.assoc],
     },
     {
-      id: "mul_neutral_drop_1_right",
+      id: "mul_neutral_drop_1_right" as RuleId,
       rule: "mul(?args..., 1, ?rest...) => mul(?args..., ?rest...)",
       fn: ruleMulNeutralRight,
       tags: [...T.mul, ...T.simplify, ...T.neutral],
     },
     {
-      id: "mul_neutral_drop_1_left",
+      id: "mul_neutral_drop_1_left" as RuleId,
       rule: "mul(?args..., 1, ?rest...) => mul(?args..., ?rest...)",
       fn: ruleMulNeutralLeft,
       tags: [...T.mul, ...T.simplify, ...T.neutral],
     },
     {
-      id: "mul_zero_to_0_right",
+      id: "mul_zero_to_0_right" as RuleId,
       rule: "mul(?args..., 0, ?rest...) => 0",
       fn: ruleMulZeroRight,
       tags: [...T.mul, ...T.simplify, "compute"],
     },
     {
-      id: "mul_zero_to_0_left",
+      id: "mul_zero_to_0_left" as RuleId,
       rule: "mul(?args..., 0, ?rest...) => 0",
       fn: ruleMulZeroLeft,
       tags: [...T.mul, ...T.simplify, "compute"],
@@ -174,13 +174,13 @@ export function initRules(runtime: Runtime) {
     // Div
     // -------------------------
     {
-      id: "div_neutral_by_1",
+      id: "div_neutral_by_1" as RuleId,
       rule: "div(?a, 1) => ?a",
       fn: ruleDivNeutralRight,
       tags: ["div", ...T.simplify, ...T.neutral],
     },
     {
-      id: "div_self_to_1",
+      id: "div_self_to_1" as RuleId,
       rule: "div(?a, ?a) => 1",
       fn: ruleDivSelfToOne,
       tags: ["div", ...T.simplify],
@@ -190,31 +190,31 @@ export function initRules(runtime: Runtime) {
     // Paren / Neg / Sub
     // -------------------------
     {
-      id: "paren_remove",
+      id: "paren_remove" as RuleId,
       rule: "paren(?a) => ?a",
       fn: ruleParenRemove,
       tags: ["paren", ...T.simplify, ...T.structural],
     },
     {
-      id: "sub_to_sum_neg",
+      id: "sub_to_sum_neg" as RuleId,
       rule: "sub(?a, ?b) => sum(?a, neg(?b))",
       fn: ruleSubToSum,
       tags: ["sum", "neg", ...T.normalize, ...T.structural],
     },
     {
-      id: "neg_double",
+      id: "neg_double" as RuleId,
       rule: "neg(neg(?a)) => ?a",
       fn: ruleDoubleNeg,
       tags: ["neg", ...T.simplify],
     },
     {
-      id: "neg_zero",
+      id: "neg_zero" as RuleId,
       rule: "neg(0) => 0",
       fn: ruleNegZero,
       tags: ["neg", ...T.simplify, "compute"],
     },
     {
-      id: "add_inverse_to_0",
+      id: "add_inverse_to_0" as RuleId,
       rule: "add(?a, neg(?a)) => 0",
       fn: ruleSumNegSelf,
       tags: ["sum", "neg", ...T.simplify],
@@ -224,13 +224,13 @@ export function initRules(runtime: Runtime) {
     // Special transforms
     // -------------------------
     {
-      id: "sum_to_mul_count",
+      id: "sum_to_mul_count" as RuleId,
       rule: "sum(?a, ?rest...) => mul(count([?a, ?rest...]), ?a)",
       fn: ruleSumToMul,
       tags: ["sum", "mul", "list", ...T.normalize, "danger_expand"], // can be risky
     },
     {
-      id: "mul_to_sum_repeat",
+      id: "mul_to_sum_repeat" as RuleId,
       rule: "mul(?n, ?a) => sum(?a, ?rest...) where ?n is number",
       fn: ruleMulToSum,
       tags: ["mul", "sum", ...T.normalize, "danger_expand"],
@@ -240,76 +240,76 @@ export function initRules(runtime: Runtime) {
     // Eq / Solve / Step / Eval
     // -------------------------
     {
-      id: "eq_normalize_to_zero_form",
+      id: "eq_normalize_to_zero_form" as RuleId,
       rule: "eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)",
       fn: ruleEqNormalize,
       tags: [...T.eq, ...T.normalize, "progress"],
     },
     {
-      id: "eval_eq_both_sides",
+      id: "eval_eq_both_sides" as RuleId,
       rule: "eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))",
       fn: ruleEvalEq,
       tags: [...T.eq, ...T.eval, "progress"],
     },
 
     {
-      id: "solve_goal_met",
+      id: "solve_goal_met" as RuleId,
       rule: "solve(?e, ?p) => ?e",
       fn: ruleSolveGoalMet,
       tags: [...T.solve, "progress"],
     },
     {
-      id: "solve_eq_normalize",
+      id: "solve_eq_normalize" as RuleId,
       rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
       fn: ruleSolveEqNormalize,
       tags: [...T.solve, ...T.eq, ...T.normalize, "progress"],
     },
     {
-      id: "solve_isolated_left",
+      id: "solve_isolated_left" as RuleId,
       rule: "solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs",
       fn: ruleSolveEqIsolatedLeft,
       tags: [...T.solve, ...T.eq, "simplify", "progress"],
     },
     {
-      id: "solve_isolated_right",
+      id: "solve_isolated_right" as RuleId,
       rule: "solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs",
       fn: ruleSolveEqIsolatedRight,
       tags: [...T.solve, ...T.eq, "simplify", "progress"],
     },
 
     {
-      id: "step_via_eval_progress",
+      id: "step_via_eval_progress" as RuleId,
       rule: "step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)",
       fn: ruleStep,
       tags: [...T.step, ...T.eval, "progress"],
     },
     {
-      id: "solve_driver_step",
+      id: "solve_driver_step" as RuleId,
       rule: "solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1",
       fn: ruleSolveStep,
       tags: [...T.solve, ...T.step, "progress"],
     },
 
     {
-      id: "eval_number",
+      id: "eval_number" as RuleId,
       rule: "eval(?n) => ?n where ?n is number",
       fn: ruleEvalNumber,
       tags: [...T.eval, ...T.compute],
     },
     {
-      id: "eval_symbol",
+      id: "eval_symbol" as RuleId,
       rule: "eval(sym(?x)) => sym(?x) where ?x is symbol_name",
       fn: ruleEvalSymbol,
       tags: [...T.eval, "simplify"],
     },
     {
-      id: "eval_progressive",
+      id: "eval_progressive" as RuleId,
       rule: "eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where ?f is func_name",
       fn: ruleEvalProgressive,
       tags: [...T.eval, "progress", ...T.structural],
     },
     {
-      id: "eval_collapse",
+      id: "eval_collapse" as RuleId,
       rule: "eval(eval(?x)) => eval(?x)",
       fn: ruleEvalCollapse,
       tags: [...T.eval, ...T.simplify],
@@ -318,56 +318,56 @@ export function initRules(runtime: Runtime) {
     // -------------------------
     // Eval compute rules
     // -------------------------
-    { id: "eval_sum_numbers", rule: "eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalSum, tags: [...T.eval, ...T.compute, "sum"] },
-    { id: "eval_mul_numbers", rule: "eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalMul, tags: [...T.eval, ...T.compute, "mul"] },
-    { id: "eval_div_numbers", rule: "eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalDiv, tags: [...T.eval, ...T.compute, "div"] },
-    { id: "eval_neg_number", rule: "eval(neg(?a)) => calc_neg(?a) where ?a is number", fn: ruleEvalNeg, tags: [...T.eval, ...T.compute, "neg"] },
+    { id: "eval_sum_numbers" as RuleId, rule: "eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalSum, tags: [...T.eval, ...T.compute, "sum"] },
+    { id: "eval_mul_numbers" as RuleId, rule: "eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalMul, tags: [...T.eval, ...T.compute, "mul"] },
+    { id: "eval_div_numbers" as RuleId, rule: "eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalDiv, tags: [...T.eval, ...T.compute, "div"] },
+    { id: "eval_neg_number" as RuleId, rule: "eval(neg(?a)) => calc_neg(?a) where ?a is number", fn: ruleEvalNeg, tags: [...T.eval, ...T.compute, "neg"] },
 
     // Direct compute (no eval wrapper)
-    { id: "calc_sum_numbers", rule: "sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcSum, tags: [...T.compute, "sum"] },
-    { id: "calc_mul_numbers", rule: "mul(?a, ?b) => calc_mul(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcMul, tags: [...T.compute, "mul"] },
-    { id: "calc_div_numbers", rule: "div(?a, ?b) => calc_div(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcDiv, tags: [...T.compute, "div"] },
-    { id: "calc_neg_number", rule: "neg(?a) => calc_neg(?a) where ?a is number", fn: ruleCalcNeg, tags: [...T.compute, "neg"] },
+    { id: "calc_sum_numbers" as RuleId, rule: "sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcSum, tags: [...T.compute, "sum"] },
+    { id: "calc_mul_numbers" as RuleId, rule: "mul(?a, ?b) => calc_mul(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcMul, tags: [...T.compute, "mul"] },
+    { id: "calc_div_numbers" as RuleId, rule: "div(?a, ?b) => calc_div(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcDiv, tags: [...T.compute, "div"] },
+    { id: "calc_neg_number" as RuleId, rule: "neg(?a) => calc_neg(?a) where ?a is number", fn: ruleCalcNeg, tags: [...T.compute, "neg"] },
 
     // -------------------------
     // Transcendentals
     // -------------------------
-    { id: "eval_pow_numbers", rule: "eval(pow(?a, ?b)) => calc_pow(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalPow, tags: [...T.eval, ...T.compute, ...T.transcendental, "power"] },
-    { id: "pow_exp_1", rule: "eval(pow(?x, 1)) => ?x", fn: ruleEvalPowExp1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
-    { id: "pow_exp_0", rule: "eval(pow(?x, 0)) => 1", fn: ruleEvalPowExp0, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
-    { id: "pow_base_1", rule: "eval(pow(1, ?y)) => 1", fn: ruleEvalPowBase1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
-    { id: "pow_base_0_pos", rule: "eval(pow(0, ?y)) => 0", fn: ruleEvalPowBase0Pos, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
+    { id: "eval_pow_numbers" as RuleId, rule: "eval(pow(?a, ?b)) => calc_pow(?a, ?b) where ?a is number, ?b is number", fn: ruleEvalPow, tags: [...T.eval, ...T.compute, ...T.transcendental, "power"] },
+    { id: "pow_exp_1" as RuleId, rule: "eval(pow(?x, 1)) => ?x", fn: ruleEvalPowExp1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
+    { id: "pow_exp_0" as RuleId, rule: "eval(pow(?x, 0)) => 1", fn: ruleEvalPowExp0, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
+    { id: "pow_base_1" as RuleId, rule: "eval(pow(1, ?y)) => 1", fn: ruleEvalPowBase1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
+    { id: "pow_base_0_pos" as RuleId, rule: "eval(pow(0, ?y)) => 0", fn: ruleEvalPowBase0Pos, tags: [...T.eval, ...T.simplify, ...T.transcendental, "power"] },
 
-    { id: "eval_sqrt", rule: "eval(sqrt(?a)) => calc_sqrt(?a)", fn: ruleEvalSqrt, tags: [...T.eval, ...T.compute, ...T.transcendental, "sqrt"] },
-    { id: "sqrt_pow2", rule: "eval(sqrt(pow(?x, 2))) => ?x", fn: ruleSqrt2, tags: [...T.eval, ...T.simplify, ...T.transcendental, "sqrt"] },
-    { id: "sqrt_to_pow_half", rule: "eval(sqrt(?x)) => pow(?x, div(1, 2))", fn: ruleSqrtToPow, tags: [...T.eval, ...T.normalize, ...T.transcendental, "sqrt"] },
+    { id: "eval_sqrt" as RuleId, rule: "eval(sqrt(?a)) => calc_sqrt(?a)", fn: ruleEvalSqrt, tags: [...T.eval, ...T.compute, ...T.transcendental, "sqrt"] },
+    { id: "sqrt_pow2" as RuleId, rule: "eval(sqrt(pow(?x, 2))) => ?x", fn: ruleSqrt2, tags: [...T.eval, ...T.simplify, ...T.transcendental, "sqrt"] },
+    { id: "sqrt_to_pow_half" as RuleId, rule: "eval(sqrt(?x)) => pow(?x, div(1, 2))", fn: ruleSqrtToPow, tags: [...T.eval, ...T.normalize, ...T.transcendental, "sqrt"] },
 
-    { id: "eval_ln", rule: "eval(log(?a)) => calc_ln(?a)", fn: ruleEvalLn, tags: [...T.eval, ...T.compute, ...T.transcendental, "log"] },
-    { id: "eval_log_base", rule: "eval(log(?a, ?b)) => calc_log(?a, ?b)", fn: ruleEvalLogBase, tags: [...T.eval, ...T.compute, ...T.transcendental, "log"] },
-    { id: "ln_1", rule: "eval(log(1)) => 0", fn: ruleLn1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "log"] },
-    { id: "ln_exp", rule: "eval(log(exp(?x))) => ?x", fn: ruleLnExp, tags: [...T.eval, ...T.simplify, ...T.transcendental, "log", "exp"] },
+    { id: "eval_ln" as RuleId, rule: "eval(log(?a)) => calc_ln(?a)", fn: ruleEvalLn, tags: [...T.eval, ...T.compute, ...T.transcendental, "log"] },
+    { id: "eval_log_base" as RuleId, rule: "eval(log(?a, ?b)) => calc_log(?a, ?b)", fn: ruleEvalLogBase, tags: [...T.eval, ...T.compute, ...T.transcendental, "log"] },
+    { id: "ln_1" as RuleId, rule: "eval(log(1)) => 0", fn: ruleLn1, tags: [...T.eval, ...T.simplify, ...T.transcendental, "log"] },
+    { id: "ln_exp" as RuleId, rule: "eval(log(exp(?x))) => ?x", fn: ruleLnExp, tags: [...T.eval, ...T.simplify, ...T.transcendental, "log", "exp"] },
 
-    { id: "eval_exp_number", rule: "eval(exp(?a)) => calc_exp(?a) where ?a is number", fn: ruleEvalExp, tags: [...T.eval, ...T.compute, ...T.transcendental, "exp"] },
-    { id: "exp_ln", rule: "eval(exp(log(?x))) => ?x", fn: ruleExpLn, tags: [...T.eval, ...T.simplify, ...T.transcendental, "exp", "log"] },
-    { id: "exp_0", rule: "eval(exp(0)) => 1", fn: ruleExpZero, tags: [...T.eval, ...T.simplify, ...T.transcendental, "exp"] },
+    { id: "eval_exp_number" as RuleId, rule: "eval(exp(?a)) => calc_exp(?a) where ?a is number", fn: ruleEvalExp, tags: [...T.eval, ...T.compute, ...T.transcendental, "exp"] },
+    { id: "exp_ln" as RuleId, rule: "eval(exp(log(?x))) => ?x", fn: ruleExpLn, tags: [...T.eval, ...T.simplify, ...T.transcendental, "exp", "log"] },
+    { id: "exp_0" as RuleId, rule: "eval(exp(0)) => 1", fn: ruleExpZero, tags: [...T.eval, ...T.simplify, ...T.transcendental, "exp"] },
 
-    { id: "calc_pow_numbers", rule: "pow(?a, ?b) => calc_pow(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcPow, tags: [...T.compute, ...T.transcendental, "power"] },
-    { id: "calc_sqrt_nonneg", rule: "sqrt(?a) => calc_sqrt(?a) where ?a is nonneg_number", fn: ruleCalcSqrt, tags: [...T.compute, ...T.transcendental, "sqrt"] },
-    { id: "calc_ln_pos", rule: "log(?a) => calc_ln(?a) where ?a is positive_number", fn: ruleCalcLn, tags: [...T.compute, ...T.transcendental, "log"] },
-    { id: "calc_log_base", rule: "log(?a, ?b) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number", fn: ruleCalcLogBase, tags: [...T.compute, ...T.transcendental, "log"] },
-    { id: "calc_exp_number", rule: "exp(?a) => calc_exp(?a) where ?a is number", fn: ruleCalcExp, tags: [...T.compute, ...T.transcendental, "exp"] },
+    { id: "calc_pow_numbers" as RuleId, rule: "pow(?a, ?b) => calc_pow(?a, ?b) where ?a is number, ?b is number", fn: ruleCalcPow, tags: [...T.compute, ...T.transcendental, "power"] },
+    { id: "calc_sqrt_nonneg" as RuleId, rule: "sqrt(?a) => calc_sqrt(?a) where ?a is nonneg_number", fn: ruleCalcSqrt, tags: [...T.compute, ...T.transcendental, "sqrt"] },
+    { id: "calc_ln_pos" as RuleId, rule: "log(?a) => calc_ln(?a) where ?a is positive_number", fn: ruleCalcLn, tags: [...T.compute, ...T.transcendental, "log"] },
+    { id: "calc_log_base" as RuleId, rule: "log(?a, ?b) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number", fn: ruleCalcLogBase, tags: [...T.compute, ...T.transcendental, "log"] },
+    { id: "calc_exp_number" as RuleId, rule: "exp(?a) => calc_exp(?a) where ?a is number", fn: ruleCalcExp, tags: [...T.compute, ...T.transcendental, "exp"] },
 
     // -------------------------
     // Fold (generic)
     // -------------------------
     {
-      id: "fold_base",
+      id: "fold_base" as RuleId,
       rule: "fold(?f, ?acc, []) => ?acc",
       fn: ruleFoldBase,
       tags: ["fold", "list", ...T.structural, "simplify"],
     },
     {
-      id: "fold_step",
+      id: "fold_step" as RuleId,
       rule: "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
       fn: ruleFoldStep,
       tags: ["fold", "list", ...T.structural, "progress"],

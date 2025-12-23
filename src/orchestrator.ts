@@ -194,7 +194,7 @@ export interface VerificationResult {
 export class SymbolicVerifier {
   constructor(private readonly runtime: Runtime) { }
 
-  verify(skill: SkillDescriptor, testSet: any[]): VerificationResult {
+  verify(skill: SkillDescriptor, testSet: AstNode[]): VerificationResult {
     switch (skill.payload.kind) {
       case "rewrite_rule":
         return this.verifyRewriteRule(skill.payload, testSet);
@@ -271,7 +271,7 @@ export class SymbolicVerifier {
     return { ok: true };
   }
 
-  private verifyTagger(payload: TaggerPayload, _testSet: any[]): VerificationResult {
+  private verifyTagger(payload: TaggerPayload, _testSet: AstNode[]): VerificationResult {
     const pattern = payload?.pattern;
     if (typeof pattern !== "string") return { ok: false, reason: "Missing payload.pattern" };
 
@@ -340,9 +340,6 @@ export class Orchestrator {
         trace.success = true;
         break;
       }
-
-      const available = this.registry.list()
-        .filter(s => s.payload.kind === "macro_action" || s.payload.kind === "rewrite_rule");
 
       const choice = await this.policy.chooseAction({
         root,

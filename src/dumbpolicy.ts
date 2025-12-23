@@ -5,6 +5,7 @@
 
 import { AstNode } from "./ast";
 import { Goal } from "./planner/plannercore";
+import { SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
 import { SkillRegistry } from "./skillregistry";
 
@@ -18,7 +19,7 @@ export class DumbPolicy {
   }
 
   async chooseAction({ root, goal, focusCandidates, registry }: { root: AstNode, goal: Goal, focusCandidates, registry: SkillRegistry }):
-    Promise<{ skillId: string, focus: [] } | null> {
+    Promise<{ skillId: SkillId, focus: [] } | null> {
     if (!this.skills) {
       this.skills = await registry.findMatching(root);
     }
