@@ -13,6 +13,149 @@ function sameSymbol(a: AstNode, b: AstNode): boolean {
   return aSymbol.name === bSymbol.name;
 }
 
+// Helper: GCD of two numbers
+function gcd(a: number, b: number): number {
+  a = Math.abs(a);
+  b = Math.abs(b);
+  while (b !== 0) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+// Helper: GCD of an array of numbers
+function gcdArray(nums: number[]): number {
+  if (nums.length === 0) return 1;
+  return nums.reduce((acc, n) => gcd(acc, n));
+}
+
+// Helper: Extract coefficient from a term
+// Returns the numeric coefficient if the term is a number or mul(number, ...)
+function getCoefficient(term: AstNode): number | undefined {
+  if (isNumber(term)) {
+    return term.value as number;
+  }
+
+  if (isFunc(term, 'mul')) {
+    const mulArgs = getArgs(term);
+    if (mulArgs.length >= 1 && isNumber(mulArgs[0])) {
+      return mulArgs[0].value as number;
+    }
+  }
+
+  if (isFunc(term, 'neg')) {
+    const negArgs = getArgs(term);
+    if (negArgs.length === 1) {
+      const innerCoeff = getCoefficient(negArgs[0]);
+      return innerCoeff !== undefined ? -innerCoeff : undefined;
+    }
+  }
+
+  return undefined;
+}
+
+// Helper: Check if all terms are divisible by a number
+function all_divisible_by(terms: ReadonlyArray<AstNode>, divisor: number): boolean {
+  if (divisor === 0 || divisor === 1) return false;
+
+  for (const term of terms) {
+    const coeff = getCoefficient(term);
+    if (coeff === undefined) return false;
+    if (coeff % divisor !== 0) return false;
+  }
+
+  return true;
+}
+
+// Helper: Divide a term by a number
+function divideTermBy(term: AstNode, divisor: number): AstNode {
+  if (isNumber(term)) {
+    const value = term.value as number;
+    return AstNode.create('number', value / divisor);
+  }
+
+  if (isFunc(term, 'mul')) {
+    const mulArgs = getArgs(term);
+    if (mulArgs.length >= 1 && isNumber(mulArgs[0])) {
+      const coeff = mulArgs[0].value as number;
+      const newCoeff = AstNode.create('number', coeff / divisor);
+      const rest = mulArgs.slice(1);
+
+      if (rest.length === 0) {
+        return newCoeff;
+      } else if (rest.length === 1) {
+        return AstNode.create('func', 'mul', [newCoeff, rest[0]]);
+      } else {
+        return AstNode.create('func', 'mul', [newCoeff, ...rest]);
+      }
+    }
+  }
+
+  if (isFunc(term, 'neg')) {
+    const negArgs = getArgs(term);
+    if (negArgs.length === 1) {
+      const innerDivided = divideTermBy(negArgs[0], divisor);
+      return AstNode.create('func', 'neg', [innerDivided]);
+    }
+  }
+
+  // Fallback: create div node
+  return AstNode.create('func', 'div', [term, AstNode.create('number', divisor)]);
+}
+
+// Helper: Map division over a list of terms
+function map_div(terms: ReadonlyArray<AstNode>, divisor: number): AstNode[] {
+  return terms.map(term => divideTermBy(term, divisor));
+}
+
+// =============================================================================
+// Factor common divisor from sum
+// =============================================================================
+
+// sum(?terms...) => mul(?x, sum(?quot...))
+//   where all_divisible_by([?terms...], ?x),
+//         map_div([?terms...], ?x) => [?quot...]
+export function ruleFactorCommonDivisor(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'sum')) return undefined;
+  const terms = getArgs(ast);
+  if (terms.length < 2) return undefined;
+
+  // Extract coefficients from all terms
+  const coefficients: number[] = [];
+  for (const term of terms) {
+    const coeff = getCoefficient(term);
+    if (coeff === undefined) return undefined; // Can't factor if any term has no coefficient
+    coefficients.push(coeff);
+  }
+
+  // Find GCD of all coefficients
+  const commonDivisor = gcdArray(coefficients);
+
+  // Only factor if GCD > 1
+  if (commonDivisor <= 1) return undefined;
+
+  // Verify all terms are divisible (should always be true if GCD calculation is correct)
+  if (!all_divisible_by(terms, commonDivisor)) return undefined;
+
+  // Divide all terms by the common divisor
+  const quotients = map_div(terms, commonDivisor);
+
+  // Build mul(?x, sum(?quot...))
+  const quotientSum = quotients.length === 1
+    ? quotients[0]
+    : AstNode.create('func', 'sum', quotients);
+
+  return {
+    replace: AstNode.create('func', 'mul', [
+      AstNode.create('number', commonDivisor),
+      quotientSum
+    ]),
+    cost: 2 // Creates 2 new nodes: mul and possibly sum
+  };
+}
+
 // =============================================================================
 // Like terms - Combine coefficients of same variable
 // =============================================================================

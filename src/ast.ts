@@ -39,6 +39,7 @@ export type FuncName =
   | 'step'
   | 'fold'
   | 'acc'
+  | 'bucket_same'
   | 'collect_sum_numbers'
   | 'collect_mul_numbers';
 
@@ -354,3 +355,35 @@ export function cloneAst(node: AstNode): AstNode {
 
 export type MatchFuncRet = { ruleDef?: string, replace: AstNode, cost: number }
 export type MatchFunc = (ast: AstNode) => MatchFuncRet | undefined;
+
+export function astEquals(a: AstNode, b: AstNode): boolean {
+  if (a.kind !== b.kind) return false;
+
+  if (a.kind === 'number') {
+    return a.value === b.value;
+  }
+
+  if (a.kind === 'symbol') {
+    const aSym = a.value as ASymbol;
+    const bSym = b.value as ASymbol;
+    return aSym.name === bSym.name;
+  }
+
+  if (a.kind === 'func' || a.kind === 'eq') {
+    if (a.value !== b.value) return false;
+
+    const aArgs = a.children ?? [];
+    const bArgs = b.children ?? [];
+
+    if (aArgs.length !== bArgs.length) return false;
+
+    for (let i = 0; i < aArgs.length; i++) {
+      if (!astEquals(aArgs[i], bArgs[i])) return false;
+    }
+
+    return true;
+  }
+
+  return a.toString() === b.toString();
+}
+

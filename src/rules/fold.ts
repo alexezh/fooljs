@@ -2,7 +2,7 @@
 // Generic fold and accumulator patterns
 // =============================================================================
 
-import { AstNode, FuncName, isNumber, MatchFuncRet } from "../ast.js";
+import { astEquals, AstNode, ASymbol, FuncName, isNumber, MatchFuncRet } from "../ast.js";
 import { getArgs, isFunc } from "./corerules.js";
 
 // =============================================================================
@@ -244,5 +244,143 @@ export function ruleMulFold(ast: AstNode): MatchFuncRet | undefined {
   return {
     replace: foldExpr,
     cost: 5 // Creates 5 new nodes: fold, collect_mul_numbers, acc, empty list, number 1, args list
+  };
+}
+
+// =============================================================================
+// Group same terms: acc(pick([...]), rest([...]))
+// =============================================================================
+
+// group_same(sum(?terms...), ?target)
+//   => rebuild_group(fold(bucket_same(?target), acc(pick(), rest()), [?terms...]))
+export function ruleGroupSame(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'group_same')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [sumNode, target] = args;
+
+  // Check if first arg is sum
+  if (!isFunc(sumNode, 'sum')) return undefined;
+  const terms = getArgs(sumNode);
+  if (terms.length === 0) return undefined;
+
+  // Build fold(bucket_same(target), acc(pick(), rest()), [terms...])
+  const foldExpr = AstNode.create('func', 'fold', [
+    AstNode.create('func', 'bucket_same', [target]),
+    AstNode.create('func', 'acc', [
+      AstNode.create('func', 'pick', []),
+      AstNode.create('func', 'rest', [])
+    ]),
+    AstNode.create('list', 'list', Array.from(terms))
+  ]);
+
+  // Wrap in rebuild_group
+  return {
+    replace: AstNode.create('func', 'rebuild_group', [foldExpr]),
+    cost: 7 // Creates multiple new nodes
+  };
+}
+
+// bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t)
+//   => acc(pick(?p..., ?t), rest(?r...))
+//   where eq_ast(?t, ?target)
+export function ruleBucketSamePick(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'bucket_same')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 3) return undefined;
+
+  const [target, accNode, element] = args;
+
+  // Check if element equals target
+  if (!astEquals(element, target)) return undefined;
+
+  // Check if accNode is acc(pick(...), rest(...))
+  if (!isFunc(accNode, 'acc')) return undefined;
+  const accArgs = getArgs(accNode);
+  if (accArgs.length !== 2) return undefined;
+
+  const [pickNode, restNode] = accArgs;
+
+  // Check pick and rest are functions
+  if (!isFunc(pickNode, 'pick')) return undefined;
+  if (!isFunc(restNode, 'rest')) return undefined;
+
+  const pickItems = getArgs(pickNode);
+  const restItems = getArgs(restNode);
+
+  // Build acc(pick(?p..., ?t), rest(?r...))
+  return {
+    replace: AstNode.create('func', 'acc', [
+      AstNode.create('func', 'pick', [...pickItems, element]),
+      AstNode.create('func', 'rest', restItems)
+    ]),
+    cost: 3 // Creates 3 new nodes: acc, pick, rest
+  };
+}
+
+// bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t)
+//   => acc(pick(?p...), rest(?r..., ?t))
+export function ruleBucketSameRest(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'bucket_same')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 3) return undefined;
+
+  const [target, accNode, element] = args;
+
+  // Check if element does NOT equal target
+  if (astEquals(element, target)) return undefined;
+
+  // Check if accNode is acc(pick(...), rest(...))
+  if (!isFunc(accNode, 'acc')) return undefined;
+  const accArgs = getArgs(accNode);
+  if (accArgs.length !== 2) return undefined;
+
+  const [pickNode, restNode] = accArgs;
+
+  // Check pick and rest are functions
+  if (!isFunc(pickNode, 'pick')) return undefined;
+  if (!isFunc(restNode, 'rest')) return undefined;
+
+  const pickItems = getArgs(pickNode);
+  const restItems = getArgs(restNode);
+
+  // Build acc(pick(?p...), rest(?r..., ?t))
+  return {
+    replace: AstNode.create('func', 'acc', [
+      AstNode.create('func', 'pick', pickItems),
+      AstNode.create('func', 'rest', [...restItems, element])
+    ]),
+    cost: 3 // Creates 3 new nodes: acc, pick, rest
+  };
+}
+
+// rebuild_group(acc(pick(?p...), rest(?r...)))
+//   => sum(?p..., ?r...)
+export function ruleRebuildGroup(ast: AstNode): MatchFuncRet | undefined {
+  if (!isFunc(ast, 'rebuild_group')) return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 1) return undefined;
+
+  const accNode = args[0];
+
+  // Check if accNode is acc(pick(...), rest(...))
+  if (!isFunc(accNode, 'acc')) return undefined;
+  const accArgs = getArgs(accNode);
+  if (accArgs.length !== 2) return undefined;
+
+  const [pickNode, restNode] = accArgs;
+
+  // Check pick and rest are functions
+  if (!isFunc(pickNode, 'pick')) return undefined;
+  if (!isFunc(restNode, 'rest')) return undefined;
+
+  const pickItems = getArgs(pickNode);
+  const restItems = getArgs(restNode);
+
+  // Build sum(?p..., ?r...)
+  return {
+    replace: AstNode.create('func', 'sum', [...pickItems, ...restItems]),
+    cost: 1 // Creates 1 new sum node
   };
 }

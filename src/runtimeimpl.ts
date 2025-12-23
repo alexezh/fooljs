@@ -1,4 +1,4 @@
-import { AstNode, ASymbol, MatchFuncRet } from "./ast.js";
+import { astEquals, AstNode, ASymbol, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
 import { RuleRegistry } from "./ruleregistry.js";
@@ -141,7 +141,7 @@ export class RuntimeImpl implements Runtime {
    */
   equivalent(a: AstNode, b: AstNode): boolean {
     // Try structural equality first
-    if (this.astEquals(a, b)) {
+    if (astEquals(a, b)) {
       return true;
     }
 
@@ -294,7 +294,7 @@ export class RuntimeImpl implements Runtime {
       const existing = bindings.get(varName);
       if (existing !== undefined) {
         // Variable must match the same expression
-        return this.astEquals(existing, expr);
+        return astEquals(existing, expr);
       }
 
       // Bind the variable
@@ -406,37 +406,6 @@ export class RuntimeImpl implements Runtime {
 
     // Both must be exhausted (unless there are trailing spread patterns)
     return pi === patArgs.length && ei === exprArgs.length;
-  }
-
-  private astEquals(a: AstNode, b: AstNode): boolean {
-    if (a.kind !== b.kind) return false;
-
-    if (a.kind === 'number') {
-      return a.value === b.value;
-    }
-
-    if (a.kind === 'symbol') {
-      const aSym = a.value as ASymbol;
-      const bSym = b.value as ASymbol;
-      return aSym.name === bSym.name;
-    }
-
-    if (a.kind === 'func' || a.kind === 'eq') {
-      if (a.value !== b.value) return false;
-
-      const aArgs = a.children ?? [];
-      const bArgs = b.children ?? [];
-
-      if (aArgs.length !== bArgs.length) return false;
-
-      for (let i = 0; i < aArgs.length; i++) {
-        if (!this.astEquals(aArgs[i], bArgs[i])) return false;
-      }
-
-      return true;
-    }
-
-    return a.toString() === b.toString();
   }
 
   /**

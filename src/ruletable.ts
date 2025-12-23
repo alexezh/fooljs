@@ -8,8 +8,8 @@ import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEv
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./rules/solverules.js";
 import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./rules/sum.js";
 import { ruleCalcExp, ruleCalcLn, ruleCalcLogBase, ruleCalcPow, ruleCalcSqrt, ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./rules/transcendental.js";
-import { ruleCombineLikeTerms, ruleCombineNumbers, ruleSubExpandSum } from "./rules/simplify.js";
-import { ruleCollectMulNonNumber, ruleCollectMulNumber, ruleCollectSumNonNumber, ruleCollectSumNumber, ruleFoldBase, ruleFoldStep, ruleMulFold, ruleSumFold } from "./rules/fold.js";
+import { ruleCombineLikeTerms, ruleCombineNumbers, ruleFactorCommonDivisor, ruleSubExpandSum } from "./rules/simplify.js";
+import { ruleBucketSamePick, ruleBucketSameRest, ruleCollectMulNonNumber, ruleCollectMulNumber, ruleCollectSumNonNumber, ruleCollectSumNumber, ruleFoldBase, ruleFoldStep, ruleGroupSame, ruleMulFold, ruleRebuildGroup, ruleSumFold } from "./rules/fold.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -75,7 +75,8 @@ export const coreRuleFunctions = [
   // Simplification rules
   ruleCombineLikeTerms,   // 57
   ruleSubExpandSum,       // 58
-  ruleCombineNumbers      // 59
+  ruleCombineNumbers,     // 59
+  ruleFactorCommonDivisor // 60
 ];
 
 
@@ -134,6 +135,12 @@ export function initRules(runtime: Runtime) {
       rule: "sum(?a, ?b) => eval(def(sym(?y), sum(?a, ?b))) where ?y is symbol_name",
       fn: ruleLiftSum,
       tags: [...T.sum, ...T.eval, "progress", "structural"],
+    },
+    {
+      id: "sum_factor_common_divisor" as RuleId,
+      rule: "sum(?terms...) => mul(?x, sum(?quot...)) where all_divisible_by([?terms...], ?x), map_div([?terms...], ?x) => [?quot...]",
+      fn: ruleFactorCommonDivisor,
+      tags: [...T.sum, ...T.simplify, "factor", "progress"],
     },
 
     // -------------------------
@@ -388,6 +395,34 @@ export function initRules(runtime: Runtime) {
       rule: "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
       fn: ruleFoldStep,
       tags: ["fold", "list", ...T.structural, "progress"],
+    },
+
+    // -------------------------
+    // Group same terms
+    // -------------------------
+    {
+      id: "group_same" as RuleId,
+      rule: "group_same(sum(?terms...), ?target) => rebuild_group(fold(bucket_same(?target), acc(pick(), rest()), [?terms...]))",
+      fn: ruleGroupSame,
+      tags: ["fold", "group", ...T.structural, "progress"],
+    },
+    {
+      id: "bucket_same_pick" as RuleId,
+      rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where eq_ast(?t, ?target)",
+      fn: ruleBucketSamePick,
+      tags: ["fold", "bucket", ...T.structural, "progress"],
+    },
+    {
+      id: "bucket_same_rest" as RuleId,
+      rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p...), rest(?r..., ?t))",
+      fn: ruleBucketSameRest,
+      tags: ["fold", "bucket", ...T.structural, "progress"],
+    },
+    {
+      id: "rebuild_group" as RuleId,
+      rule: "rebuild_group(acc(pick(?p...), rest(?r...))) => sum(?p..., ?r...)",
+      fn: ruleRebuildGroup,
+      tags: ["fold", "rebuild", ...T.structural, "simplify"],
     },
 
     // -------------------------
