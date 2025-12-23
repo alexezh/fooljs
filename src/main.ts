@@ -124,6 +124,7 @@ async function seedBaselineSkills(registry: SkillRegistry) {
         { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
         { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
 
+        //{ pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left" as RuleId, focus: "same" },
         { pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left" as RuleId, focus: "same" },
         { pattern: "solve(eq(?lhs, ?x), solved_for(?x))", ruleId: "solve_isolated_right" as RuleId, focus: "same" }
       ],

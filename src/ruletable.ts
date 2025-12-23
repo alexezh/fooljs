@@ -1,6 +1,6 @@
 import { AstNode, MatchFunc } from "./ast.js";
 import { RuleId, RuleMeta, RuleTag, Runtime } from "./runtime.js";
-import { ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
+import { ruleEqDivideBothSidesLeftMul, ruleEqDivideBothSidesRightMul, ruleEqMoveAddendGeneral, ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./rules/goals.js";
@@ -246,12 +246,29 @@ export function initRules(runtime: Runtime) {
       tags: [...T.eq, ...T.normalize, "progress"],
     },
     {
+      id: "eq_move_addend_general" as RuleId,
+      rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+      fn: ruleEqMoveAddendGeneral,
+      tags: ["eq", "normalize", "isolate", "progress"],
+    },
+    {
       id: "eval_eq_both_sides" as RuleId,
       rule: "eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))",
       fn: ruleEvalEq,
       tags: [...T.eq, ...T.eval, "progress"],
     },
-
+    {
+      id: "eq_divide_both_sides_left_mul" as RuleId,
+      rule: "eq(mul(?k, ?x), ?b) => eq(?x, div(?b, ?k))",
+      fn: ruleEqDivideBothSidesLeftMul,
+      tags: ["eq", "normalize", "isolate", "progress", "linear"],
+    },
+    {
+      id: "eq_divide_both_sides_right_mul" as RuleId,
+      rule: "eq(?b, mul(?k, ?x)) => eq(div(?b, ?k), ?x)",
+      fn: ruleEqDivideBothSidesRightMul,
+      tags: ["eq", "normalize", "isolate", "progress", "linear"],
+    },
     {
       id: "solve_goal_met" as RuleId,
       rule: "solve(?e, ?p) => ?e",

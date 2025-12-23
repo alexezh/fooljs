@@ -14,6 +14,7 @@ export type RuleTag =
   | "structural" | "progress" | "fold" | "list"
   | "transcendental" | "power" | "sqrt" | "log" | "exp"
   | "danger_expand"
+  | "isolate"
   | "linear" | "compute" | "progress"; // e.g. rules that can blow up size (keep for future)
 
 export interface RuleMeta {

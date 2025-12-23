@@ -126,6 +126,105 @@ export function ruleEqMulBothSides(ast: AstNode): MatchFuncRet | undefined {
   return undefined;
 }
 
+// eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))
+// Move addend from left side to right side
+export function ruleEqMoveAddendGeneral(ast: AstNode): MatchFuncRet | undefined {
+  if (ast.kind !== 'eq') return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [lhs, rhs] = args;
+
+  // Check if lhs is sum with at least 2 args
+  if (!isFunc(lhs, 'sum')) return undefined;
+  const sumArgs = getArgs(lhs);
+  if (sumArgs.length < 2) return undefined;
+
+  // Take the last argument as ?c and the rest as ?t
+  const c = sumArgs[sumArgs.length - 1];
+  const tArgs = sumArgs.slice(0, -1);
+
+  // Build ?t (if single arg, unwrap; otherwise keep as sum)
+  const t = tArgs.length === 1
+    ? tArgs[0]
+    : AstNode.create('func', 'sum', tArgs);
+
+  // Build eq(?t, sum(?rhs, neg(?c)))
+  const newRhs = AstNode.create('func', 'sum', [
+    rhs,
+    AstNode.create('func', 'neg', [c])
+  ]);
+
+  return {
+    replace: AstNode.create('eq', 'eq', [t, newRhs]),
+    cost: 3 // Creates 3 new nodes: eq, sum, neg
+  };
+}
+
+// eq(mul(?k, ?x), ?b) => eq(?x, div(?b, ?k))
+// Divide both sides when left side is a multiplication
+export function ruleEqDivideBothSidesLeftMul(ast: AstNode): MatchFuncRet | undefined {
+  if (ast.kind !== 'eq') return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [lhs, rhs] = args;
+
+  // Check if lhs is mul with at least 2 args
+  if (!isFunc(lhs, 'mul')) return undefined;
+  const mulArgs = getArgs(lhs);
+  if (mulArgs.length < 2) return undefined;
+
+  // Take the first argument as ?k and the rest as ?x
+  const k = mulArgs[0];
+  const xArgs = mulArgs.slice(1);
+
+  // Build ?x (if single arg, unwrap; otherwise keep as mul)
+  const x = xArgs.length === 1
+    ? xArgs[0]
+    : AstNode.create('func', 'mul', xArgs);
+
+  // Build eq(?x, div(?b, ?k))
+  const newRhs = AstNode.create('func', 'div', [rhs, k]);
+
+  return {
+    replace: AstNode.create('eq', 'eq', [x, newRhs]),
+    cost: 2 // Creates 2 new nodes: eq, div
+  };
+}
+
+// eq(?b, mul(?k, ?x)) => eq(div(?b, ?k), ?x)
+// Divide both sides when right side is a multiplication
+export function ruleEqDivideBothSidesRightMul(ast: AstNode): MatchFuncRet | undefined {
+  if (ast.kind !== 'eq') return undefined;
+  const args = getArgs(ast);
+  if (args.length !== 2) return undefined;
+
+  const [lhs, rhs] = args;
+
+  // Check if rhs is mul with at least 2 args
+  if (!isFunc(rhs, 'mul')) return undefined;
+  const mulArgs = getArgs(rhs);
+  if (mulArgs.length < 2) return undefined;
+
+  // Take the first argument as ?k and the rest as ?x
+  const k = mulArgs[0];
+  const xArgs = mulArgs.slice(1);
+
+  // Build ?x (if single arg, unwrap; otherwise keep as mul)
+  const x = xArgs.length === 1
+    ? xArgs[0]
+    : AstNode.create('func', 'mul', xArgs);
+
+  // Build eq(div(?b, ?k), ?x)
+  const newLhs = AstNode.create('func', 'div', [lhs, k]);
+
+  return {
+    replace: AstNode.create('eq', 'eq', [newLhs, x]),
+    cost: 2 // Creates 2 new nodes: eq, div
+  };
+}
+
 // solve(?e, ?p) => solve(?e1, ?p) where not holds(?p, ?e), step(?e) => ?e1
 // Recursive case: take one step and continue solving
 // Note: This needs runtime access for step function

@@ -208,7 +208,11 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const callee = target.toAst();
     const argNodes = args.asIteration().children.map((arg: any) => arg.toAst());
     const funcValue = callee instanceof AstNode ? callee : (callee as string);
-    return AstNode.create('func', funcValue as FuncName, argNodes);
+    if (funcValue === 'eq') {
+      return AstNode.create('eq', 'eq', argNodes);
+    } else {
+      return AstNode.create('func', funcValue as FuncName, argNodes);
+    }
   },
 
   Symbol_indexed(name, _lbrace, indices, _rbrace) {
@@ -272,7 +276,7 @@ export function parse(text: string): AstNode {
 
 export function parseEquation(s: string): AstNode {
   let ast = parse(s);
-  if (ast.kind === 'func' && ast.value === 'eq') {
+  if (ast.kind === 'eq') {
     ast = AstNode.create('func', 'solve', [
       ast,
       AstNode.create('func', 'solved_for', [
