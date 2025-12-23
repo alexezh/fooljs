@@ -32,7 +32,7 @@ export class SkillRegistry {
 
     // Extract top node from pattern if it's a macro_action
     if (skill.payload.kind === "macro_action" && skill.payload.steps.length > 0) {
-      const firstPattern = skill.payload.steps[0]?.pattern;
+      const firstPattern = skill.payload.match;
       if (firstPattern) {
         entry.topNode = this.extractTopNode(firstPattern);
       }

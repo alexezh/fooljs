@@ -75,61 +75,113 @@ async function seedBaselineSkills(registry: SkillRegistry) {
   // These patterns are used for embedding-based lookup
 
   await registry.add({
-    id: "eq(sum(?a, neg(?b)), 0)" as SkillId,
+    id: "eq_zero_form_inline" as SkillId,
     name: "Normalize equation to zero-form",
     payload: {
       kind: "macro_action",
-      steps: [{
-        pattern: "eq(?a, ?b)",
-        ruleId: "eq_normalize_to_zero_form" as RuleId
-      }],
       budget: 1,
+      match: "eq(?a, ?b)",
+      steps: [{
+        ruleBody: "eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)",
+        focus: "same",
+      }],
     },
     tags: ["eq", "normalize"],
   });
 
   await registry.add({
-    id: "sum(?simplified...)" as SkillId,
-    name: "Local simplification pass (bounded)" as RuleId,
+    id: "local_simplify_bounded_inline" as SkillId,
+    name: "Local simplification pass (bounded)",
     payload: {
       kind: "macro_action",
-      steps: [
-        { pattern: "paren(?a)", ruleId: "paren_remove" as RuleId },
-        { pattern: "neg(neg(?a))", ruleId: "neg_double" as RuleId },
-        { pattern: "neg(0)", ruleId: "neg_zero" as RuleId },
-        { pattern: "sum(?args..., 0, ?rest...)", ruleId: "sum_neutral_drop_0" as RuleId },
-        { pattern: "sum(?a, ?b)", ruleId: "calc_sum_numbers" as RuleId },
-        { pattern: "sum(?terms...)", ruleId: "combine_like_terms" as RuleId }
-      ],
+      match: "paren(?a) | neg(neg(?a)) | neg(0) | sum(?args..., 0, ?rest...) | sum(?a, ?b)",
       budget: 12,
+      steps: [
+        { ruleBody: "paren(?a) => ?a", focus: "same" },
+        { ruleBody: "neg(neg(?a)) => ?a", focus: "same" },
+        { ruleBody: "neg(0) => 0", focus: "same" },
+
+        { ruleBody: "sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", focus: "same" },
+
+        { ruleBody: "sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number", focus: "same" },
+      ],
     },
     tags: ["simplify"],
   });
-
   await registry.add({
-    id: "macro_solve_simple_linear_via_steps" as SkillId,
-    name: "Solve ax + c = 0 (generic steps, no special rule)",
+    id: "macro_solve_ax_plus_c_zero_inline_factor_then_eval" as SkillId,
+    name: "Solve ax + c = 0 (factor x, isolate, then eval RHS)",
     payload: {
       kind: "macro_action",
-      budget: 8,
+      budget: 14,
       steps: [
-        { pattern: "solve(eq(?lhs, ?rhs), solved_for(?x))", ruleId: "solve_eq_normalize" as RuleId, focus: "same" },
+        // 1) Normalize equation to zero form
+        {
+          ruleBody: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
+          focus: "same",
+        },
+        {
+          ruleBody: "solve(eq(sub(?a, ?b), 0), solved_for(?x)) => solve(eq(sum(?a, neg(?b)), 0), solved_for(?x))",
+          focus: "same",
+        },
 
-        // Let solve/step do the work: move constant, simplify
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
-        { pattern: "solve(?e, solved_for(?x))", ruleId: "solve_driver_step" as RuleId, focus: "same" },
+        // 2) (Optional) group exact x terms to the front (cheap helper)
+        {
+          ruleBody: "solve(eq(sum(?terms...), 0), solved_for(?x)) => solve(eq(group_same(sum(?terms...), ?x), 0), solved_for(?x))",
+          focus: "same",
+        },
 
-        //{ pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left" as RuleId, focus: "same" },
-        { pattern: "solve(eq(?x, ?rhs), solved_for(?x))", ruleId: "solve_isolated_left" as RuleId, focus: "same" },
-        { pattern: "solve(eq(?lhs, ?x), solved_for(?x))", ruleId: "solve_isolated_right" as RuleId, focus: "same" }
+        // 3) Move constant tail to RHS: (t + c) = 0 => t = -c
+        {
+          ruleBody: "solve(eq(sum(?t, ?c), 0), solved_for(?x)) => solve(eq(?t, neg(?c)), solved_for(?x))",
+          focus: "same",
+        },
+
+        // 4) Factor out x from a sum of x-multiples:
+        //    sum(t_i) => mul(x, sum(div(t_i, x)))
+        {
+          ruleBody:
+            "solve(eq(sum(?terms...), ?b), solved_for(?x)) => " +
+            "solve(eq(mul(?x, sum(?qs...)), ?b), solved_for(?x)) " +
+            "where map_div_by_x([?terms...], ?x) => [?qs...]",
+          focus: "same",
+        },
+
+        // 5) Isolate x by dividing both sides by the other factor:
+        //    x*k = b  => x = b/k   (or k*x = b => x = b/k)
+        {
+          ruleBody: "solve(eq(mul(?x, ?k), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x))",
+          focus: "same",
+        },
+        {
+          ruleBody: "solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x))",
+          focus: "same",
+        },
+
+        // 6) Evaluate/simplify the RHS as a whole (this is where x/x=>1 happens, inside ?rhs)
+        {
+          ruleBody: "solve(eq(?x, ?rhs), solved_for(?x)) => solve(eq(?x, eval(?rhs)), solved_for(?x))",
+          focus: "same",
+        },
+        // If you prefer your expensive progression library:
+        // {
+        //   pattern: "solve(eq(?x, ?rhs), solved_for(?x))",
+        //   rewrite: "solve(eq(?x, ?rhs), solved_for(?x)) => solve(eq(?x, simplify(?rhs)), solved_for(?x))",
+        //   focus: "same",
+        // },
+
+        // 7) Discharge
+        {
+          ruleBody: "solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs",
+          focus: "same",
+        },
+        {
+          ruleBody: "solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs",
+          focus: "same",
+        },
       ],
     },
-    tags: ["solve", "linear", "procedure", "generic"]
+    tags: ["solve", "linear", "procedure", "generic", "inline_rules", "factor", "eval_rhs"],
   });
 }
 

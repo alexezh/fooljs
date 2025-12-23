@@ -1,5 +1,5 @@
 import { Goal } from "./planner/plannercore";
-import { RuleId, SkillId } from "./runtime";
+import { RuleBody, RuleId, SkillId } from "./runtime";
 
 export type SkillKind = "rewrite_rule" | "macro_action" | "tagger";
 
@@ -27,6 +27,9 @@ export type SkillPayload =
 export interface MacroActionPayload {
   kind?: "macro_action"; // optional if discriminated elsewhere
 
+  // rule to match action
+  match?: string;
+
   // Ordered steps executed by the macro
   steps: MacroStep[];
 
@@ -38,11 +41,8 @@ export interface MacroActionPayload {
 }
 
 export interface MacroStep {
-  // Existing rule ID in Runtime
-  ruleId?: RuleId;
-
   // Serialized AST pattern (e.g., "eq(sum(mul(?k, ?x), ?c), 0)")
-  pattern?: string;
+  ruleBody?: string;
 
   // Optional guard evaluated before applying the rule
   // Keeps macros general and reusable

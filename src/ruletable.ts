@@ -1,7 +1,7 @@
 import { AstNode, MatchFunc } from "./ast.js";
 import { RuleId, RuleMeta, RuleTag, Runtime } from "./runtime.js";
 import { ruleEqDivideBothSidesLeftMul, ruleEqDivideBothSidesRightMul, ruleEqMoveAddendGeneral, ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
-import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveSimpleLinear } from "./rules/equation.js";
+import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveLinearMatch, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
 import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./rules/goals.js";
 import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./rules/mul.js";
@@ -287,6 +287,12 @@ export function initRules(runtime: Runtime) {
       rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
       fn: ruleSolveEqNormalize,
       tags: [...T.solve, ...T.eq, ...T.normalize, "progress"],
+    },
+    {
+      id: "solve_linear_match" as RuleId,
+      rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve_linear(eq(?lhs, ?rhs), solved_for(?x)) where linear_in(?lhs, ?x) or linear_in(?rhs, ?x)",
+      fn: ruleSolveLinearMatch,
+      tags: [...T.solve, ...T.eq, "linear", "progress"],
     },
     {
       id: "solve_isolated_left" as RuleId,

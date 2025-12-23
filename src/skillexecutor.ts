@@ -27,7 +27,8 @@ export class SkillExecutor {
       const ruleId = s.payload?.ruleId;
       if (typeof ruleId !== "string") return { nextRoot: root, applied: false };
 
-      const next = this.runtime.tryApplyRuleAt(ruleId, root, focus);
+      debugger;
+      const next = this.runtime.tryApplyRuleAt(ruleId as RuleBody, root, focus);
       return next ? { nextRoot: next, applied: true } : { nextRoot: root, applied: false };
     } else if (s.payload.kind === "macro_action") {
       const steps = s.payload?.steps ?? [];
@@ -36,9 +37,9 @@ export class SkillExecutor {
       let applied = false;
 
       for (let i = 0; i < Math.min(budget, steps.length); i++) {
-        const pattern = steps[i]?.pattern;
+        const ruleBody = steps[i]?.ruleBody as RuleBody;
 
-        const next = this.runtime.tryApplyRuleAt(pattern as RuleBody, cur, focus);
+        const next = this.runtime.tryApplyRuleAt(ruleBody, cur, focus);
         if (next) {
           cur = next;
           applied = true;
