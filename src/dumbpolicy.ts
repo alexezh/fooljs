@@ -5,11 +5,12 @@
 
 import { AstNode } from "./ast";
 import { Goal } from "./planner/plannercore";
+import { Policy } from "./planner/policy";
 import { SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
 import { SkillRegistry } from "./skillregistry";
 
-export class DumbPolicy {
+export class DumbPolicy implements Policy {
   private stepCount = 0;
   private skills?: SkillDescriptor[];
 
@@ -18,8 +19,9 @@ export class DumbPolicy {
     return candidates.map((c, i) => ({ ...c, score: candidates.length - i }));
   }
 
-  async chooseAction({ root, goal, focusCandidates, registry }: { root: AstNode, goal: Goal, focusCandidates, registry: SkillRegistry }):
-    Promise<{ skillId: SkillId, focus: [] } | null> {
+  async chooseSkill({ root, goal, focusCandidates, registry }:
+    { root: AstNode, goal: Goal, focusCandidates, registry: SkillRegistry }):
+    Promise<{ skill: SkillDescriptor, focus: [] } | null> {
     if (!this.skills) {
       this.skills = await registry.findMatching(root);
     }
@@ -31,7 +33,7 @@ export class DumbPolicy {
         const res = this.skills[this.stepCount];
         this.stepCount++;
         return {
-          skillId: res.id,
+          skill: res,
           focus: []
         };
       }
@@ -42,7 +44,6 @@ export class DumbPolicy {
   }
 
   observe(evt: any) {
-    this.stepCount++;
     console.log(`[DumbPolicy] Observed: reward = ${evt.reward}, success = ${evt.success} `);
   }
 }

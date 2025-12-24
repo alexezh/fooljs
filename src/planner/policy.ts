@@ -1,7 +1,8 @@
 import { SkillDescriptor } from "../skilldescriptor.js";
-import { FeatureVector, Path } from "./plannercore.js";
+import { FeatureVector, Goal, Path } from "./plannercore.js";
 import type { SkillRegistry } from "../skillregistry.js";
 import { SkillId } from "../runtime.js";
+import { AstNode } from "../ast.js";
 
 export interface Policy {
   // Rank candidates given features. Higher score tried first.
@@ -24,18 +25,18 @@ export interface Policy {
 // RL policy chooses among available skills/actions (existing in your system)
 export interface Policy {
   // Decide whether to invoke a macro/skill now, and which one.
-  chooseAction(input: {
-    root: any;
-    goal: any;
+  chooseSkill(input: {
+    root: AstNode;
+    goal: Goal;
     focusCandidates: number[][];
     registry: SkillRegistry;
-  }): Promise<{ skillId: SkillId; focus: number[] } | null>;
+  }): Promise<{ skill: SkillDescriptor; focus: number[] } | null>;
 
   // Learn from outcomes
   observe?(evt: {
-    rootBefore: any;
-    rootAfter: any;
-    chosen: { skillId: string; focus: number[] };
+    rootBefore: AstNode;
+    rootAfter: AstNode;
+    chosen: { skill: SkillDescriptor; focus: number[] };
     reward: number;
     success: boolean;
   }): void;

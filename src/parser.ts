@@ -66,30 +66,58 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return constraints;
   },
 
-  Constraint_type(patvar, _is, typeName) {
+  Constraint(orConstraint) {
+    return orConstraint.toAst();
+  },
+
+  OrConstraint_or(left, _or, right) {
+    return Constraint.orConstraint(left.toAst(), right.toAst());
+  },
+
+  OrConstraint(andConstraint) {
+    return andConstraint.toAst();
+  },
+
+  AndConstraint_and(left, _and, right) {
+    return Constraint.andConstraint(left.toAst(), right.toAst());
+  },
+
+  AndConstraint(baseConstraint) {
+    return baseConstraint.toAst();
+  },
+
+  BaseConstraint_type(patvar, _is, typeName) {
     const varName = patvar.toAst().value as string;
     const type = typeName.sourceString as TypeName;
     return Constraint.typeConstraint(varName, type);
   },
 
-  Constraint_rule(left, _arrow, right) {
+  BaseConstraint_rule(left, _arrow, right) {
     return Constraint.ruleConstraint(left.toAst(), right.toAst());
   },
 
-  Constraint_match(left, _matches, right) {
+  BaseConstraint_match(left, _matches, right) {
     return Constraint.matchConstraint(left.toAst(), right.toAst());
   },
 
-  Constraint_assign(left, _eq, right) {
+  BaseConstraint_assign(left, _eq, right) {
     return Constraint.assignConstraint(left.toAst(), right.toAst());
   },
 
-  Constraint_not(_not, constraint) {
+  BaseConstraint_not(_not, constraint) {
     return Constraint.notConstraint(constraint.toAst());
   },
 
-  Constraint_eq_ast(_eq_ast, _lparen, left, _comma, right, _rparen) {
+  BaseConstraint_eq_ast(_eq_ast, _lparen, left, _comma, right, _rparen) {
     return Constraint.eqAstConstraint(left.toAst(), right.toAst());
+  },
+
+  BaseConstraint_call(funcCall) {
+    return Constraint.callConstraint(funcCall.toAst());
+  },
+
+  BaseConstraint_paren(_lparen, constraint, _rparen) {
+    return constraint.toAst();
   },
 
   Expression(expr) {

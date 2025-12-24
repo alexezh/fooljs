@@ -344,7 +344,7 @@ export class Orchestrator {
         break;
       }
 
-      const choice = await this.policy.chooseAction({
+      const choice = await this.policy.chooseSkill({
         root,
         goal: input.goal,
         focusCandidates: input.focusCandidates,
@@ -354,10 +354,10 @@ export class Orchestrator {
       if (!choice) break;
 
       const before = root;
-      const { nextRoot, applied } = this.executor.tryExecute(choice.skillId, root, choice.focus, input.goal);
+      const { nextRoot, applied } = this.executor.tryExecute(choice.skill, root, choice.focus, input.goal);
       if (!applied) {
         // Optionally penalize / teach policy that this choice was ineffective
-        this.policy.observe?.({
+        this.policy.observe?.call({
           rootBefore: before,
           rootAfter: before,
           chosen: choice,
@@ -371,7 +371,7 @@ export class Orchestrator {
 
       trace.steps.push({
         focus: choice.focus,
-        appliedRuleId: choice.skillId, // skillId (macro or rule) used
+        appliedRuleId: choice.skill!.id, // skillId (macro or rule) used
         before,
         after: root,
       });

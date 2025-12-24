@@ -3,7 +3,7 @@ import { LlmClient } from "./llmclient";
 import { SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
 
-interface SkillEntry {
+export interface SkillEntry {
   descriptor: SkillDescriptor;
   embedding?: number[];
   topNode?: string; // Top-level function name for optimization (e.g., "eq", "sum")
@@ -31,7 +31,7 @@ export class SkillRegistry {
     };
 
     // Extract top node from pattern if it's a macro_action
-    if (skill.payload.kind === "macro_action" && skill.payload.steps.length > 0) {
+    if (skill.payload.kind === "macro_action") {
       const firstPattern = skill.payload.match;
       if (firstPattern) {
         entry.topNode = this.extractTopNode(firstPattern);

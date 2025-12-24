@@ -9,13 +9,25 @@ FoolJS {
 
   ConstraintList = Constraint ("," Constraint)*
 
-  Constraint
-    = "not" Constraint               -- not
+  Constraint = OrConstraint
+
+  OrConstraint
+    = OrConstraint "or" AndConstraint  -- or
+    | AndConstraint
+
+  AndConstraint
+    = AndConstraint "and" BaseConstraint  -- and
+    | BaseConstraint
+
+  BaseConstraint
+    = "not" BaseConstraint           -- not
     | "eq_ast" "(" Expression "," Expression ")" -- eq_ast
     | PatVar "is" TypeName           -- type
     | Expression "=>" Expression     -- rule
     | Expression "matches" Expression -- match
     | Expression "=" Expression      -- assign
+    | FuncCall                       -- call
+    | "(" Constraint ")"             -- paren
 
   TypeName = "number" | "var" | "symbol_name" | "func_name" | "nonzero_number" | "nonneg_number" | "positive_number"
 

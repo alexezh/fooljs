@@ -74,23 +74,28 @@ export class RuleRegistry {
 
   findRule(exprStr: RuleBody): RuleNode[] {
     // Check cache
-    let expr = this.exprCache.get(exprStr);
-    if (!expr) {
-      expr = parse(exprStr);
-      this.exprCache.set(exprStr, expr);
+    let ruleExpr = this.exprCache.get(exprStr);
+    if (!ruleExpr) {
+      ruleExpr = parse(exprStr);
+      this.exprCache.set(exprStr, ruleExpr);
     }
 
+    if (ruleExpr.kind !== 'rule') {
+      throw "Should be rule";
+    }
+
+    const left = ruleExpr.children![0];
     // Get canonical shape representation
-    const shape = expr.toShapeString();
+    const leftShape = left.toShapeString();
 
     // Get candidate rules by shape
-    const candidates = this.byShape.get(shape) || [];
+    const candidates = this.byShape.get(leftShape) || [];
 
     // Filter by running matchFunc - there might be multiple rules with same shape
     const results: RuleNode[] = [];
     for (const node of candidates) {
       if (node.matchFunc) {
-        const result = node.matchFunc(expr);
+        const result = node.matchFunc(left);
         if (result !== undefined) {
           results.push(node);
         }

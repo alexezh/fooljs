@@ -12,14 +12,15 @@
 import { AstNode } from "./ast";
 import { Goal } from "./planner/plannercore";
 import { RuleBody, Runtime, SkillId } from "./runtime";
+import { SkillDescriptor } from "./skilldescriptor";
 import { SkillRegistry } from "./skillregistry";
 
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime, private readonly registry: SkillRegistry) { }
 
   // Execute a skill at focus. For macro_action, apply its steps.
-  tryExecute(skillId: SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
-    const s = this.registry.get(skillId);
+  tryExecute(skill: SkillDescriptor | SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
+    const s = (typeof (skill) === "string" ? this.registry.get(skill) : skill);
     if (!s) return { nextRoot: root, applied: false };
 
     if (s.payload.kind === "rewrite_rule") {

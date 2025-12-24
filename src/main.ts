@@ -1,4 +1,5 @@
 import { AstNode, ASymbol } from "./ast.js";
+import { seedBaselineSkills } from "./baselineskills.js";
 import { DumbPolicy } from "./dumbpolicy.js";
 import { LlmClientLlama } from "./llmclient.js";
 import { AbstractionProposer, LlmClient, Orchestrator, SymbolicVerifier } from "./orchestrator.js";
@@ -63,6 +64,10 @@ function makeVerifySet(): AstNode[] {
     parse("eq(sum(mul(5, x), 1), 0)"),
     parse("eq(sum(mul(2, x), mul(3, x), 5), 0)"),
     parse("eq(sum(mul(7, x), 4), 2)"),
+    parse("eq(sub(x, 3), 0)"),
+    parse("eq(mul(4, x), 12)"),
+    parse("eq(0, sum(x, 5))"),
+    parse("eq(sum(x, 0, 6), 0)"),
   ];
 }
 
@@ -70,120 +75,6 @@ function makeVerifySet(): AstNode[] {
 // 1) Bootstrapping: baseline skills in registry
 // ----------------------------
 
-async function seedBaselineSkills(registry: SkillRegistry) {
-  // Use serialized AST patterns instead of ruleIds for skill identification
-  // These patterns are used for embedding-based lookup
-
-  await registry.add({
-    id: "eq_zero_form_inline" as SkillId,
-    name: "Normalize equation to zero-form",
-    payload: {
-      kind: "macro_action",
-      budget: 1,
-      match: "eq(?a, ?b)",
-      steps: [{
-        ruleBody: "eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)",
-        focus: "same",
-      }],
-    },
-    tags: ["eq", "normalize"],
-  });
-
-  await registry.add({
-    id: "local_simplify_bounded_inline" as SkillId,
-    name: "Local simplification pass (bounded)",
-    payload: {
-      kind: "macro_action",
-      match: "paren(?a) | neg(neg(?a)) | neg(0) | sum(?args..., 0, ?rest...) | sum(?a, ?b)",
-      budget: 12,
-      steps: [
-        { ruleBody: "paren(?a) => ?a", focus: "same" },
-        { ruleBody: "neg(neg(?a)) => ?a", focus: "same" },
-        { ruleBody: "neg(0) => 0", focus: "same" },
-
-        { ruleBody: "sum(?args..., 0, ?rest...) => sum(?args..., ?rest...)", focus: "same" },
-
-        { ruleBody: "sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number", focus: "same" },
-      ],
-    },
-    tags: ["simplify"],
-  });
-  await registry.add({
-    id: "macro_solve_ax_plus_c_zero_inline_factor_then_eval" as SkillId,
-    name: "Solve ax + c = 0 (factor x, isolate, then eval RHS)",
-    payload: {
-      kind: "macro_action",
-      budget: 14,
-      steps: [
-        // 1) Normalize equation to zero form
-        {
-          ruleBody: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
-          focus: "same",
-        },
-        {
-          ruleBody: "solve(eq(sub(?a, ?b), 0), solved_for(?x)) => solve(eq(sum(?a, neg(?b)), 0), solved_for(?x))",
-          focus: "same",
-        },
-
-        // 2) (Optional) group exact x terms to the front (cheap helper)
-        {
-          ruleBody: "solve(eq(sum(?terms...), 0), solved_for(?x)) => solve(eq(group_same(sum(?terms...), ?x), 0), solved_for(?x))",
-          focus: "same",
-        },
-
-        // 3) Move constant tail to RHS: (t + c) = 0 => t = -c
-        {
-          ruleBody: "solve(eq(sum(?t, ?c), 0), solved_for(?x)) => solve(eq(?t, neg(?c)), solved_for(?x))",
-          focus: "same",
-        },
-
-        // 4) Factor out x from a sum of x-multiples:
-        //    sum(t_i) => mul(x, sum(div(t_i, x)))
-        {
-          ruleBody:
-            "solve(eq(sum(?terms...), ?b), solved_for(?x)) => " +
-            "solve(eq(mul(?x, sum(?qs...)), ?b), solved_for(?x)) " +
-            "where map_div_by_x([?terms...], ?x) => [?qs...]",
-          focus: "same",
-        },
-
-        // 5) Isolate x by dividing both sides by the other factor:
-        //    x*k = b  => x = b/k   (or k*x = b => x = b/k)
-        {
-          ruleBody: "solve(eq(mul(?x, ?k), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x))",
-          focus: "same",
-        },
-        {
-          ruleBody: "solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x))",
-          focus: "same",
-        },
-
-        // 6) Evaluate/simplify the RHS as a whole (this is where x/x=>1 happens, inside ?rhs)
-        {
-          ruleBody: "solve(eq(?x, ?rhs), solved_for(?x)) => solve(eq(?x, eval(?rhs)), solved_for(?x))",
-          focus: "same",
-        },
-        // If you prefer your expensive progression library:
-        // {
-        //   pattern: "solve(eq(?x, ?rhs), solved_for(?x))",
-        //   rewrite: "solve(eq(?x, ?rhs), solved_for(?x)) => solve(eq(?x, simplify(?rhs)), solved_for(?x))",
-        //   focus: "same",
-        // },
-
-        // 7) Discharge
-        {
-          ruleBody: "solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs",
-          focus: "same",
-        },
-        {
-          ruleBody: "solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs",
-          focus: "same",
-        },
-      ],
-    },
-    tags: ["solve", "linear", "procedure", "generic", "inline_rules", "factor", "eval_rhs"],
-  });
-}
 
 const dumbPolicy = new DumbPolicy();
 
@@ -219,10 +110,38 @@ async function main(runtime: Runtime) {
 
   // 3.2 Training set
   const trainingProblems = [
+    // Basic x + c = 0 (tests move addend, discharge isolated)
     "eq(sum(x, 7), 0)",
+
+    // Simple kx + c = 0 (tests move addend, divide both sides, discharge)
     "eq(sum(mul(2, x), 4), 0)",
     "eq(sum(mul(3, x), 9), 0)",
+
+    // Combining like terms (3x + 2x + 5 = 0 => 5x + 5 = 0)
     "eq(sum(mul(3, x), mul(2, x), 5), 0)",
+
+    // Equation normalization (a = b => a - b = 0)
+    "eq(sum(x, 3), 5)",
+    "eq(mul(2, x), 10)",
+
+    // Subtraction to sum conversion
+    "eq(sub(x, 5), 0)",
+    "eq(sub(mul(3, x), 6), 0)",
+
+    // Simplification cases
+    "eq(sum(x, 0, 7), 0)",  // Dropping zeros
+    "eq(sum(mul(2, x), 3, 2), 0)",  // Combining numbers (3 + 2)
+    "eq(neg(neg(sum(x, 5))), 0)",  // Double negation
+
+    // Equation symmetry (variable on right side)
+    "eq(0, sum(x, 4))",
+    "eq(8, mul(2, x))",
+
+    // Grouping same terms with more complex expressions
+    "eq(sum(mul(2, x), mul(3, x), mul(4, x), 9), 0)",
+
+    // Factoring common divisor from constants
+    "eq(sum(mul(2, x), 6, 4), 0)",  // 2x + 6 + 4 = 0 => 2x + 10 = 0
   ];
 
   console.log("=== TRAINING ===");

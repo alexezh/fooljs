@@ -42,6 +42,7 @@ export type FuncName =
   | 'bucket_same'
   | 'pick'
   | 'rest'
+  | 'solve_linear'
   | 'rebuild_group'
   | 'collect_sum_numbers'
   | 'collect_mul_numbers';
@@ -63,7 +64,7 @@ export class ASymbol {
   }
 }
 
-export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign' | 'not' | 'eq_ast';
+export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign' | 'not' | 'eq_ast' | 'call' | 'or' | 'and';
 
 export class Constraint {
   kind: ConstraintKind;
@@ -72,6 +73,7 @@ export class Constraint {
   left?: AstNode;
   right?: AstNode;
   nested?: Constraint; // For 'not' constraint
+  constraints?: Constraint[]; // For 'or' and 'and' constraints
 
   private constructor(kind: ConstraintKind, options: {
     varName?: string;
@@ -79,6 +81,7 @@ export class Constraint {
     left?: AstNode;
     right?: AstNode;
     nested?: Constraint;
+    constraints?: Constraint[];
   }) {
     this.kind = kind;
     this.varName = options.varName;
@@ -86,6 +89,7 @@ export class Constraint {
     this.left = options.left;
     this.right = options.right;
     this.nested = options.nested;
+    this.constraints = options.constraints;
   }
 
   static typeConstraint(varName: string, type: TypeName): Constraint {
@@ -112,6 +116,18 @@ export class Constraint {
     return new Constraint('eq_ast', { left, right });
   }
 
+  static callConstraint(call: AstNode): Constraint {
+    return new Constraint('call', { left: call });
+  }
+
+  static orConstraint(left: Constraint, right: Constraint): Constraint {
+    return new Constraint('or', { constraints: [left, right] });
+  }
+
+  static andConstraint(left: Constraint, right: Constraint): Constraint {
+    return new Constraint('and', { constraints: [left, right] });
+  }
+
   toString(): string {
     switch (this.kind) {
       case 'type':
@@ -126,6 +142,12 @@ export class Constraint {
         return `not ${this.nested?.toString()}`;
       case 'eq_ast':
         return `eq_ast(${this.left?.toString()}, ${this.right?.toString()})`;
+      case 'call':
+        return this.left?.toString() ?? '';
+      case 'or':
+        return this.constraints?.map(c => c.toString()).join(' or ') ?? '';
+      case 'and':
+        return this.constraints?.map(c => c.toString()).join(' and ') ?? '';
       default:
         return '';
     }
