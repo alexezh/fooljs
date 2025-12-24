@@ -1,4 +1,5 @@
 import { astEquals, AstNode, ASymbol, MatchFuncRet } from "./ast.js";
+import { astMatch } from "./ast_match.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
 import { RuleRegistry } from "./ruleregistry.js";
@@ -70,7 +71,7 @@ export class RuntimeImpl implements Runtime {
    */
   matches(patternStr: string, node: AstNode): boolean {
     const pattern = this.parseExpr(patternStr);
-    return this.matchPattern(pattern, node) !== undefined;
+    return astMatch(pattern, node) !== undefined;
   }
 
   /**

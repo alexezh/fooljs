@@ -199,6 +199,7 @@ export class AstNode {
   private cost?: number;
   //private changedNodes?: number;
   private totalNodes?: number;
+  public source?: string;
 
   private constructor(
     kind: AstNodeKind,

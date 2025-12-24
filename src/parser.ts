@@ -299,7 +299,9 @@ export function parse(text: string): AstNode {
   if (match.failed()) {
     throw new Error(`Parse error: ${match.message}`);
   }
-  return semantics(match).toAst();
+  let ast = semantics(match).toAst() as AstNode;
+  ast.source = text;
+  return ast;
 }
 
 export function parseEquation(s: string): AstNode {

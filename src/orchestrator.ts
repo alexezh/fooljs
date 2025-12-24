@@ -232,63 +232,6 @@ export class SymbolicVerifier {
 
     return { ok: true };
   }
-
-  private verifyMacroAction(payload: MacroActionPayload, testSet: any[]): VerificationResult {
-    const steps = payload?.steps;
-    const budget = payload?.budget ?? 10;
-    if (!Array.isArray(steps) || steps.length === 0) {
-      return { ok: false, reason: "Missing payload.steps" };
-    }
-
-    // Basic checks: bounded, no catastrophic blowup, preserves equivalence
-    for (const expr of testSet) {
-      let cur = expr;
-      let appliedAny = false;
-
-      for (let i = 0; i < Math.min(budget, steps.length); i++) {
-        const step = steps[i];
-        debugger;
-        const rid = "42" as RuleBody;  //step?.ruleId;
-        if (typeof rid !== "string") continue;
-
-        // In a real macro, you apply at a focus; here we apply at root for skeleton.
-        const next = this.runtime.tryApplyRuleAt(rid, cur, []);
-        if (next) {
-          appliedAny = true;
-
-          // Equivalence check at every step (strong but safe)
-          if (!this.runtime.equivalent(cur, next)) {
-            return { ok: false, reason: "Macro step broke equivalence", evidence: { rid, before: cur, after: next } };
-          }
-
-          // Optional blowup guard: size cap (if you can measure size)
-          // if (this.runtime.size(next) > this.runtime.size(cur) * 10) ...
-          cur = next;
-        }
-      }
-
-      // Macro might be a no-op for this expr; that's OK.
-      void appliedAny;
-    }
-
-    return { ok: true };
-  }
-
-  private verifyTagger(payload: TaggerPayload, _testSet: AstNode[]): VerificationResult {
-    const pattern = payload?.pattern;
-    if (typeof pattern !== "string") return { ok: false, reason: "Missing payload.pattern" };
-
-    // Taggers don't change semantics; verify they compile and run without crashing.
-    // You can also measure precision/recall on labeled patterns later.
-    // Here: trivial sanity check by calling matches on something representative.
-    // (Replace with real compilation/guard checks in your system.)
-    try {
-      this.runtime.matches(pattern, _testSet[0] ?? {});
-      return { ok: true };
-    } catch (e: any) {
-      return { ok: false, reason: `Tagger pattern caused error: ${String(e?.message ?? e)}` };
-    }
-  }
 }
 
 // Placeholder: you will replace with your own "register temp rule" or "apply from string" method.

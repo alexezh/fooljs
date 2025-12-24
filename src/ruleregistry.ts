@@ -1,8 +1,10 @@
 import { AstNode, MatchFuncRet } from "./ast.js";
+import { astMatch } from "./ast_match.js";
 import { parse } from "./parser.js";
 import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag } from "./runtime.js";
 
 export class RuleRegistry {
+  private nextId: number = 1;
   private rules: RuleNode[] = [];
   private byFunc = new Map<string, RuleNode>();
   private byId: Map<RuleId, RuleMeta> = new Map();
@@ -11,12 +13,11 @@ export class RuleRegistry {
   private exprCache: Map<string, AstNode> = new Map();
 
 
-  addRule(m: RuleMeta): void {
+  addRule(m: RuleMeta, ruleAst?: AstNode): void {
     /** Optional: keep meta accessible for features/policy */
     this.byId.set(m.id, m);
 
-    let ruleAst: AstNode;
-    ruleAst = parse(m.rule);
+    ruleAst ??= parse(m.rule);
 
     if (ruleAst.kind !== "rule") {
       throw "Should be rule"
@@ -72,34 +73,53 @@ export class RuleRegistry {
     return results;
   }
 
-  findRule(exprStr: RuleBody): RuleNode[] {
+  findRule(ruleStr: RuleBody): RuleNode[] {
     // Check cache
-    let ruleExpr = this.exprCache.get(exprStr);
+    let ruleExpr = this.exprCache.get(ruleStr);
     if (!ruleExpr) {
-      ruleExpr = parse(exprStr);
-      this.exprCache.set(exprStr, ruleExpr);
+      ruleExpr = parse(ruleStr);
+      this.exprCache.set(ruleStr, ruleExpr);
     }
 
     if (ruleExpr.kind !== 'rule') {
       throw "Should be rule";
     }
 
-    const left = ruleExpr.children![0];
     // Get canonical shape representation
-    const leftShape = left.toShapeString();
+    const ruleShape = ruleExpr.toShapeString();
 
     // Get candidate rules by shape
-    const candidates = this.byShape.get(leftShape) || [];
+    const candidates = this.byShape.get(ruleShape) || [];
 
     // Filter by running matchFunc - there might be multiple rules with same shape
     const results: RuleNode[] = [];
     for (const node of candidates) {
       if (node.matchFunc) {
-        const result = node.matchFunc(left);
+        const result = node.matchFunc(ruleExpr);
         if (result !== undefined) {
           results.push(node);
         }
       }
+    }
+
+    if (results.length === 0) {
+      this.addRule({
+        id: this.nextId.toString() as RuleId,
+        rule: ruleStr,
+        tags: [],
+        fn?: (ast: AstNode) => {
+          let res = astMatch(ruleExpr.children![1], ast);
+          if (!res) {
+            return undefined;
+          }
+          return {
+            ruleDef: ruleStr,
+            
+          }
+        }
+      });
+
+      this.nextId++;
     }
 
     return results;
