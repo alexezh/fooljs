@@ -81,7 +81,7 @@ export const coreRuleFunctions = [
 
 
 function add(runtime: Runtime, m: RuleMeta) {
-  runtime.addRule(m);
+  runtime.ruleCache.addRule(m);
 }
 
 /** Convenience tag bundles */

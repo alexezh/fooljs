@@ -1,7 +1,9 @@
 import { AstNode, ASymbol, Constraint, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 import { Goal, Path } from "./planner/plannercore.js";
+import type { RuleCache } from "./rulecache.js";
 //import { StateManager, StateGuard } from "./state.js";
+import type { SkillRegistry } from "./skillregistry.js";
 
 export type RuleId = string & { __tag_ruleid: never };
 export type SkillId = string & { __tag_skillid: never };
@@ -20,17 +22,20 @@ export type RuleTag =
   | "linear" | "compute" | "progress"; // e.g. rules that can blow up size (keep for future)
 
 export interface RuleMeta {
-  id: RuleId;
+  // deprecated
+  id?: RuleId;
   rule: string;
-  tags: RuleTag[];
+  // deprecated
+  tags?: RuleTag[];
+  /**
+   * matches first occurance of rule in input
+   */
   fn?: MatchFunc;
 }
 
 
 export type RuleNode = {
   def: string,
-  tags: RuleTag[],
-  id: RuleId,
   pattern: AstNode,
   match: AstNode,
   constraints?: Constraint[],
@@ -38,8 +43,8 @@ export type RuleNode = {
 }
 
 export interface Runtime {
-  addRule(m: RuleMeta): void;
-  matchRule(inp: AstNode): MatchFuncRet[];
+  get skillRegistry(): SkillRegistry;
+  get ruleCache(): RuleCache;
 
   // Tree navigation / update
   /**
@@ -79,10 +84,3 @@ export interface Runtime {
   parseExpr?(exprStr: string): AstNode; // for pattern parsing
   matchPattern?(pattern: AstNode, expr: AstNode): Map<string, AstNode> | undefined; // for matching
 }
-
-// Re-export RuntimeImpl as a class with static instance for backward compatibility
-import { RuntimeImpl } from "./runtimeimpl.js";
-export const Runtime = {
-  instance: RuntimeImpl.instance
-};
-

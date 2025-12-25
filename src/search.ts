@@ -107,7 +107,7 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
   //const stateManager = Runtime.instance.getStateManager();
 
   // find all rules which match
-  const rewriters = RuntimeImpl.instance.matchRule(node);
+  const rewriters = RuntimeImpl.instance.ruleCache.matchRule(node);
   for (const rewrite of rewriters) {
     const successorKey = rewrite.toString();
 

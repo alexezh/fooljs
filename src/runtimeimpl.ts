@@ -2,14 +2,15 @@ import { astEquals, AstNode, ASymbol, MatchFuncRet } from "./ast.js";
 import { astMatch } from "./ast_match.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
-import { RuleRegistry } from "./ruleregistry.js";
+import { RuleCache } from "./rulecache.js";
 import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
+import { SkillRegistry } from "./skillregistry.js";
 
 export class RuntimeImpl implements Runtime {
-  private rules: RuleRegistry = new RuleRegistry();
-  //private stateManager: StateManager;
-
   static instance: Runtime = new RuntimeImpl();
+
+  public readonly skillRegistry = new SkillRegistry();
+  public readonly ruleCache = new RuleCache();
 
   constructor() {
     //this.stateManager = new StateManager(this);
@@ -80,17 +81,15 @@ export class RuntimeImpl implements Runtime {
    */
   tryApplyRuleAt(ruleBody: RuleBody, root: AstNode, path: Path): AstNode | null {
     // Find the rule by ID (ruleId is the def string for now)
-    const rules = this.rules.findRule(ruleBody);
+    const rule = this.ruleCache.compileRule(ruleBody);
 
     // Get the node at the path
     const target = this.getAt(root, path);
 
-    for (let rule of rules) {
-      // Try to apply the rule
-      const result = rule.matchFunc(target);
-      if (result) {
-        return this.setAt(root, path, result.replace);
-      }
+    // Try to apply the rule
+    const result = rule.matchFunc(target);
+    if (result) {
+      return this.setAt(root, path, result.replace);
     }
 
     return null;
@@ -241,21 +240,6 @@ export class RuntimeImpl implements Runtime {
 
   init(): void {
     //this.rules.push(new AstNode("sum", [new AstNode(new ASymbol("a")), new AstNode(new ASymbol("b"))]))
-  }
-
-  /**
-   * Get the state manager for this runtime.
-   */
-  // getStateManager(): StateManager {
-  //   return this.stateManager;
-  // }
-
-  addRule(m: RuleMeta): void {
-    return this.rules.addRule(m);
-  }
-
-  matchRule(inp: AstNode): MatchFuncRet[] {
-    return this.matchRule(inp);
   }
 
   /**

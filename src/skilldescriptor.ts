@@ -3,6 +3,10 @@ import { RuleBody, RuleId, SkillId } from "./runtime";
 
 export type SkillKind = "rewrite_rule" | "macro_action" | "tagger";
 
+/**
+ * named strategy (a function) that runs a sequence + choice over rules (and maybe calls other skills). 
+ * I.e. State -> State? (Kleisli-ish) where failure is allowed and backtracking is expected.
+ */
 export interface SkillDescriptor {
   id: SkillId;
   name: string;
@@ -24,14 +28,12 @@ export type SkillPayload =
   | MacroActionPayload
   | TaggerPayload;
 
+export type SkillBody = string;
+
 export interface MacroActionPayload {
   kind?: "macro_action"; // optional if discriminated elsewhere
 
-  // rule to match action
-  match?: string;
-
-  // Ordered steps executed by the macro
-  steps: MacroStep[];
+  skillBody: SkillBody;
 
   // Hard cap to guarantee termination
   budget: number;
@@ -39,19 +41,6 @@ export interface MacroActionPayload {
   // Optional metadata / hints
   notes?: string;
 }
-
-export interface MacroStep {
-  // Serialized AST pattern (e.g., "eq(sum(mul(?k, ?x), ?c), 0)")
-  ruleBody?: string;
-
-  // Optional guard evaluated before applying the rule
-  // Keeps macros general and reusable
-  when?: MacroCondition;
-
-  // Optional: apply at same focus or override
-  focus?: "same" | "root" | number[];
-}
-
 
 export type MacroCondition =
   | { kind: "pattern_matches"; pattern: string }
@@ -61,14 +50,7 @@ export type MacroCondition =
 export interface RewriteRulePayload {
   kind?: "rewrite_rule";
 
-  // DSL rule string OR compiled ruleId
-  ruleId: string;
-
-  // Optional preconditions (soft guards)
-  preconditions?: string[];
-
-  // Optional safety hints
-  preserves_equivalence?: boolean;
+  skillBody: SkillBody;
 }
 
 

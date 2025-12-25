@@ -86,7 +86,6 @@ async function main(runtime: Runtime) {
   const proposer = new AbstractionProposer(llm);
   const verifier = new SymbolicVerifier(runtime);
 
-  const registry = new SkillRegistry();
   await seedBaselineSkills(registry);
 
   const executor = new SkillExecutor(runtime, registry);
