@@ -1,5 +1,5 @@
 import { AstNode, MatchFuncRet } from "./ast.js";
-import { astMatch } from "./ast_match.js";
+import { astMatch, astReplace } from "./ast_match.js";
 import { parse } from "./parser.js";
 import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag } from "./runtime.js";
 
@@ -112,8 +112,10 @@ export class RuleRegistry {
           if (!res) {
             return undefined;
           }
+          const replace = astReplace()
           return {
             ruleDef: ruleStr,
+            replace:
             
           }
         }

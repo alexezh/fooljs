@@ -1,4 +1,4 @@
-import { astEquals, AstNode, ASymbol } from "./ast.js";
+import { astEquals, AstNode, ASymbol, FuncName } from "./ast.js";
 
 /**
  * Match a pattern against an expression.
@@ -25,7 +25,187 @@ export function astMatch(pattern: AstNode, expr: AstNode): Map<string, AstNode> 
   return undefined;
 }
 
-export function astReplace(replace: AstNode, expr: AstNode, bindings: Map<string, AstNode>): AstNode {
+/**
+ * Replace pattern variables in a replacement pattern with their bindings.
+ *
+ * Example:
+ *   pattern: sum(?a, ?b)
+ *   expr: sum(2, 3)
+ *   bindings: {a: 2, b: 3}
+ *   replacement: mul(?a, ?b)
+ *   result: mul(2, 3)
+ */
+export function astReplace(replace: AstNode, bindings: Map<string, AstNode>): AstNode {
+  return replaceInternal(replace, bindings);
+}
+
+function replaceInternal(node: AstNode, bindings: Map<string, AstNode>): AstNode {
+  // Pattern variable: substitute with bound value
+  if (node.kind === 'patvar') {
+    const varName = getPatVarName(node);
+    const bound = bindings.get(varName);
+
+    if (bound === undefined) {
+      throw new Error(`Unbound pattern variable: ${varName}`);
+    }
+
+    return bound;
+  }
+
+  // Spread pattern: handled by parent during children processing
+  if (node.kind === 'spread') {
+    throw new Error('Spread patterns should be handled by parent node');
+  }
+
+  // Literal values: return as-is
+  if (node.kind === 'number') {
+    return node;
+  }
+
+  // Symbol: replace indices if they contain pattern variables
+  if (node.kind === 'symbol') {
+    const sym = node.value as ASymbol;
+    const oldIndex = sym.index ?? [];
+
+    if (oldIndex.length === 0) {
+      return node; // No indices, return as-is
+    }
+
+    // Replace any pattern variables in indices
+    const newIndex = oldIndex.map(idx => replaceInternal(idx, bindings));
+
+    // Check if anything changed
+    if (newIndex.every((idx, i) => idx === oldIndex[i])) {
+      return node; // No changes
+    }
+
+    // Create new symbol with replaced indices
+    const newSym = new ASymbol(sym.name, newIndex);
+    return AstNode.create('symbol', newSym);
+  }
+
+  // Function: replace arguments
+  if (node.kind === 'func') {
+    const oldChildren = node.children ?? [];
+    const newChildren = replaceChildren(oldChildren, bindings);
+
+    if (newChildren === oldChildren) {
+      return node; // No changes
+    }
+
+    return AstNode.create('func', node.value as FuncName, newChildren);
+  }
+
+  // Equation: replace both sides
+  if (node.kind === 'eq') {
+    const oldChildren = node.children ?? [];
+
+    if (oldChildren.length !== 2) {
+      return node;
+    }
+
+    const left = replaceInternal(oldChildren[0], bindings);
+    const right = replaceInternal(oldChildren[1], bindings);
+
+    if (left === oldChildren[0] && right === oldChildren[1]) {
+      return node; // No changes
+    }
+
+    return AstNode.create('eq', 'eq', [left, right]);
+  }
+
+  // List: replace elements
+  if (node.kind === 'list') {
+    const oldChildren = node.children ?? [];
+    const newChildren = replaceChildren(oldChildren, bindings);
+
+    if (newChildren === oldChildren) {
+      return node; // No changes
+    }
+
+    return AstNode.create('list', 'list', newChildren);
+  }
+
+  // Tuple: replace elements
+  if (node.kind === 'tuple') {
+    const oldChildren = node.children ?? [];
+    const newChildren = replaceChildren(oldChildren, bindings);
+
+    if (newChildren === oldChildren) {
+      return node; // No changes
+    }
+
+    return AstNode.create('tuple', 'tuple', newChildren);
+  }
+
+  // Rule: replace both pattern and replacement
+  if (node.kind === 'rule') {
+    const oldChildren = node.children ?? [];
+
+    if (oldChildren.length !== 2) {
+      return node;
+    }
+
+    const pattern = replaceInternal(oldChildren[0], bindings);
+    const replacement = replaceInternal(oldChildren[1], bindings);
+
+    if (pattern === oldChildren[0] && replacement === oldChildren[1]) {
+      return node; // No changes
+    }
+
+    return AstNode.create('rule', 'rule', [pattern, replacement]);
+  }
+
+  // Unknown kind: return as-is
+  return node;
+}
+
+/**
+ * Replace children, handling spread patterns by expanding them.
+ */
+function replaceChildren(children: ReadonlyArray<AstNode>, bindings: Map<string, AstNode>): AstNode[] {
+  const result: AstNode[] = [];
+  let changed = false;
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+
+    // Handle spread pattern: expand the bound list
+    if (child.kind === 'spread') {
+      const varPat = child.children?.[0];
+
+      if (!varPat || varPat.kind !== 'patvar') {
+        throw new Error('Invalid spread pattern in replacement');
+      }
+
+      const varName = getPatVarName(varPat);
+      const bound = bindings.get(varName);
+
+      if (bound === undefined) {
+        throw new Error(`Unbound spread variable: ${varName}`);
+      }
+
+      // Spread variable should be bound to a list
+      if (bound.kind !== 'list') {
+        throw new Error(`Spread variable ${varName} is not bound to a list`);
+      }
+
+      const spreadItems = bound.children ?? [];
+      result.push(...spreadItems);
+      changed = true;
+    } else {
+      // Regular child: replace recursively
+      const replaced = replaceInternal(child, bindings);
+      result.push(replaced);
+
+      if (replaced !== child) {
+        changed = true;
+      }
+    }
+  }
+
+  // Return original if nothing changed (to allow === comparison)
+  return changed ? result : children as AstNode[];
 }
 
 function matchPatternInternal(pattern: AstNode, expr: AstNode, bindings: Map<string, AstNode>): boolean {
