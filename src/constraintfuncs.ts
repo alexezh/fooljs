@@ -8,7 +8,7 @@ import { AstNode, ASymbol } from "./ast.js";
  * This divides each term by x and returns the quotients.
  */
 
-export type ConstraintFunction = (args: AstNode[]) => AstNode | undefined;
+export type ConstraintFunction = (args: ReadonlyArray<AstNode>) => AstNode | undefined;
 
 export class ConstraintFunctionRegistry {
   private funcs = new Map<string, ConstraintFunction>();
@@ -46,7 +46,7 @@ export function map_div_by_x(args: AstNode[]): AstNode | undefined {
   const xNode = args[1];
 
   // Extract the list of terms
-  let terms: AstNode[];
+  let terms: ReadonlyArray<AstNode>;
   if (termsNode.kind === 'list') {
     terms = termsNode.children || [];
   } else {
@@ -55,8 +55,8 @@ export function map_div_by_x(args: AstNode[]): AstNode | undefined {
 
   // Extract the variable name
   const x = xNode.kind === 'symbol' ? (xNode.value as ASymbol).name :
-            xNode.kind === 'patvar' ? xNode.value as string :
-            undefined;
+    xNode.kind === 'patvar' ? xNode.value as string :
+      undefined;
   if (!x) return undefined;
 
   const quotients: AstNode[] = [];
@@ -121,7 +121,7 @@ export function all_divisible_by(args: AstNode[]): AstNode | undefined {
   const termsNode = args[0];
   const xNode = args[1];
 
-  let terms: AstNode[];
+  let terms: ReadonlyArray<AstNode>;
   if (termsNode.kind === 'list') {
     terms = termsNode.children || [];
   } else {
@@ -129,8 +129,8 @@ export function all_divisible_by(args: AstNode[]): AstNode | undefined {
   }
 
   const x = xNode.kind === 'symbol' ? (xNode.value as ASymbol).name :
-            xNode.kind === 'patvar' ? xNode.value as string :
-            undefined;
+    xNode.kind === 'patvar' ? xNode.value as string :
+      undefined;
   if (!x) return undefined;
 
   for (const term of terms) {

@@ -45,7 +45,7 @@ export class SkillExecutor {
           case 'number':
             return value.kind === 'number';
           case 'var':
-          case 'symbol':
+          case 'symbol_name':
             return value.kind === 'symbol';
           case 'func_name':
             return value.kind === 'func';
@@ -110,13 +110,13 @@ export class SkillExecutor {
       case 'or': {
         const constraints = constraint.constraints!;
         return this.checkConstraint(constraints[0], bindings) ||
-               this.checkConstraint(constraints[1], bindings);
+          this.checkConstraint(constraints[1], bindings);
       }
 
       case 'and': {
         const constraints = constraint.constraints!;
         return this.checkConstraint(constraints[0], bindings) &&
-               this.checkConstraint(constraints[1], bindings);
+          this.checkConstraint(constraints[1], bindings);
       }
 
       case 'not': {
@@ -131,7 +131,7 @@ export class SkillExecutor {
   /**
    * Evaluate constraint functions like map_div_by_x, all_divisible_by, etc.
    */
-  private evaluateConstraintFunction(funcName: string, args: AstNode[]): AstNode | undefined {
+  private evaluateConstraintFunction(funcName: string, args: ReadonlyArray<AstNode>): AstNode | undefined {
     // Look up the constraint function in the registry
     const func = this.runtime.constraintRegistry.get(funcName);
     if (!func) {
@@ -188,9 +188,9 @@ export class SkillExecutor {
 
       // Check if pattern is a wrapper function
       if (pattern.kind === 'func' &&
-          wrapperFunctions.has(pattern.value as string) &&
-          pattern.children &&
-          pattern.children.length > 0) {
+        wrapperFunctions.has(pattern.value as string) &&
+        pattern.children &&
+        pattern.children.length > 0) {
         // Pattern like solve(eq(?lhs, ?rhs), solved_for(?x))
         // Extract first arg as working content, rest as wrapper context
         wrapperFunc = pattern.value as string;
