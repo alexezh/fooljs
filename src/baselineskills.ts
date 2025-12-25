@@ -42,7 +42,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 8,
-      skillBody: "eval(?x) => do [eval(sum(?a, ?b)) => calc_sum(?a, ?b) where ?a is number, ?b is number, eval(mul(?a, ?b)) => calc_mul(?a, ?b) where ?a is number, ?b is number, eval(div(?a, ?b)) => calc_div(?a, ?b) where ?a is number, ?b is number, eval(neg(?a)) => calc_neg(?a) where ?a is number, eval(eval(?x)) => eval(?x)]" as any,
+      skillBody: "eval(?x) => do [eval(sum(?a, ?b)) => calc_sum(?a, ?b) where [type(?a, number), type(?b, number)], eval(mul(?a, ?b)) => calc_mul(?a, ?b) where [type(?a, number), type(?b, number)], eval(div(?a, ?b)) => calc_div(?a, ?b) where [type(?a, number), type(?b, number)], eval(neg(?a)) => calc_neg(?a) where [type(?a, number)], eval(eval(?x)) => eval(?x)]" as any,
     },
     tags: ["eval", "number", "arithmetic"],
   });
@@ -81,7 +81,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 2,
-      skillBody: "solve(eq(?x, ?rhs), solved_for(?x)) => do [solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs, solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs]" as any,
+      skillBody: "solve(eq(?x, ?rhs), solved_for(?x)) => do [eq(?x, ?rhs) => ?rhs, eq(?lhs, ?x) => ?lhs]" as any,
     },
     tags: ["solve", "eq", "isolate"],
   });
@@ -106,7 +106,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 1,
-      skillBody: "solve(eq(sum(?t, ?c), 0), solved_for(?x)) => do [solve(eq(sum(?t, ?c), 0), solved_for(?x)) => solve(eq(?t, neg(?c)), solved_for(?x))]" as any,
+      skillBody: "solve(eq(sum(?t, ?c), 0), solved_for(?x)) => do [eq(sum(?t, ?c), 0) => eq(?t, neg(?c))]" as any,
     },
     tags: ["solve", "eq", "isolate", "progress"],
   });
@@ -120,7 +120,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 2,
-      skillBody: "solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => do [solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x)), solve(eq(mul(?x, ?k), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x))]" as any,
+      skillBody: "solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => do [eq(mul(?k, ?x), ?b) => eq(?x, div(?b, ?k)), eq(mul(?x, ?k), ?b) => eq(?x, div(?b, ?k))]" as any,
     },
     tags: ["solve", "eq", "isolate", "progress"],
   });
@@ -134,7 +134,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 1,
-      skillBody: "sum(?terms...) => do [sum(?terms...) => group_same(sum(?terms...), ?x) where ?x is symbol]" as any,
+      skillBody: "sum(?terms...) => do [sum(?terms...) => group_same(sum(?terms...), ?x) where [type(?x, symbol)]]" as any,
     },
     tags: ["sum", "group"],
   });
@@ -148,7 +148,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 1,
-      skillBody: "solve(eq(sum(?terms...), ?b), solved_for(?x)) => do [solve(eq(sum(?terms...), ?b), solved_for(?x)) => solve(eq(mul(?x, sum(?qs...)), ?b), solved_for(?x)) where map_div_by_x([?terms...], ?x) => [?qs...]]" as any,
+      skillBody: "solve(eq(sum(?terms...), ?b), solved_for(?x)) => do [eq(sum(?terms...), ?b) => eq(mul(?x, sum(?qs...)), ?b) where [map_div_by_x(?terms, ?x) => ?qs]]" as any,
     },
     tags: ["solve", "sum", "factor", "progress"],
   });

@@ -4,6 +4,7 @@ import { Goal, Path } from "./planner/plannercore.js";
 import type { RuleCache } from "./rulecache.js";
 //import { StateManager, StateGuard } from "./state.js";
 import type { SkillRegistry } from "./skillregistry.js";
+import type { ConstraintFunctionRegistry } from "./constraintfuncs.js";
 
 export type RuleId = string & { __tag_ruleid: never };
 export type SkillId = string & { __tag_skillid: never };
@@ -45,6 +46,7 @@ export type RuleNode = {
 export interface Runtime {
   get skillRegistry(): SkillRegistry;
   get ruleCache(): RuleCache;
+  get constraintRegistry(): ConstraintFunctionRegistry;
 
   // Tree navigation / update
   /**

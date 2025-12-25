@@ -10,8 +10,12 @@ FoolJS {
 
   Equation = Expression "=" Expression
 
-  WhereClause = "where" "[" ListOf<Expression, ","> "]"  -- array
-              | "where" ListOf<Expression, ",">  -- inline
+  WhereClause = "where" "[" ListOf<WhereExpr, ","> "]"  -- array
+              | "where" ListOf<WhereExpr, ",">  -- inline
+
+  WhereExpr
+    = AddExpr "=>" AddExpr  -- rule
+    | Expression
 
   Expression
     = AddExpr

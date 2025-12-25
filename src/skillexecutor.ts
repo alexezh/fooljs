@@ -9,7 +9,7 @@
 //
 // Here, "availableSkills" is everything in the registry that is relevant to this goal.
 
-import { AstNode } from "./ast.js";
+import { AstNode, Constraint } from "./ast.js";
 import { astMatch } from "./ast_match.js";
 import { astReplace } from "./ast_match.js";
 import { parse } from "./parser.js";
@@ -19,6 +19,133 @@ import { SkillDescriptor } from "./skilldescriptor.js";
 
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime) { }
+
+  /**
+   * Check if constraints are satisfied given current bindings
+   */
+  private checkConstraints(constraints: Constraint[], bindings: Map<string, AstNode>): boolean {
+    for (const constraint of constraints) {
+      if (!this.checkConstraint(constraint, bindings)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private checkConstraint(constraint: Constraint, bindings: Map<string, AstNode>): boolean {
+    switch (constraint.kind) {
+      case 'type': {
+        // Check if variable matches type
+        const varName = constraint.varName!;
+        const type = constraint.type!;
+        const value = bindings.get(varName);
+        if (!value) return false;
+
+        switch (type) {
+          case 'number':
+            return value.kind === 'number';
+          case 'var':
+          case 'symbol':
+            return value.kind === 'symbol';
+          case 'func_name':
+            return value.kind === 'func';
+          case 'nonzero_number':
+            return value.kind === 'number' && value.value !== 0;
+          case 'nonneg_number':
+            return value.kind === 'number' && (value.value as number) >= 0;
+          case 'positive_number':
+            return value.kind === 'number' && (value.value as number) > 0;
+          default:
+            return false;
+        }
+      }
+
+      case 'rule': {
+        // Rule constraint: left => right
+        // This means: evaluate left, and it should match right
+        // For function calls like map_div_by_x([?terms...], ?x) => [?qs...]
+        // We need to call the function and check if result matches the right side
+        const left = constraint.left!;
+        const right = constraint.right!;
+
+        // Replace variables in left side with bindings
+        const leftEvaluated = astReplace(left, bindings);
+
+        // If left is a function call, try to evaluate it
+        if (leftEvaluated.kind === 'func') {
+          const funcName = leftEvaluated.value as string;
+          const args = leftEvaluated.children || [];
+
+          // Call the constraint function (these should be registered somewhere)
+          const result = this.evaluateConstraintFunction(funcName, args);
+          if (!result) return false;
+
+          // Check if result matches right side pattern
+          const rightBindings = astMatch(right, result);
+          if (!rightBindings) return false;
+
+          // Add new bindings from the constraint match
+          for (const [key, value] of rightBindings.entries()) {
+            bindings.set(key, value);
+          }
+          return true;
+        }
+        return false;
+      }
+
+      case 'call': {
+        // Call constraint: just call a function and check if it returns truthy
+        const callExpr = constraint.left!;
+        const evaluated = astReplace(callExpr, bindings);
+
+        if (evaluated.kind === 'func') {
+          const funcName = evaluated.value as string;
+          const args = evaluated.children || [];
+          const result = this.evaluateConstraintFunction(funcName, args);
+          return result !== undefined && result !== null;
+        }
+        return false;
+      }
+
+      case 'or': {
+        const constraints = constraint.constraints!;
+        return this.checkConstraint(constraints[0], bindings) ||
+               this.checkConstraint(constraints[1], bindings);
+      }
+
+      case 'and': {
+        const constraints = constraint.constraints!;
+        return this.checkConstraint(constraints[0], bindings) &&
+               this.checkConstraint(constraints[1], bindings);
+      }
+
+      case 'not': {
+        return !this.checkConstraint(constraint.nested!, bindings);
+      }
+
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * Evaluate constraint functions like map_div_by_x, all_divisible_by, etc.
+   */
+  private evaluateConstraintFunction(funcName: string, args: AstNode[]): AstNode | undefined {
+    // Look up the constraint function in the registry
+    const func = this.runtime.constraintRegistry.get(funcName);
+    if (!func) {
+      return undefined;
+    }
+
+    // Call the constraint function with the arguments
+    try {
+      return func(args);
+    } catch (e) {
+      // If the function throws, treat it as a failed constraint
+      return undefined;
+    }
+  }
 
   // Execute a skill at focus. For macro_action, apply its steps.
   tryExecute(skill: SkillDescriptor | SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
@@ -51,13 +178,19 @@ export class SkillExecutor {
       }
 
       // Determine the working content to transform
-      // If pattern is a wrapper like solve(...), extract the inner content to transform
+      // If pattern is a wrapper function like solve(...) or eval(...), extract the inner content
       let workingContent = current;
       let wrapperFunc: string | null = null;
       let wrapperArgs: AstNode[] = [];
 
-      // Check if pattern is a function wrapper (like solve, eval, etc.)
-      if (pattern.kind === 'func' && pattern.children && pattern.children.length > 0) {
+      // List of known wrapper functions that we should unwrap
+      const wrapperFunctions = new Set(['solve', 'eval', 'def', 'step']);
+
+      // Check if pattern is a wrapper function
+      if (pattern.kind === 'func' &&
+          wrapperFunctions.has(pattern.value as string) &&
+          pattern.children &&
+          pattern.children.length > 0) {
         // Pattern like solve(eq(?lhs, ?rhs), solved_for(?x))
         // Extract first arg as working content, rest as wrapper context
         wrapperFunc = pattern.value as string;
@@ -86,11 +219,23 @@ export class SkillExecutor {
           if (!rulePattern || !ruleReplacement) continue;
 
           // Try to match this rule against working content
-          const bindings = astMatch(rulePattern, workingContent);
+          const ruleBindings = astMatch(rulePattern, workingContent);
 
-          if (bindings) {
-            // Apply the replacement
-            const next = astReplace(ruleReplacement, bindings);
+          if (ruleBindings) {
+            // Merge with pattern match bindings (for wrapper variables like ?x from solved_for(?x))
+            const allBindings = new Map([...patternMatch.entries(), ...ruleBindings.entries()]);
+
+            // Check constraints if present
+            const constraints = rule.constraints;
+            if (constraints && constraints.length > 0) {
+              if (!this.checkConstraints(constraints, allBindings)) {
+                // Constraints not satisfied, skip this rule
+                continue;
+              }
+            }
+
+            // Apply the replacement with merged bindings
+            const next = astReplace(ruleReplacement, allBindings);
             workingContent = next;
             applied = true;
           }

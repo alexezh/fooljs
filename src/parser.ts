@@ -152,6 +152,12 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return exprs.map((expr: AstNode) => exprToConstraint(expr));
   },
 
+  WhereExpr_rule(left, _arrow, right) {
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+    return AstNode.create('rule', 'rule', [leftNode, rightNode]);
+  },
+
   Expression(expr) {
     return expr.toAst();
   },
