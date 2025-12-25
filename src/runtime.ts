@@ -65,11 +65,6 @@ export interface Runtime {
   // Matching and rule application (you have these already)
   matches(patternStr: string, node: AstNode): boolean;
 
-  /**
-   * return ast node to root
-   */
-  tryApplyRuleAt(ruleId: RuleBody, root: AstNode, path: Path): AstNode | null;
-
   // Optional: goal checks
   goalMet(root: AstNode, goal: Goal): boolean;
 

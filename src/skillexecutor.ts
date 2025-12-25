@@ -10,6 +10,9 @@
 // Here, "availableSkills" is everything in the registry that is relevant to this goal.
 
 import { AstNode } from "./ast";
+import { astMatch } from "./ast_match";
+import { astReplace } from "./ast_match";
+import { parse } from "./parser";
 import { Goal } from "./planner/plannercore";
 import { RuleBody, Runtime, SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
@@ -24,27 +27,63 @@ export class SkillExecutor {
     if (!s) return { nextRoot: root, applied: false };
 
     if (s.payload.kind === "rewrite_rule") {
-      // You can store a ruleId in payload, or compile rule string to ruleId at registration time.
-      // const ruleId = s.payload?.ruleId;
-      // if (typeof ruleId !== "string") return { nextRoot: root, applied: false };
-
-      // debugger;
-      // const next = this.runtime.tryApplyRuleAt(ruleId as RuleBody, root, focus);
-      // return next ? { nextRoot: next, applied: true } : { nextRoot: root, applied: false };
       throw 'Not implemented';
     } else if (s.payload.kind === "macro_action") {
-      let code = this.runtime.ruleCache.compileRule(s.payload.skillBody as RuleBody);
+      // Parse the skill body to get the AST
+      const skillAst = parse(s.payload.skillBody);
 
-      for (let i = 0; i < Math.min(budget, steps.length); i++) {
-        const ruleBody = steps[i]?.ruleBody as RuleBody;
+      // Should be a rule: pattern => do [...]
+      if (skillAst.kind !== 'rule') {
+        return { nextRoot: root, applied: false };
+      }
 
-        const next = this.runtime.tryApplyRuleAt(ruleBody, cur, focus);
-        if (next) {
-          cur = next;
-          applied = true;
+      const [pattern, doBlock] = skillAst.children || [];
+      if (!pattern || !doBlock) {
+        return { nextRoot: root, applied: false };
+      }
+
+      // Get the node at focus
+      let current = this.runtime.getAt(root, focus);
+
+      // Match the pattern against the focused node
+      const patternMatch = astMatch(pattern, current);
+      if (!patternMatch) {
+        return { nextRoot: root, applied: false };
+      }
+
+      // If doBlock is a 'do' node, apply rules sequentially
+      if (doBlock.kind === 'do') {
+        const rules = doBlock.children || [];
+        let applied = false;
+
+        for (let i = 0; i < Math.min(s.payload.budget, rules.length); i++) {
+          const rule = rules[i];
+
+          if (rule.kind !== 'rule') continue;
+
+          const [rulePattern, ruleReplacement] = rule.children || [];
+          if (!rulePattern || !ruleReplacement) continue;
+
+          // Try to match this rule
+          const bindings = astMatch(rulePattern, current);
+
+          if (bindings) {
+            // Apply the replacement
+            const next = astReplace(ruleReplacement, bindings);
+            current = next;
+            applied = true;
+          }
+          // If no match, continue with same current (rules are optional)
+        }
+
+        if (applied) {
+          // Update the tree at focus
+          const nextRoot = this.runtime.setAt(root, focus, current);
+          return { nextRoot, applied: true };
         }
       }
-      return { nextRoot: cur, applied };
+
+      return { nextRoot: root, applied: false };
     }
 
     // tagger doesn't execute

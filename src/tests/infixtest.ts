@@ -47,7 +47,7 @@ let ast5 = parse(expr5);
 console.log(`Input:  ${expr5}`);
 console.log(`Parsed: ${ast5.toString()}`);
 
-const results = runtime.matchRule(ast5);
+const results = runtime.ruleCache.matchRule(ast5);
 console.log(`Matches ${results.length} rules:`);
 for (const result of results) {
   console.log(`  => ${result.toString()}`);
@@ -61,7 +61,7 @@ let ast6 = parse(expr6);
 console.log(`Input:  ${expr6}`);
 console.log(`Parsed: ${ast6.toString()}`);
 
-const results6 = runtime.matchRule(ast6);
+const results6 = runtime.ruleCache.matchRule(ast6);
 console.log(`Matches ${results6.length} rules:`);
 for (const result of results6) {
   console.log(`  => ${result.toString()}`);

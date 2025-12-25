@@ -86,13 +86,12 @@ async function main(runtime: Runtime) {
   const proposer = new AbstractionProposer(llm);
   const verifier = new SymbolicVerifier(runtime);
 
-  await seedBaselineSkills(registry);
+  await seedBaselineSkills(RuntimeImpl.instance.skillRegistry);
 
-  const executor = new SkillExecutor(runtime, registry);
+  const executor = new SkillExecutor(runtime);
 
   const orchestrator = new Orchestrator(
     runtime,
-    registry,
     dumbPolicy,      // swap for your RL policy
     proposer,
     verifier,
@@ -179,12 +178,6 @@ async function main(runtime: Runtime) {
   console.log("final result:", finalOut.result);
   console.log("trace success:", finalOut.trace.success);
   console.log("trace JSON:", JSON.stringify(finalOut.trace, null, 2));
-
-  // Inspect what new skills were accepted
-  console.log("=== SKILLS IN REGISTRY ===");
-  for (const s of registry.list()) {
-    console.log(`${s.id} (${s.payload.kind}) - ${s.name} `);
-  }
 }
 
 // Run basic tests (no LLM required)

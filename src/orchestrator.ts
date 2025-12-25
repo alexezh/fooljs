@@ -208,37 +208,8 @@ export class SymbolicVerifier {
     //     return { ok: false, reason: `Unknown skill kind: ${(skill as any).kind}` };
     // }
   }
-
-  private verifyRewriteRule(payload: RewriteRulePayload, testSet: any[]): VerificationResult {
-    const ruleStr = payload?.ruleId;
-    if (typeof ruleStr !== "string" || ruleStr.length < 3) {
-      return { ok: false, reason: "Missing payload.rule string" };
-    }
-
-    // Skeleton approach:
-    // - For each test expr, try to apply rule at root if it matches,
-    // - If it applies, ensure equivalence holds.
-    for (const expr of testSet) {
-      // Only test when applicable (you likely have a matcher for LHS inside the runtime)
-      // Here we assume you can register a temporary ruleId or interpret the ruleStr directly.
-      // If you can't apply ruleStr directly, convert it to a ruleId first in your system.
-      const applied = tryApplyEphemeralRule(this.runtime, ruleStr, expr);
-      if (!applied) continue;
-
-      if (!this.runtime.equivalent(expr, applied)) {
-        return { ok: false, reason: "Equivalence failed on some test", evidence: { expr, applied, ruleStr } };
-      }
-    }
-
-    return { ok: true };
-  }
 }
 
-// Placeholder: you will replace with your own "register temp rule" or "apply from string" method.
-function tryApplyEphemeralRule(_rt: Runtime, _ruleStr: string, _expr: any): any | null {
-  // In your system you likely have runtime.addRule(ruleStr, fn) and can create a temporary ID.
-  return null;
-}
 
 // ----------------------------
 // 6) Orchestrator: online solve + periodic LLM proposal + verification + policy update
@@ -260,7 +231,6 @@ export class Orchestrator {
 
   constructor(
     private readonly runtime: Runtime,
-    private readonly registry: SkillRegistry,
     private readonly policy: Policy,
     private readonly proposer: AbstractionProposer,
     private readonly verifier: SymbolicVerifier,
@@ -291,7 +261,7 @@ export class Orchestrator {
         root,
         goal: input.goal,
         focusCandidates: input.focusCandidates,
-        registry: this.registry,
+        runtime: this.runtime,
       });
 
       if (!choice) break;
@@ -360,7 +330,7 @@ export class Orchestrator {
 
       // 3) If verified, register skill so RL can choose it in the future
       // In a real system, you'd compile rule strings into runtime rule IDs here.
-      this.registry.add(p);
+      this.runtime.skillRegistry.add(p);
     }
   }
 }

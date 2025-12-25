@@ -1,7 +1,12 @@
 FoolJS {
   Program = Rule | Equation | Expression
 
-  Rule = Expression "=>" Expression WhereClause?
+  Rule = Expression "=>" DoBlock  -- do
+       | Expression "=>" Expression WhereClause?  -- simple
+
+  DoBlock = "do" "[" ListOf<InnerRule, ","> "]"
+
+  InnerRule = Expression "=>" Expression WhereClause?
 
   Equation = Expression "=" Expression
 

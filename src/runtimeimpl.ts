@@ -76,26 +76,6 @@ export class RuntimeImpl implements Runtime {
   }
 
   /**
-   * Try to apply a rule at a specific path in the tree.
-   * Returns the new root if successful, null otherwise.
-   */
-  tryApplyRuleAt(ruleBody: RuleBody, root: AstNode, path: Path): AstNode | null {
-    // Find the rule by ID (ruleId is the def string for now)
-    const rule = this.ruleCache.compileRule(ruleBody);
-
-    // Get the node at the path
-    const target = this.getAt(root, path);
-
-    // Try to apply the rule
-    const result = rule.matchFunc(target);
-    if (result) {
-      return this.setAt(root, path, result.replace);
-    }
-
-    return null;
-  }
-
-  /**
    * Check if the goal is met for the given root expression.
    * For solve_for goals, check if we have isolated the variable.
    */

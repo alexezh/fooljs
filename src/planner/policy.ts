@@ -1,7 +1,7 @@
 import { SkillDescriptor } from "../skilldescriptor.js";
 import { FeatureVector, Goal, Path } from "./plannercore.js";
 import type { SkillRegistry } from "../skillregistry.js";
-import { SkillId } from "../runtime.js";
+import { Runtime, SkillId } from "../runtime.js";
 import { AstNode } from "../ast.js";
 
 export interface Policy {
@@ -29,7 +29,7 @@ export interface Policy {
     root: AstNode;
     goal: Goal;
     focusCandidates: number[][];
-    registry: SkillRegistry;
+    runtime: Runtime;
   }): Promise<{ skill: SkillDescriptor; focus: number[] } | null>;
 
   // Learn from outcomes

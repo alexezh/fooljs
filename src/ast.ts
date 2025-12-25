@@ -9,7 +9,8 @@ export type AstNodeKind =
   | 'rule'
   | 'list'
   | 'tuple'
-  | 'spread';
+  | 'spread'
+  | 'do';
 
 export type TypeName = 'number' |
   'var' |
@@ -222,6 +223,7 @@ export class AstNode {
   static create(kind: 'list', value: 'list', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'tuple', value: 'tuple', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'spread', value: '...', children?: AstNode[], constraints?: Constraint[]): AstNode;
+  static create(kind: 'do', value: 'do', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'symbol', value: ASymbol, children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
@@ -260,6 +262,12 @@ export class AstNode {
       const target = this.children && this.children[0];
       const targetStr = target ? target.toString() : '';
       return `${targetStr}...`;
+    }
+
+    if (this.kind === 'do') {
+      const rules = this.children ?? [];
+      const contents = rules.map(x => x.toString()).join(',');
+      return `do [${contents}]`;
     }
 
     let childrenStr: string | undefined;

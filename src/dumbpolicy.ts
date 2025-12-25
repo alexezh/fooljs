@@ -6,7 +6,7 @@
 import { AstNode } from "./ast";
 import { Goal } from "./planner/plannercore";
 import { Policy } from "./planner/policy";
-import { SkillId } from "./runtime";
+import { Runtime, SkillId } from "./runtime";
 import { SkillDescriptor } from "./skilldescriptor";
 import { SkillRegistry } from "./skillregistry";
 
@@ -19,11 +19,11 @@ export class DumbPolicy implements Policy {
     return candidates.map((c, i) => ({ ...c, score: candidates.length - i }));
   }
 
-  async chooseSkill({ root, goal, focusCandidates, registry }:
-    { root: AstNode, goal: Goal, focusCandidates, registry: SkillRegistry }):
+  async chooseSkill({ root, goal, focusCandidates, runtime }:
+    { root: AstNode, goal: Goal, focusCandidates, runtime: Runtime }):
     Promise<{ skill: SkillDescriptor, focus: [] } | null> {
     if (!this.skills) {
-      this.skills = await registry.findMatching(root);
+      this.skills = [runtime.skillRegistry.get("solve_discharge_isolated_inline" as SkillId)!];
     }
     console.log(`\n[DumbPolicy] Step ${this.stepCount}, Available skills: `, this.skills.map((s: any) => s.id));
 
