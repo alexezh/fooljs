@@ -26,7 +26,7 @@ try {
   console.log("Input:", input.toString());
   console.log("Expected: -7 (or neg(7))");
 
-  const result = executor.tryExecute(skill, input, [], { kind: 'solve' });
+  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', x: 'x' });
   console.log("Applied:", result.applied);
   console.log("Result:", result.nextRoot.toString());
 

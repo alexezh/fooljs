@@ -9,14 +9,13 @@
 //
 // Here, "availableSkills" is everything in the registry that is relevant to this goal.
 
-import { AstNode } from "./ast";
-import { astMatch } from "./ast_match";
-import { astReplace } from "./ast_match";
-import { parse } from "./parser";
-import { Goal } from "./planner/plannercore";
-import { RuleBody, Runtime, SkillId } from "./runtime";
-import { SkillDescriptor } from "./skilldescriptor";
-import { SkillRegistry } from "./skillregistry";
+import { AstNode } from "./ast.js";
+import { astMatch } from "./ast_match.js";
+import { astReplace } from "./ast_match.js";
+import { parse } from "./parser.js";
+import { Goal } from "./planner/plannercore.js";
+import { Runtime, SkillId } from "./runtime.js";
+import { SkillDescriptor } from "./skilldescriptor.js";
 
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime) { }
@@ -51,7 +50,29 @@ export class SkillExecutor {
         return { nextRoot: root, applied: false };
       }
 
-      // If doBlock is a 'do' node, apply rules sequentially
+      // Determine the working content to transform
+      // If pattern is a wrapper like solve(...), extract the inner content to transform
+      let workingContent = current;
+      let wrapperFunc: string | null = null;
+      let wrapperArgs: AstNode[] = [];
+
+      // Check if pattern is a function wrapper (like solve, eval, etc.)
+      if (pattern.kind === 'func' && pattern.children && pattern.children.length > 0) {
+        // Pattern like solve(eq(?lhs, ?rhs), solved_for(?x))
+        // Extract first arg as working content, rest as wrapper context
+        wrapperFunc = pattern.value as string;
+        const patternArgs = pattern.children;
+
+        if (current.kind === 'func' && current.value === wrapperFunc) {
+          const currentArgs = current.children || [];
+          if (currentArgs.length > 0) {
+            workingContent = currentArgs[0]; // Extract inner content (e.g., the equation)
+            wrapperArgs = currentArgs.slice(1); // Keep wrapper args (e.g., solved_for(?x))
+          }
+        }
+      }
+
+      // If doBlock is a 'do' node, apply rules sequentially to working content
       if (doBlock.kind === 'do') {
         const rules = doBlock.children || [];
         let applied = false;
@@ -64,21 +85,32 @@ export class SkillExecutor {
           const [rulePattern, ruleReplacement] = rule.children || [];
           if (!rulePattern || !ruleReplacement) continue;
 
-          // Try to match this rule
-          const bindings = astMatch(rulePattern, current);
+          // Try to match this rule against working content
+          const bindings = astMatch(rulePattern, workingContent);
 
           if (bindings) {
             // Apply the replacement
             const next = astReplace(ruleReplacement, bindings);
-            current = next;
+            workingContent = next;
             applied = true;
           }
-          // If no match, continue with same current (rules are optional)
+          // If no match, continue with same workingContent (rules are optional)
         }
 
         if (applied) {
+          // Wrap the result back if there was a wrapper
+          // BUT: If the wrapper was solve(...) and the result is no longer an equation,
+          // it means we've "discharged" the solve, so don't wrap it back
+          let result = workingContent;
+          if (wrapperFunc) {
+            const shouldWrap = !(wrapperFunc === 'solve' && workingContent.kind !== 'eq');
+            if (shouldWrap) {
+              result = AstNode.create('func', wrapperFunc as any, [workingContent, ...wrapperArgs]);
+            }
+          }
+
           // Update the tree at focus
-          const nextRoot = this.runtime.setAt(root, focus, current);
+          const nextRoot = this.runtime.setAt(root, focus, result);
           return { nextRoot, applied: true };
         }
       }

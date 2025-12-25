@@ -189,7 +189,7 @@ All 5 test suites passing:
 
 ```typescript
 // Setup
-const runtime = Runtime.instance;
+const runtime = RuntimeImpl.instance;
 initCore(runtime);
 
 // Define quadratic solving states

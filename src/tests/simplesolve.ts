@@ -3,11 +3,12 @@ import { AstNode, ASymbol } from "../ast.js";
 import { Runtime } from "../runtime.js";
 import { initRules } from "../ruletable.js";
 import { aStarSearch } from "../search.js";
+import { RuntimeImpl } from "../runtimeimpl.js";
 
 console.log("=== Simple Solve Test ===\n");
 
 // Initialize runtime with core rules
-initRules(Runtime.instance);
+initRules(RuntimeImpl.instance);
 
 // Test 1: x = 5 (should work - from searchtest)
 console.log("-- Test 1: x = 5 --");
@@ -20,7 +21,7 @@ const solve1 = AstNode.create('func', 'solve', [
 ]);
 console.log(`Input: ${solve1.toString()}`);
 
-const result1 = aStarSearch(solve1, Runtime.instance, undefined, 1000);
+const result1 = aStarSearch(solve1, RuntimeImpl.instance, undefined, 1000);
 if (result1) {
   const path1 = result1.getPath();
   console.log(`✓ Found path with ${path1.length} steps`);
@@ -40,7 +41,7 @@ const solve2 = AstNode.create('func', 'solve', [
 ]);
 console.log(`Input: ${solve2.toString()}`);
 
-const result2 = aStarSearch(solve2, Runtime.instance, undefined, 10000);
+const result2 = aStarSearch(solve2, RuntimeImpl.instance, undefined, 10000);
 if (result2) {
   const path2 = result2.getPath();
   console.log(`✓ Found path with ${path2.length} steps`);
@@ -60,7 +61,7 @@ const solve3 = AstNode.create('func', 'solve', [
 ]);
 console.log(`Input: ${solve3.toString()}`);
 
-const result3 = aStarSearch(solve3, Runtime.instance, undefined, 10000);
+const result3 = aStarSearch(solve3, RuntimeImpl.instance, undefined, 10000);
 if (result3) {
   const path3 = result3.getPath();
   console.log(`✓ Found path with ${path3.length} steps`);

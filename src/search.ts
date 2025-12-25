@@ -52,7 +52,7 @@ class OpenSet {
  * A* search to find optimal simplification path
  *
  * @param start Starting AST node
- * @param runtime Runtime with rewrite rules (defaults to Runtime.instance)
+ * @param runtime Runtime with rewrite rules (defaults to RuntimeImpl.instance)
  * @param goalFn Function to determine if node is a goal (defaults to isGoal)
  * @param maxStates Maximum number of states to explore (prevents infinite loops)
  * @returns Path of transformations from start to goal, or null if no path found
@@ -104,7 +104,7 @@ function getRewrites(state: SearchState, node: AstNode, path: AstNode[], openSet
     return;
   }
 
-  //const stateManager = Runtime.instance.getStateManager();
+  //const stateManager = RuntimeImpl.instance.getStateManager();
 
   // find all rules which match
   const rewriters = RuntimeImpl.instance.ruleCache.matchRule(node);

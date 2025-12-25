@@ -21,7 +21,7 @@ function main_search(): void {
   //const exprStr = '7x^2 - 2 = 0'
 
   initRules(RuntimeImpl.instance);
-  //initStates(Runtime.instance);
+  //initStates(RuntimeImpl.instance);
   let ast = parseEquation(exprStr);
 
   const res = aStarSearch(ast);
@@ -29,7 +29,7 @@ function main_search(): void {
     const solStr = getSolutionString(res);
   }
 
-  //const match = Runtime.instance.matchRule(ast);
+  //const match = RuntimeImpl.instance.matchRule(ast);
   //console.log(match?.length);
 }
 

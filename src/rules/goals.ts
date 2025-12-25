@@ -1,6 +1,7 @@
 import { AstNode, ASymbol, isFunc, MatchFuncRet } from "../ast.js";
 import { getArgs } from "./corerules.js";
 import { Runtime } from "../runtime.js";
+import { RuntimeImpl } from "../runtimeimpl.js";
 
 // Helper: Structural equality check
 // Returns true if two AST nodes are structurally identical
@@ -74,66 +75,5 @@ export function ruleSolveGoalMet(ast: AstNode): MatchFuncRet | undefined {
   return undefined;
 }
 
-// =============================================================================
-// Step rule - Bridge between solve and eval
-// =============================================================================
 
-// step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)
-// Try to make one eval step
-export function ruleStep(ast: AstNode): MatchFuncRet | undefined {
-  if (!isFunc(ast, 'step')) return undefined;
-  const args = getArgs(ast);
-  if (args.length !== 1) return undefined;
 
-  const expr = args[0];
-
-  // Wrap in eval and try to apply eval rules
-  const evalExpr = AstNode.create('func', 'eval', [expr]);
-  const evalResults = Runtime.instance.matchRule(evalExpr);
-
-  // Try each eval result
-  for (const result of evalResults) {
-    // Skip if structurally identical (avoid infinite loop)
-    if (eqAst(expr, result.replace)) continue;
-
-    // Return the first non-identical result
-    return {
-      replace: result.replace,
-      cost: result.cost // Inherit cost from the eval step
-    };
-  }
-
-  return undefined;
-}
-
-// =============================================================================
-// Solve driver - Uses step to make progress
-// =============================================================================
-
-// solve(?e, ?p) => solve(?e1, ?p) where not holds(?p, ?e), step(?e) => ?e1
-// Make one step toward the goal
-export function ruleSolveStep(ast: AstNode): MatchFuncRet | undefined {
-  if (!isFunc(ast, 'solve')) return undefined;
-  const args = getArgs(ast);
-  if (args.length !== 2) return undefined;
-
-  const [expr, goal] = args;
-
-  // Only apply if goal doesn't already hold
-  if (holdsGoal(goal, expr)) return undefined;
-
-  // Try to make a step
-  const stepExpr = AstNode.create('func', 'step', [expr]);
-  const stepResults = Runtime.instance.matchRule(stepExpr);
-
-  // Try each step result
-  for (const result of stepResults) {
-    // Return solve with the stepped expression
-    return {
-      replace: AstNode.create('func', 'solve', [result.replace, goal]),
-      cost: result.cost + 1 // Inherit step cost plus 1 for new solve node
-    };
-  }
-
-  return undefined;
-}

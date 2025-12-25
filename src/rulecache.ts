@@ -59,11 +59,11 @@ export class RuleCache {
       rule: ruleStr,
       tags: [],
       fn: (inputAst: AstNode) => {
-        let res = astMatch(ruleExpr.children![0], inputAst);
+        let res = astMatch(ruleExpr!.children![0], inputAst);
         if (!res) {
           return undefined;
         }
-        const replace = astReplace(ruleExpr.children![0], res)
+        const replace = astReplace(ruleExpr!.children![0], res)
         return {
           ruleDef: ruleStr,
           replace: replace,

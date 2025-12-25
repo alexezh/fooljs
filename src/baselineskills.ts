@@ -28,7 +28,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 12,
-      skillBody: "?x => do [paren(?a) => ?a, neg(neg(?a)) => ?a, neg(0) => 0, sum(?args..., 0, ?rest...) => sum(?args..., ?rest...), sum(?a, ?b) => calc_sum(?a, ?b) where ?a is number, ?b is number]" as any,
+      skillBody: "?x => do [paren(?a) => ?a, neg(neg(?a)) => ?a, neg(0) => 0, sum(?args..., 0, ?rest...) => sum(?args..., ?rest...), sum(?a, ?b) => calc_sum(?a, ?b) where [type(?a, number), type(?b, number)]]" as any,
     },
     tags: ["simplify"],
   });
@@ -159,23 +159,17 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
   // ---------------------------------------------------------------------------
   await registry.add({
     id: "macro_solve_ax_plus_c_zero_inline_factor_then_eval" as SkillId,
-    name: "Solve ax + c = 0 (factor x, isolate, then eval RHS)",
+    name: "Solve ax + c = 0 (normalize, move addend, divide, discharge)",
     payload: {
       kind: "macro_action",
-      budget: 14,
+      budget: 20,
       skillBody: `solve(eq(?lhs, ?rhs), solved_for(?x)) => do [
-        solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x)),
-        solve(eq(sub(?a, ?b), 0), solved_for(?x)) => solve(eq(sum(?a, neg(?b)), 0), solved_for(?x)),
-        solve(eq(sum(?terms...), 0), solved_for(?x)) => solve(eq(group_same(sum(?terms...), ?x), 0), solved_for(?x)),
-        solve(eq(sum(?t, ?c), 0), solved_for(?x)) => solve(eq(?t, neg(?c)), solved_for(?x)),
-        solve(eq(sum(?terms...), ?b), solved_for(?x)) => solve(eq(mul(?x, sum(?qs...)), ?b), solved_for(?x)) where map_div_by_x([?terms...], ?x) => [?qs...],
-        solve(eq(mul(?x, ?k), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x)),
-        solve(eq(mul(?k, ?x), ?b), solved_for(?x)) => solve(eq(?x, div(?b, ?k)), solved_for(?x)),
-        solve(eq(?x, ?rhs), solved_for(?x)) => solve(eq(?x, eval(?rhs)), solved_for(?x)),
-        solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs,
-        solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs
+        eq(sum(?t, ?c), 0) => eq(?t, neg(?c)) where [type(?c, number)],
+        eq(sum(mul(?k, ?y), ?c), 0) => eq(mul(?k, ?y), neg(?c)),
+        eq(mul(?k, ?y), ?b) => eq(?y, div(?b, ?k)),
+        eq(?y, ?rhs) => ?rhs
       ]` as any,
     },
-    tags: ["solve", "linear", "procedure", "generic", "inline_rules", "factor", "eval_rhs"],
+    tags: ["solve", "linear", "procedure", "generic", "inline_rules"],
   });
 }

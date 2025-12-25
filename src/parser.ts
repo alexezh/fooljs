@@ -35,6 +35,74 @@ const grammarPath = join(process.cwd(), 'out', 'grammar.ohm');
 const grammarSource = readFileSync(grammarPath, 'utf-8');
 const grammar = ohm.grammar(grammarSource);
 
+// Helper function to convert expressions to constraints
+function exprToConstraint(expr: AstNode): Constraint {
+  // type(?var, typename) => type constraint
+  if (expr.kind === 'func' && expr.value === 'type') {
+    const args = expr.children || [];
+    if (args.length === 2) {
+      const varNode = args[0];
+      const typeNode = args[1];
+      const varName = varNode.kind === 'patvar' ?
+        (typeof varNode.value === 'string' ? varNode.value : varNode.value.toString()) :
+        varNode.toString();
+      const typeName = typeNode.kind === 'symbol' ?
+        (typeNode.value as any).name :
+        typeNode.toString();
+      return Constraint.typeConstraint(varName, typeName as TypeName);
+    }
+  }
+
+  // or(...) => or constraint
+  if (expr.kind === 'func' && expr.value === 'or') {
+    const args = expr.children || [];
+    if (args.length === 2) {
+      return Constraint.orConstraint(
+        exprToConstraint(args[0]),
+        exprToConstraint(args[1])
+      );
+    }
+  }
+
+  // and(...) => and constraint
+  if (expr.kind === 'func' && expr.value === 'and') {
+    const args = expr.children || [];
+    if (args.length === 2) {
+      return Constraint.andConstraint(
+        exprToConstraint(args[0]),
+        exprToConstraint(args[1])
+      );
+    }
+  }
+
+  // not(...) => not constraint
+  if (expr.kind === 'func' && expr.value === 'not') {
+    const args = expr.children || [];
+    if (args.length === 1) {
+      return Constraint.notConstraint(exprToConstraint(args[0]));
+    }
+  }
+
+  // eq_ast(...) => eq_ast constraint
+  if (expr.kind === 'func' && expr.value === 'eq_ast') {
+    const args = expr.children || [];
+    if (args.length === 2) {
+      return Constraint.eqAstConstraint(args[0], args[1]);
+    }
+  }
+
+  // rule syntax: a => b
+  if (expr.kind === 'rule') {
+    const args = expr.children || [];
+    if (args.length === 2) {
+      return Constraint.ruleConstraint(args[0], args[1]);
+    }
+  }
+
+  // Default: treat as call constraint
+  return Constraint.callConstraint(expr);
+}
+
 // Semantic actions
 const semantics = grammar.createSemantics().addOperation('toAst', {
   Program(expr) {
@@ -72,70 +140,16 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return AstNode.create('eq', 'eq', [leftNode, rightNode]);
   },
 
-  WhereClause(_where, constraintList) {
-    return constraintList.toAst();
+  WhereClause_array(_where, _lbrack, exprList, _rbrack) {
+    const exprs = exprList.asIteration().children.map((e: any) => e.toAst());
+    // Convert expressions to constraints for backward compatibility
+    return exprs.map((expr: AstNode) => exprToConstraint(expr));
   },
 
-  ConstraintList(first, _commas, rest) {
-    const constraints: Constraint[] = [first.toAst()];
-    for (const c of rest.children) {
-      constraints.push(c.toAst());
-    }
-    return constraints;
-  },
-
-  Constraint(orConstraint) {
-    return orConstraint.toAst();
-  },
-
-  OrConstraint_or(left, _or, right) {
-    return Constraint.orConstraint(left.toAst(), right.toAst());
-  },
-
-  OrConstraint(andConstraint) {
-    return andConstraint.toAst();
-  },
-
-  AndConstraint_and(left, _and, right) {
-    return Constraint.andConstraint(left.toAst(), right.toAst());
-  },
-
-  AndConstraint(baseConstraint) {
-    return baseConstraint.toAst();
-  },
-
-  BaseConstraint_type(patvar, _is, typeName) {
-    const varName = patvar.toAst().value as string;
-    const type = typeName.sourceString as TypeName;
-    return Constraint.typeConstraint(varName, type);
-  },
-
-  BaseConstraint_rule(left, _arrow, right) {
-    return Constraint.ruleConstraint(left.toAst(), right.toAst());
-  },
-
-  BaseConstraint_match(left, _matches, right) {
-    return Constraint.matchConstraint(left.toAst(), right.toAst());
-  },
-
-  BaseConstraint_assign(left, _eq, right) {
-    return Constraint.assignConstraint(left.toAst(), right.toAst());
-  },
-
-  BaseConstraint_not(_not, constraint) {
-    return Constraint.notConstraint(constraint.toAst());
-  },
-
-  BaseConstraint_eq_ast(_eq_ast, _lparen, left, _comma, right, _rparen) {
-    return Constraint.eqAstConstraint(left.toAst(), right.toAst());
-  },
-
-  BaseConstraint_call(funcCall) {
-    return Constraint.callConstraint(funcCall.toAst());
-  },
-
-  BaseConstraint_paren(_lparen, constraint, _rparen) {
-    return constraint.toAst();
+  WhereClause_inline(_where, exprList) {
+    const exprs = exprList.asIteration().children.map((e: any) => e.toAst());
+    // Convert expressions to constraints for backward compatibility
+    return exprs.map((expr: AstNode) => exprToConstraint(expr));
   },
 
   Expression(expr) {

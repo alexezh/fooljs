@@ -19,7 +19,7 @@ import { Runtime } from "../src/runtime.js";
 import { initCore } from "../src/ruletable.js";
 
 // Initialize the runtime with core rules
-const runtime = Runtime.instance;
+const runtime = RuntimeImpl.instance;
 initCore(runtime);
 
 // =============================================================================

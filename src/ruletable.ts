@@ -3,7 +3,7 @@ import { RuleId, RuleMeta, RuleTag, Runtime } from "./runtime.js";
 import { ruleEqDivideBothSidesLeftMul, ruleEqDivideBothSidesRightMul, ruleEqMoveAddendGeneral, ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveLinearMatch, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
-import { ruleSolveGoalMet, ruleStep, ruleSolveStep } from "./rules/goals.js";
+import { ruleSolveGoalMet } from "./rules/goals.js";
 import { ruleCalcDiv, ruleCalcMul, ruleDivNeutralRight, ruleDivSelfToOne, ruleEvalDiv, ruleEvalMul, ruleMulAssocLeft, ruleMulCommutative, ruleMulNeutralLeft, ruleMulNeutralRight, ruleMulToSum, ruleMulZeroLeft, ruleMulZeroRight, ruleSumToMul } from "./rules/mul.js";
 import { ruleSolveEqIsolatedLeft, ruleSolveEqNormalize } from "./rules/solverules.js";
 import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ruleCommutative, ruleDoubleNeg, ruleLiftSum, ruleNegZero, ruleNeutralRight, ruleSubToSum, ruleSumNegSelf, ruleSwapEnds } from "./rules/sum.js";
@@ -54,8 +54,8 @@ export const coreRuleFunctions = [
   ruleSolveLinear,        // 38
   ruleSolveSimpleLinear,  // 39
   // Step rules
-  ruleStep,               // 40
-  ruleSolveStep,          // 41
+  // ruleStep,               // 40
+  // ruleSolveStep,          // 41
   // Transcendental functions
   ruleEvalPow,            // 42
   ruleEvalPowExp1,        // 43
@@ -307,18 +307,18 @@ export function initRules(runtime: Runtime) {
       tags: [...T.solve, ...T.eq, "simplify", "progress"],
     },
 
-    {
-      id: "step_via_eval_progress" as RuleId,
-      rule: "step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)",
-      fn: ruleStep,
-      tags: [...T.step, ...T.eval, "progress"],
-    },
-    {
-      id: "solve_driver_step" as RuleId,
-      rule: "solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1",
-      fn: ruleSolveStep,
-      tags: [...T.solve, ...T.step, "progress"],
-    },
+    // {
+    //   id: "step_via_eval_progress" as RuleId,
+    //   rule: "step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)",
+    //   fn: ruleStep,
+    //   tags: [...T.step, ...T.eval, "progress"],
+    // },
+    // {
+    //   id: "solve_driver_step" as RuleId,
+    //   rule: "solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1",
+    //   fn: ruleSolveStep,
+    //   tags: [...T.solve, ...T.step, "progress"],
+    // },
 
     {
       id: "eval_number" as RuleId,

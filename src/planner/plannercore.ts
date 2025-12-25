@@ -6,6 +6,7 @@ export type Path = Array<number>; // e.g. child indices from root
 export type Goal =
   | { kind: "compute" }
   | { kind: "simplify" }
+  | { kind: "solve" } // variable name (or your ASymbol)
   | { kind: "solve_for"; x: string } // variable name (or your ASymbol)
   | { kind: "normalize" };
 
