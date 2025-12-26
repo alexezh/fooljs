@@ -1,5 +1,5 @@
 import { AstNode, MatchFunc } from "./ast.js";
-import { RuleId, RuleMeta, RuleTag, Runtime } from "./runtime.js";
+import { RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
 import { ruleEqDivideBothSidesLeftMul, ruleEqDivideBothSidesRightMul, ruleEqMoveAddendGeneral, ruleEqNormalize, ruleEqSymmetry, ruleEvalEq, ruleParenRemove } from "./rules/corerules.js";
 import { ruleSolveEqIsolatedRight, ruleSolveLinear, ruleSolveLinearMatch, ruleSolveSimpleLinear } from "./rules/equation.js";
 import { ruleEvalCollapse, ruleEvalDef, ruleEvalDefSimplify, ruleEvalNeg, ruleEvalNumber, ruleEvalProgressive, ruleEvalSum, ruleEvalSymbol } from "./rules/eval.js";
@@ -10,6 +10,7 @@ import { ruleAssocEnd, ruleAssocLeft, ruleAssocMid, ruleCalcNeg, ruleCalcSum, ru
 import { ruleCalcExp, ruleCalcLn, ruleCalcLogBase, ruleCalcPow, ruleCalcSqrt, ruleEvalExp, ruleEvalLn, ruleEvalLogBase, ruleEvalPow, ruleEvalPowBase0Pos, ruleEvalPowBase1, ruleEvalPowExp0, ruleEvalPowExp1, ruleEvalSqrt, ruleExpLn, ruleExpZero, ruleLn1, ruleLnExp, ruleSqrt2, ruleSqrtToPow } from "./rules/transcendental.js";
 import { ruleCombineLikeTerms, ruleCombineNumbers, ruleFactorCommonDivisor, ruleSubExpandSum } from "./rules/simplify.js";
 import { ruleBucketSamePick, ruleBucketSameRest, ruleCollectMulNonNumber, ruleCollectMulNumber, ruleCollectSumNonNumber, ruleCollectSumNumber, ruleFoldBase, ruleFoldStep, ruleGroupSame, ruleMulFold, ruleRebuildGroup, ruleSumFold } from "./rules/fold.js";
+import { astCreateMatcher } from "./ast_match2.js";
 
 export const coreRuleFunctions = [
   ruleAssocLeft,          // 0
@@ -80,8 +81,8 @@ export const coreRuleFunctions = [
 ];
 
 
-function add(runtime: Runtime, m: RuleMeta) {
-  runtime.ruleCache.addRule(m);
+function add(runtime: Runtime, m: RuleMeta): RuleNode {
+  return runtime.ruleCache.addRule(m);
 }
 
 /** Convenience tag bundles */
@@ -120,7 +121,7 @@ export function initRules(runtime: Runtime) {
     },
     {
       id: "sum_assoc_end" as RuleId,
-      rule: "sum(?a, ?mid..., ?b) => sum(sum(?a, ?b), ?rest...)",
+      rule: "sum(?a, ?mid..., ?b) => sum(sum(?a, ?b), ?mid...)",
       fn: ruleAssocEnd,
       tags: [...T.sum, ...T.structural, ...T.assoc],
     },
@@ -448,6 +449,20 @@ export function initRules(runtime: Runtime) {
     // },
   ];
 
-  for (const r of rules) add(runtime, r);
+  let x: RuleMeta = {
+    id: "eq_move_addend_general" as RuleId,
+    rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+    fn: ruleEqMoveAddendGeneral,
+    tags: ["eq", "normalize", "isolate", "progress"],
+  };
+  let rule = add(runtime, x);
+
+  astCreateMatcher(rule.pattern, rule.match);
+
+  for (const r of rules) {
+    let rule = add(runtime, r);
+
+    astCreateMatcher(rule.pattern, rule.match);
+  }
 }
 
