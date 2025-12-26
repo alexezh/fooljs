@@ -146,11 +146,158 @@ export function all_divisible_by(args: AstNode[]): AstNode | undefined {
 }
 
 /**
+ * Type checking constraint functions
+ */
+
+/**
+ * is_symbol_name(x) - checks if x is a symbol (not a number or function)
+ * Returns truthy if x is a symbol, falsy otherwise
+ */
+export function is_symbol_name(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 1) return undefined;
+
+  const value = args[0];
+
+  return value.kind === 'symbol'
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * is_number(x) - checks if x is a number
+ * Returns truthy if x is a number, falsy otherwise
+ */
+export function is_number(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 1) return undefined;
+
+  const value = args[0];
+
+  return value.kind === 'number'
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * is_func(x) - checks if x is a function
+ * Returns truthy if x is a function, falsy otherwise
+ */
+export function is_func(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 1) return undefined;
+
+  const value = args[0];
+
+  return value.kind === 'func'
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * is_func_name(x) - alias for is_func
+ * Returns truthy if x is a function, falsy otherwise
+ */
+export function is_func_name(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  return is_func(args);
+}
+
+/**
+ * Comparison constraint functions
+ */
+
+/**
+ * gt(a, b) - greater than
+ * Returns a truthy node if a > b, falsy otherwise
+ */
+export function gt(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 2) return undefined;
+
+  const a = args[0];
+  const b = args[1];
+
+  if (a.kind !== 'number' || b.kind !== 'number') {
+    return undefined;
+  }
+
+  return (a.value as number) > (b.value as number)
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * gte(a, b) - greater than or equal
+ * Returns a truthy node if a >= b, falsy otherwise
+ */
+export function gte(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 2) return undefined;
+
+  const a = args[0];
+  const b = args[1];
+
+  if (a.kind !== 'number' || b.kind !== 'number') {
+    return undefined;
+  }
+
+  return (a.value as number) >= (b.value as number)
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * lt(a, b) - less than
+ * Returns a truthy node if a < b, falsy otherwise
+ */
+export function lt(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 2) return undefined;
+
+  const a = args[0];
+  const b = args[1];
+
+  if (a.kind !== 'number' || b.kind !== 'number') {
+    return undefined;
+  }
+
+  return (a.value as number) < (b.value as number)
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
+ * lte(a, b) - less than or equal
+ * Returns a truthy node if a <= b, falsy otherwise
+ */
+export function lte(args: ReadonlyArray<AstNode>): AstNode | undefined {
+  if (args.length !== 2) return undefined;
+
+  const a = args[0];
+  const b = args[1];
+
+  if (a.kind !== 'number' || b.kind !== 'number') {
+    return undefined;
+  }
+
+  return (a.value as number) <= (b.value as number)
+    ? AstNode.create('number', 1)
+    : AstNode.create('number', 0);
+}
+
+/**
  * Create and populate the default constraint function registry
  */
 export function createDefaultConstraintRegistry(): ConstraintFunctionRegistry {
   const registry = new ConstraintFunctionRegistry();
 
+  // Type checking functions
+  registry.register('is_symbol_name', is_symbol_name);
+  registry.register('is_number', is_number);
+  registry.register('is_func', is_func);
+  registry.register('is_func_name', is_func_name);
+
+  // Comparison functions
+  registry.register('gt', gt);
+  registry.register('gte', gte);
+  registry.register('lt', lt);
+  registry.register('lte', lte);
+
+  // List/array functions
   registry.register('map_div_by_x', map_div_by_x);
   registry.register('all_divisible_by', all_divisible_by);
 

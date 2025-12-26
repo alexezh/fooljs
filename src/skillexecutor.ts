@@ -49,12 +49,6 @@ export class SkillExecutor {
             return value.kind === 'symbol';
           case 'func_name':
             return value.kind === 'func';
-          case 'nonzero_number':
-            return value.kind === 'number' && value.value !== 0;
-          case 'nonneg_number':
-            return value.kind === 'number' && (value.value as number) >= 0;
-          case 'positive_number':
-            return value.kind === 'number' && (value.value as number) > 0;
           default:
             return false;
         }
@@ -102,7 +96,18 @@ export class SkillExecutor {
           const funcName = evaluated.value as string;
           const args = evaluated.children || [];
           const result = this.evaluateConstraintFunction(funcName, args);
-          return result !== undefined && result !== null;
+
+          // Check if result is truthy
+          // undefined/null = false
+          // number 0 = false
+          // everything else = true
+          if (result === undefined || result === null) {
+            return false;
+          }
+          if (result.kind === 'number' && result.value === 0) {
+            return false;
+          }
+          return true;
         }
         return false;
       }
@@ -267,3 +272,70 @@ export class SkillExecutor {
     return { nextRoot: root, applied: false };
   }
 }
+
+
+// ============================================================================
+// Orchestrator wiring (policy owns rollback/backtrack)
+// ============================================================================
+
+// export class Orchestrator {
+//   constructor(
+//     private readonly policy: HierarchicalBacktrackingPolicy,
+//     private readonly executor: Executor,
+//     private readonly runtime: Runtime,
+//     private readonly cost: CostModel
+//   ) { }
+
+//   async run(input: { root: AstNode; goal: Goal; focusCandidates: number[][]; maxSteps: number }): Promise<AstNode> {
+//     let root = input.root;
+
+//     for (let step = 0; step < input.maxSteps; step++) {
+//       const choice = await this.policy.chooseSkill({
+//         root,
+//         goal: input.goal,
+//         focusCandidates: input.focusCandidates,
+//         runtime: this.runtime,
+//       });
+
+//       if (!choice) break;
+
+//       const before = root;
+//       const costBefore = this.cost.cost(before, input.goal);
+
+//       const { nextRoot, applied } = this.executor.tryExecute(choice.skill, root, choice.focus, input.goal);
+//       if (!applied) {
+//         this.policy.observe?.({
+//           rootBefore: before,
+//           rootAfter: before,
+//           goal: input.goal,
+//           chosen: choice,
+//           reward: -0.05,
+//           success: false,
+//         });
+//         continue;
+//       }
+
+//       const costAfter = this.cost.cost(nextRoot, input.goal);
+
+//       // if worse, rollback and let policy penalize the path
+//       if (this.cost.isWorse(costBefore, costAfter)) {
+//         const rb = this.policy.backtrack({ currentRootAfter: nextRoot, goal: input.goal });
+//         if (rb) root = rb.rollbackRoot; // revert
+//         continue;
+//       }
+
+//       // accept
+//       root = nextRoot;
+//       this.policy.observe?.({
+//         rootBefore: before,
+//         rootAfter: nextRoot,
+//         goal: input.goal,
+//         chosen: choice,
+//         reward: this.cost.reward(costBefore, costAfter),
+//         success: true,
+//       });
+//     }
+
+//     return root;
+//   }
+// }

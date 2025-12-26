@@ -15,10 +15,7 @@ export type AstNodeKind =
 export type TypeName = 'number' |
   'var' |
   'symbol_name' |
-  'func_name' |
-  'nonzero_number' |
-  'nonneg_number' |
-  'positive_number';
+  'func_name';
 
 export type FuncName =
   | 'sum'

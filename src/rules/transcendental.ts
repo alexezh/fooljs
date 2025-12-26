@@ -148,7 +148,7 @@ export function ruleEvalPowBase1(ast: AstNode): MatchFuncRet | undefined {
   return undefined;
 }
 
-// eval(pow(0, ?y)) => 0 where ?y is positive_number
+// eval(pow(0, ?y)) => 0 where gt(?y, 0)
 export function ruleEvalPowBase0Pos(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
@@ -175,7 +175,7 @@ export function ruleEvalPowBase0Pos(ast: AstNode): MatchFuncRet | undefined {
 // SQRT rules
 // =============================================================================
 
-// eval(sqrt(?a)) => calc_sqrt(?a) where ?a is nonneg_number
+// eval(sqrt(?a)) => calc_sqrt(?a) where gte(?a, 0)
 export function ruleEvalSqrt(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
@@ -255,7 +255,7 @@ export function ruleSqrtToPow(ast: AstNode): MatchFuncRet | undefined {
 // LOG rules
 // =============================================================================
 
-// eval(log(?a)) => calc_ln(?a) where ?a is positive_number
+// eval(log(?a)) => calc_ln(?a) where gt(?a, 0)
 export function ruleEvalLn(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
@@ -277,7 +277,7 @@ export function ruleEvalLn(ast: AstNode): MatchFuncRet | undefined {
   };
 }
 
-// eval(log(?a, ?b)) => calc_log(?a, ?b) where ?a is positive_number, ?b is positive_number, not is_one(?b)
+// eval(log(?a, ?b)) => calc_log(?a, ?b) where gt(?a, 0), gt(?b, 0), not(is_one(?b))
 export function ruleEvalLogBase(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'eval')) return undefined;
   const args = getArgs(ast);
@@ -444,7 +444,7 @@ export function ruleCalcPow(ast: AstNode): MatchFuncRet | undefined {
   };
 }
 
-// sqrt(?a) => calc_sqrt(?a) where ?a is nonneg_number
+// sqrt(?a) => calc_sqrt(?a) where gte(?a, 0)
 export function ruleCalcSqrt(ast: AstNode): MatchFuncRet | undefined {
   if (!isFunc(ast, 'sqrt')) return undefined;
   const args = getArgs(ast);

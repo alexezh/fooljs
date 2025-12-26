@@ -1,5 +1,5 @@
 import { Goal } from "./planner/plannercore";
-import { RuleBody, RuleId, SkillId } from "./runtime";
+import { RuleBody, RuleId, RuleTag, SkillId } from "./runtime";
 
 export type SkillKind = "rewrite_rule" | "macro_action" | "tagger";
 
@@ -15,12 +15,13 @@ export interface SkillDescriptor {
   payload: SkillPayload;
 
   // Optional metadata used by RL
-  tags?: string[];
+  tags: RuleTag[];
   createdFrom?: {
     traceId?: string;
     llmModel?: string;
     timestamp?: string;
   };
+  precheck?: any;
 }
 
 export type SkillPayload =

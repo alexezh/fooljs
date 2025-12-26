@@ -17,8 +17,13 @@ export interface SkillEntry {
  */
 export class SkillRegistry {
   private skills: Map<string, SkillDescriptor> = new Map();
+  private skillsArr: SkillDescriptor[] = [];
 
   constructor(private llmClient?: LlmClient) { }
+
+  listAll(): SkillDescriptor[] {
+    return this.skillsArr;
+  }
 
   get(id: SkillId): SkillDescriptor | undefined {
     return this.skills.get(id);
@@ -27,6 +32,7 @@ export class SkillRegistry {
     if (this.skills.has(skill.id)) return;
 
     this.skills.set(skill.id, skill);
+    this.skillsArr.push(skill);
   }
 }
 

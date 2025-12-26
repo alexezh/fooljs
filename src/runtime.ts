@@ -20,7 +20,10 @@ export type RuleTag =
   | "isolate"
   | "group" | "bucket" | "rebuild"
   | "factor" | "progress"
-  | "linear" | "compute" | "progress"; // e.g. rules that can blow up size (keep for future)
+  | "linear" | "compute" | "progress"
+  | "procedure" | "generic" | "inline_rules"
+  | "number" | "arithmetic"
+  | "test"; // e.g. rules that can blow up size (keep for future)
 
 export interface RuleMeta {
   // deprecated

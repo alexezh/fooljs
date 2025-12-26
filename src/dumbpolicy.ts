@@ -14,11 +14,6 @@ export class DumbPolicy implements Policy {
   private stepCount = 0;
   private skills?: SkillDescriptor[];
 
-  // Simple rank implementation - just returns candidates in order
-  rank(candidates: any[], _featuresByCandidate: Map<string, any>): any[] {
-    return candidates.map((c, i) => ({ ...c, score: candidates.length - i }));
-  }
-
   async chooseSkill({ root, goal, focusCandidates, runtime }:
     { root: AstNode, goal: Goal, focusCandidates, runtime: Runtime }):
     Promise<{ skill: SkillDescriptor, focus: [] } | null> {

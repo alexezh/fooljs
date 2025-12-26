@@ -19,6 +19,7 @@ try {
   const skill: SkillDescriptor = {
     id: "test_skill" as any,
     name: "test_skill",
+    tags: ["test"],
     payload: {
       kind: "macro_action",
       skillBody: skillBody as any,
@@ -55,6 +56,7 @@ try {
   const skill: SkillDescriptor = {
     id: "test_skill_2" as any,
     name: "test_skill_2",
+    tags: ["test"],
     payload: {
       kind: "macro_action",
       skillBody: skillBody as any,
@@ -91,6 +93,7 @@ try {
   const skill: SkillDescriptor = {
     id: "test_skill_3" as any,
     name: "test_skill_3",
+    tags: ["test"],
     payload: {
       kind: "macro_action",
       skillBody: skillBody as any,

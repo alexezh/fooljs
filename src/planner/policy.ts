@@ -4,26 +4,12 @@ import type { SkillRegistry } from "../skillregistry.js";
 import { Runtime, SkillId } from "../runtime.js";
 import { AstNode } from "../ast.js";
 
-export interface Policy {
-  // Rank candidates given features. Higher score tried first.
-  rank(
-    candidates: ActionCandidate[],
-    featuresByCandidate: Map<string, FeatureVector>
-  ): RankedCandidate[];
+export type BoolVec = boolean[];
 
-  // Training hook: update policy from one transition.
-  // You can implement as bandit, Q-learning, supervised imitation, etc.
-  observe?(evt: {
-    beforeFeatures: FeatureVector;
-    chosen: ActionCandidate;
-    reward: number;
-    afterFeatures?: FeatureVector;
-    success?: boolean;
-  }): void;
-}
+export type Choice = { skill: SkillDescriptor; focus: number[] };
 
-// RL policy chooses among available skills/actions (existing in your system)
 export interface Policy {
+
   // Decide whether to invoke a macro/skill now, and which one.
   chooseSkill(input: {
     root: AstNode;
@@ -36,7 +22,7 @@ export interface Policy {
   observe?(evt: {
     rootBefore: AstNode;
     rootAfter: AstNode;
-    chosen: { skill: SkillDescriptor; focus: number[] };
+    chosen: Choice;
     reward: number;
     success: boolean;
   }): void;

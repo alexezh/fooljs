@@ -351,6 +351,7 @@ export function parseEquation(s: string): AstNode {
         AstNode.create('symbol', new ASymbol('x'))
       ])
     ]);
+    ast.source = `solve(${s}, solved_for(?x)))`;
   }
 
   return ast;
