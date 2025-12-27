@@ -1,9 +1,8 @@
 import { AstNode } from "./ast.js";
 import { JsWriter } from "./jswriter.js";
+import { RuleNode } from "./runtime.js";
 
-interface IMatcherFuncs {
-  or(v1: AstNode, v2: AstNode): boolean;
-}
+let funcSource = Symbol("FuncSource");
 
 /**
   *
@@ -21,14 +20,16 @@ interface IMatcherFuncs {
   * to make new nodes. The rest we recreate
  */
 
-export function astCreateMatcher(pattern: AstNode, replace: AstNode): Function {
+export function astCreateMatcher(rule: RuleNode): Function {
   const writer = new JsWriter();
   writer.appendLine('{')
-  processPatternNode(pattern, "expr", writer);
+  processPatternNode(rule.pattern, "expr", writer);
+  processContraintsNode(rule.where, "expr", writer);
   writer.writeBuffer('return ');
-  processReplaceNode(replace, writer);
+  processReplaceNode(rule.match, writer);
   writer.appendLine('}')
-  const func = new Function("expr", writer.toString());
+  const func = new Function("sym", "expr", writer.toString());
+  func[funcSource] = rule.def;
   return func;
 }
 
@@ -106,6 +107,53 @@ function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: numb
   }
 }
 
+function processContraintsNode(where: AstNode[] | undefined, exprName: string, writer: JsWriter): void {
+  if (!where) {
+    return;
+  }
+  //if(constraints.kind !== )
+  for (const st of where) {
+    switch (st.kind) {
+      // case 'eq':
+      case 'func': {
+        //processPatternFuncArgs(pattern, exprName, writer);
+        let funcRes = writer.makeVar();
+        writer.writeBuffer(`const ${funcRes} = `);
+        writer.writeCallStart(`sym.${st.value}` as string);
+        processConstraintFuncArgs(st, writer);
+        writer.writeCallEnd();
+        writer.appendLine(`if( !${funcRes}) { return undefined; }`);
+
+        break;
+      }
+      //   break;
+      // case 'number': {
+      //   // check number
+      //   writer.appendLine(`if( ${pattern.value} !== ${exprName}.value) { return undefined; }`);
+      // }
+      //   break;
+      default:
+        debugger;
+        break;
+    }
+  }
+}
+
+/**
+ * exprIdx can be negative; meaning from the end
+ */
+function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
+  for (let arg of callNode.children!) {
+    if (arg.kind === 'patvar') {
+      writer.writeCallArg(arg.value);
+    } else {
+      debugger;
+      // let exprChildName = writer.appendExprVar(`${exprName}.children[${exprIdx}]`);
+      // processPatternNode(argNode, exprChildName, writer);
+    }
+  }
+}
+
 /**
  * 
  */
@@ -114,7 +162,6 @@ function processReplaceNode(replace: AstNode, writer: JsWriter): void {
     case 'eq':
     case 'func': {
       writer.writeCallStart('AstNode.create', `'${replace.kind}'`, `'${replace.value}'`);
-      writer.writeCallArgStart();
       writer.writeArrayStart();
       processReplaceFuncArgs(replace, writer);
       writer.writeArrayEnd();
@@ -132,14 +179,27 @@ function processReplaceFuncArgs(replace: AstNode, writer: JsWriter): void {
   for (let idx = 0; idx < replace.children!.length; idx++) {
     let argNode = replace.children![idx];
 
-    if (argNode.kind === 'patvar') {
-      // use pattern name as variable
-      writer.writeCallArg(argNode.value as string)
-    } else if (argNode.kind === 'number') {
-      // check number
-      writer.writeCallArg(replace.value as any);
-    } else {
-      processReplaceNode(argNode, writer);
+    switch (argNode.kind) {
+      case 'patvar': {
+        // use pattern name as variable
+        writer.writeCallArg(argNode.value)
+        break;
+      }
+      case 'number': {
+        // check number
+        writer.writeCallArg(replace.value);
+        break;
+      }
+      case 'spread': {
+        // spread is generated variable of array type
+        // expand it with JS spread
+        writer.writeCallArg('...' + replace.value);
+        break;
+      }
+      default: {
+        processReplaceNode(argNode, writer);
+        break;
+      }
     }
   }
 }

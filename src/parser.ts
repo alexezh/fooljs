@@ -119,7 +119,8 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const leftNode = left.toAst();
     const rightNode = right.toAst();
     const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints);
+    const where = whereClause.toAst() as AstNode[][];
+    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints, where[0]);
   },
 
   DoBlock(_do, _lbrack, ruleList, _rbrack) {
@@ -131,7 +132,7 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     const leftNode = left.toAst();
     const rightNode = right.toAst();
     const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints);
+    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints, whereClause.toAst());
   },
 
   Equation(left, _eq, right) {
@@ -142,14 +143,12 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
 
   WhereClause_array(_where, _lbrack, exprList, _rbrack) {
     const exprs = exprList.asIteration().children.map((e: any) => e.toAst());
-    // Convert expressions to constraints for backward compatibility
-    return exprs.map((expr: AstNode) => exprToConstraint(expr));
+    return exprs;
   },
 
   WhereClause_inline(_where, exprList) {
     const exprs = exprList.asIteration().children.map((e: any) => e.toAst());
-    // Convert expressions to constraints for backward compatibility
-    return exprs.map((expr: AstNode) => exprToConstraint(expr));
+    return exprs;
   },
 
   WhereExpr_rule(left, _arrow, right) {

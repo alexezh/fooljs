@@ -198,16 +198,19 @@ export class AstNode {
   //private changedNodes?: number;
   private totalNodes?: number;
   public source?: string;
+  public readonly where?: AstNode[];
 
   private constructor(
     kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
     children?: ReadonlyArray<AstNode>,
-    constraints?: Constraint[]) {
+    constraints?: Constraint[],
+    where?: AstNode[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
     this.constraints = constraints;
+    this.where = where;
   }
 
   static create(kind: 'func', value: FuncName, children?: AstNode[], constraints?: Constraint[]): AstNode;
@@ -216,7 +219,7 @@ export class AstNode {
   // static create(kind: 'solve', value: 'solve', children?: AstNode[], constraints?: Constraint[]): AstNode;
   // static create(kind: 'solve_for', value: 'solve_for', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'eq', value: 'eq', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'rule', value: 'rule', children?: AstNode[], constraints?: Constraint[]): AstNode;
+  static create(kind: 'rule', value: 'rule', children?: AstNode[], constraints?: Constraint[], where?: AstNode[]): AstNode;
   static create(kind: 'list', value: 'list', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'tuple', value: 'tuple', children?: AstNode[], constraints?: Constraint[]): AstNode;
   static create(kind: 'spread', value: '...', children?: AstNode[], constraints?: Constraint[]): AstNode;
@@ -225,8 +228,8 @@ export class AstNode {
   static create(kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
     children?: AstNode[],
-    constraints?: Constraint[]): AstNode {
-    return new AstNode(kind, value, children, constraints);
+    constraints?: Constraint[], where?: AstNode[]): AstNode {
+    return new AstNode(kind, value, children, constraints, where);
   }
 
   clone(children?: AstNode[]): AstNode {

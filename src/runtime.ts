@@ -42,6 +42,7 @@ export type RuleNode = {
   def: string,
   pattern: AstNode,
   match: AstNode,
+  where?: AstNode[],
   constraints?: Constraint[],
   matchFunc: MatchFunc
 }

@@ -24,6 +24,7 @@ export class RuleCache {
       def: m.rule,
       pattern: ruleAst.children![0],
       match: ruleAst.children![1],
+      where: ruleAst.where,
       constraints: ruleAst.constraints,
       matchFunc: m.fn!
     }

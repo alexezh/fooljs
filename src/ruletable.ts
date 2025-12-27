@@ -451,18 +451,20 @@ export function initRules(runtime: Runtime) {
 
   let x: RuleMeta = {
     id: "eq_move_addend_general" as RuleId,
-    rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+    // rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+    rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where[eq_ast(?t, ?target), eq_ast(?t, ?target)]",
     fn: ruleEqMoveAddendGeneral,
     tags: ["eq", "normalize", "isolate", "progress"],
   };
   let rule = add(runtime, x);
 
-  astCreateMatcher(rule.pattern, rule.match);
+  let func = astCreateMatcher(rule);
+  //func(matcherSymbols,);
 
   for (const r of rules) {
     let rule = add(runtime, r);
 
-    astCreateMatcher(rule.pattern, rule.match);
+    astCreateMatcher(rule);
   }
 }
 

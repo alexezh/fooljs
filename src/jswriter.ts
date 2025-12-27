@@ -9,6 +9,9 @@ export class JsWriter {
   private stack: FuncState[] = [];
 
   public appendLine(l: string) {
+    if (this.stack.length > 0) {
+      throw 'Invalid state';
+    }
     if (this.buffer) {
       this.lines.push(this.buffer);
       this.buffer = '';
@@ -47,6 +50,14 @@ export class JsWriter {
    * @param prefix The function opening (e.g., "AstNode.create('func', 'sum', [")
    */
   public writeCallStart(name: string, ...args: any[]): void {
+    if (this.stack.length > 0) {
+      const state = this.stack[this.stack.length - 1];
+      if (state.args > 0) {
+        this.writeBuffer(',');
+      }
+      state.args++;
+    }
+
     this.writeBuffer(name);
     this.writeBuffer('(');
     this.stack.push({
@@ -57,7 +68,11 @@ export class JsWriter {
     }
   }
 
-  public writeCallArgStart(): void {
+  /**
+   * Add an argument to the current function
+   * If the buffer exceeds 80 characters, flush it to lines
+   */
+  public writeCallArg(arg: any): void {
     if (this.stack.length === 0) {
       throw new Error('addFuncArg called without startFunc');
     }
@@ -67,14 +82,6 @@ export class JsWriter {
       this.writeBuffer(',');
     }
     state.args++;
-  }
-
-  /**
-   * Add an argument to the current function
-   * If the buffer exceeds 80 characters, flush it to lines
-   */
-  public writeCallArg(arg: any): void {
-    this.writeCallArgStart();
     this.writeBuffer(arg);
   }
 
@@ -82,7 +89,11 @@ export class JsWriter {
    * Finish building the current function
    * Returns the variable name or inline expression
    */
-  public writeCallEnd(suffix: string = '])'): void {
+  public writeCallEnd(): void {
+    this.writeListEnd(')');
+  }
+
+  private writeListEnd(suffix: string = '])'): void {
     if (this.stack.length === 0) {
       throw new Error('endFunc called without startFunc');
     }
@@ -93,7 +104,18 @@ export class JsWriter {
   }
 
   public writeArrayStart(): void {
-    this.writeCallStart('[');
+    if (this.stack.length > 0) {
+      const state = this.stack[this.stack.length - 1];
+      if (state.args > 0) {
+        this.writeBuffer(',');
+      }
+      state.args++;
+    }
+
+    this.writeBuffer('[');
+    this.stack.push({
+      args: 0
+    });
   }
 
   public writeArrayElemenent(element: string): void {
@@ -101,7 +123,7 @@ export class JsWriter {
   }
 
   public writeArrayEnd(): void {
-    this.writeCallEnd(']');
+    this.writeListEnd(']');
   }
 
   public toString(): string {
