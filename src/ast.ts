@@ -62,96 +62,6 @@ export class ASymbol {
   }
 }
 
-export type ConstraintKind = 'type' | 'rule' | 'match' | 'assign' | 'not' | 'eq_ast' | 'call' | 'or' | 'and';
-
-export class Constraint {
-  kind: ConstraintKind;
-  varName?: string;
-  type?: TypeName;
-  left?: AstNode;
-  right?: AstNode;
-  nested?: Constraint; // For 'not' constraint
-  constraints?: Constraint[]; // For 'or' and 'and' constraints
-
-  private constructor(kind: ConstraintKind, options: {
-    varName?: string;
-    type?: TypeName;
-    left?: AstNode;
-    right?: AstNode;
-    nested?: Constraint;
-    constraints?: Constraint[];
-  }) {
-    this.kind = kind;
-    this.varName = options.varName;
-    this.type = options.type;
-    this.left = options.left;
-    this.right = options.right;
-    this.nested = options.nested;
-    this.constraints = options.constraints;
-  }
-
-  static typeConstraint(varName: string, type: TypeName): Constraint {
-    return new Constraint('type', { varName, type });
-  }
-
-  static ruleConstraint(left: AstNode, right: AstNode): Constraint {
-    return new Constraint('rule', { left, right });
-  }
-
-  static matchConstraint(left: AstNode, right: AstNode): Constraint {
-    return new Constraint('match', { left, right });
-  }
-
-  static assignConstraint(left: AstNode, right: AstNode): Constraint {
-    return new Constraint('assign', { left, right });
-  }
-
-  static notConstraint(nested: Constraint): Constraint {
-    return new Constraint('not', { nested });
-  }
-
-  static eqAstConstraint(left: AstNode, right: AstNode): Constraint {
-    return new Constraint('eq_ast', { left, right });
-  }
-
-  static callConstraint(call: AstNode): Constraint {
-    return new Constraint('call', { left: call });
-  }
-
-  static orConstraint(left: Constraint, right: Constraint): Constraint {
-    return new Constraint('or', { constraints: [left, right] });
-  }
-
-  static andConstraint(left: Constraint, right: Constraint): Constraint {
-    return new Constraint('and', { constraints: [left, right] });
-  }
-
-  toString(): string {
-    switch (this.kind) {
-      case 'type':
-        return `${this.varName} is ${this.type}`;
-      case 'rule':
-        return `${this.left?.toString()}=>${this.right?.toString()}`;
-      case 'match':
-        return `${this.left?.toString()} matches ${this.right?.toString()}`;
-      case 'assign':
-        return `${this.left?.toString()}=${this.right?.toString()}`;
-      case 'not':
-        return `not ${this.nested?.toString()}`;
-      case 'eq_ast':
-        return `eq_ast(${this.left?.toString()}, ${this.right?.toString()})`;
-      case 'call':
-        return this.left?.toString() ?? '';
-      case 'or':
-        return this.constraints?.map(c => c.toString()).join(' or ') ?? '';
-      case 'and':
-        return this.constraints?.map(c => c.toString()).join(' and ') ?? '';
-      default:
-        return '';
-    }
-  }
-}
-
 export type AFunc = ASymbol;
 
 // ============================================================================
@@ -193,47 +103,43 @@ export class AstNode {
   kind: AstNodeKind;
   value: number | string | ASymbol | AstNode;
   children: ReadonlyArray<AstNode> | undefined;
-  constraints?: Constraint[];
+  public readonly where?: AstNode[];
   private cost?: number;
   //private changedNodes?: number;
   private totalNodes?: number;
   public source?: string;
-  public readonly where?: AstNode[];
 
   private constructor(
     kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
     children?: ReadonlyArray<AstNode>,
-    constraints?: Constraint[],
     where?: AstNode[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
-    this.constraints = constraints;
     this.where = where;
   }
 
-  static create(kind: 'func', value: FuncName, children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'patvar', value: string | ASymbol | AstNode, children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'number', value: number, children?: AstNode[], constraints?: Constraint[]): AstNode;
-  // static create(kind: 'solve', value: 'solve', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  // static create(kind: 'solve_for', value: 'solve_for', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'eq', value: 'eq', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'rule', value: 'rule', children?: AstNode[], constraints?: Constraint[], where?: AstNode[]): AstNode;
-  static create(kind: 'list', value: 'list', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'tuple', value: 'tuple', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'spread', value: '...', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'do', value: 'do', children?: AstNode[], constraints?: Constraint[]): AstNode;
-  static create(kind: 'symbol', value: ASymbol, children?: AstNode[], constraints?: Constraint[]): AstNode;
+  static create(kind: 'func', value: FuncName, children?: AstNode[]): AstNode;
+  static create(kind: 'patvar', value: string | ASymbol | AstNode, children?: AstNode[]): AstNode;
+  static create(kind: 'number', value: number, children?: AstNode[]): AstNode;
+  // static create(kind: 'solve', value: 'solve', children?: AstNode[]): AstNode;
+  // static create(kind: 'solve_for', value: 'solve_for', children?: AstNode[]): AstNode;
+  static create(kind: 'eq', value: 'eq', children?: AstNode[]): AstNode;
+  static create(kind: 'rule', value: 'rule', children?: AstNode[], where?: AstNode[]): AstNode;
+  static create(kind: 'list', value: 'list', children?: AstNode[]): AstNode;
+  static create(kind: 'tuple', value: 'tuple', children?: AstNode[]): AstNode;
+  static create(kind: 'spread', value: '...', children?: AstNode[]): AstNode;
+  static create(kind: 'do', value: 'do', children?: AstNode[]): AstNode;
+  static create(kind: 'symbol', value: ASymbol, children?: AstNode[]): AstNode;
   static create(kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
-    children?: AstNode[],
-    constraints?: Constraint[], where?: AstNode[]): AstNode {
-    return new AstNode(kind, value, children, constraints, where);
+    children?: AstNode[], where?: AstNode[]): AstNode {
+    return new AstNode(kind, value, children, where);
   }
 
   clone(children?: AstNode[]): AstNode {
-    return new AstNode(this.kind, this.value, children ?? this.children, this.constraints);
+    return new AstNode(this.kind, this.value, children ?? this.children, this.where);
   }
 
   getCost(): number {
@@ -276,8 +182,8 @@ export class AstNode {
     }
 
     let constrStr: string | undefined;
-    if (this.constraints) {
-      constrStr = 'where ' + this.constraints.map(x => x.toString()).join(',');
+    if (this.where) {
+      constrStr = 'where ' + this.where.map(x => x.toString()).join(',');
     }
 
     let prefix = this.kind === 'patvar' ? '?' : '';

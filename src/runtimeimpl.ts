@@ -1,18 +1,15 @@
-import { astEquals, AstNode, ASymbol, MatchFuncRet } from "./ast.js";
-import { astMatch } from "./ast_match.js";
+import { astEquals, AstNode, ASymbol } from "./ast.js";
 import { parse } from "./parser.js";
 import { Path, Goal } from "./planner/plannercore.js";
 import { RuleCache } from "./rulecache.js";
-import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag, Runtime } from "./runtime.js";
+import { Runtime } from "./runtime.js";
 import { SkillRegistry } from "./skillregistry.js";
-import { createDefaultConstraintRegistry, ConstraintFunctionRegistry } from "./constraintfuncs.js";
 
 export class RuntimeImpl implements Runtime {
   static instance: Runtime = new RuntimeImpl();
 
   public readonly skillRegistry = new SkillRegistry();
   public readonly ruleCache = new RuleCache();
-  public readonly constraintRegistry = createDefaultConstraintRegistry();
 
   constructor() {
     //this.stateManager = new StateManager(this);
@@ -67,14 +64,6 @@ export class RuntimeImpl implements Runtime {
       }
     };
     helper(root, []);
-  }
-
-  /**
-   * Check if a pattern string matches a node.
-   */
-  matches(patternStr: string, node: AstNode): boolean {
-    const pattern = this.parseExpr(patternStr);
-    return astMatch(pattern, node) !== undefined;
   }
 
   /**

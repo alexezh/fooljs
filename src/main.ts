@@ -1,38 +1,34 @@
-import { AstNode, ASymbol } from "./ast.js";
-import { testMatcherCodegen } from "./ast_match2.test.js";
+import { AstNode } from "./ast.js";
 import { seedBaselineSkills } from "./baselineskills.js";
 import { DumbPolicy } from "./dumbpolicy.js";
 import { LlmClientLlama } from "./llmclient.js";
-import { AbstractionProposer, LlmClient, Orchestrator, SymbolicVerifier } from "./orchestrator.js";
+import { AbstractionProposer, Orchestrator, SymbolicVerifier } from "./orchestrator.js";
 import { parse, parseEquation } from "./parser.js";
 import { Goal } from "./planner/plannercore.js";
 import { initRules } from "./ruletable.js";
-import { RuleId, Runtime, SkillId } from "./runtime.js";
+import { Runtime } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
-import { aStarSearch, getSolutionString } from "./search.js";
-import { SkillDescriptor } from "./skilldescriptor.js";
 import { SkillExecutor } from "./skillexecutor.js";
-import { SkillRegistry } from "./skillregistry.js";
 
-function main_search(): void {
-  //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
-  // const exprStr = '4 + 3 * 4';
-  //const exprStr = '7x + 2x^2 – 14 + 3x^2 = x – 2'
-  const exprStr = '7x + 2 = 3'
-  //const exprStr = '7x^2 - 2 = 0'
+// function main_search(): void {
+//   //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
+//   // const exprStr = '4 + 3 * 4';
+//   //const exprStr = '7x + 2x^2 – 14 + 3x^2 = x – 2'
+//   const exprStr = '7x + 2 = 3'
+//   //const exprStr = '7x^2 - 2 = 0'
 
-  initRules(RuntimeImpl.instance);
-  //initStates(RuntimeImpl.instance);
-  let ast = parseEquation(exprStr);
+//   initRules(RuntimeImpl.instance);
+//   //initStates(RuntimeImpl.instance);
+//   let ast = parseEquation(exprStr);
 
-  const res = aStarSearch(ast);
-  if (res) {
-    const solStr = getSolutionString(res);
-  }
+//   const res = aStarSearch(ast);
+//   if (res) {
+//     const solStr = getSolutionString(res);
+//   }
 
-  //const match = RuntimeImpl.instance.matchRule(ast);
-  //console.log(match?.length);
-}
+//   //const match = RuntimeImpl.instance.matchRule(ast);
+//   //console.log(match?.length);
+// }
 
 // Example: Orchestrator usage end-to-end for your curriculum
 //
@@ -188,5 +184,4 @@ async function main(runtime: Runtime) {
 //await testTrainingProblems();
 
 // Uncomment to run full orchestrator with LLM
-//await main(RuntimeImpl.instance);
-testMatcherCodegen()
+await main(RuntimeImpl.instance);

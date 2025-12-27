@@ -2,8 +2,6 @@ import { AstNode } from "./ast.js";
 import { JsWriter } from "./jswriter.js";
 import { RuleNode } from "./runtime.js";
 
-let funcSource = Symbol("FuncSource");
-
 /**
   *
   * rule: "eq(sum(?t, ?c), $rhs) => eq(?t, sum(?rhs, neg(?c)))",
@@ -29,7 +27,6 @@ export function astCreateMatcher(rule: RuleNode): Function {
   processReplaceNode(rule.match, writer);
   writer.appendLine('}')
   const func = new Function("sym", "expr", writer.toString());
-  func[funcSource] = rule.def;
   return func;
 }
 

@@ -124,11 +124,6 @@ async function testBasicOrchestrator() {
   runtime.walk(testExpr, () => nodeCount++);
   console.log("  Node count:", nodeCount, "✓");
 
-  // Test matches
-  console.log("\nTest matches:");
-  const matches1 = runtime.matches("sum(?a, ?b)", testExpr);
-  console.log("  matches('sum(?a, ?b)'):", matches1, "✓");
-
   // Test evaluation
   console.log("\nTest evaluation:");
   const env = { x: 5 };

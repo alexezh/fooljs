@@ -1,10 +1,9 @@
-import { AstNode, ASymbol, Constraint, MatchFunc, MatchFuncRet } from "./ast.js";
+import { AstNode, ASymbol, MatchFunc, MatchFuncRet } from "./ast.js";
 import { parse } from "./parser.js";
 import { Goal, Path } from "./planner/plannercore.js";
 import type { RuleCache } from "./rulecache.js";
 //import { StateManager, StateGuard } from "./state.js";
 import type { SkillRegistry } from "./skillregistry.js";
-import type { ConstraintFunctionRegistry } from "./constraintfuncs.js";
 
 export type RuleId = string & { __tag_ruleid: never };
 export type SkillId = string & { __tag_skillid: never };
@@ -29,28 +28,20 @@ export interface RuleMeta {
   // deprecated
   id?: RuleId;
   rule: string;
-  // deprecated
-  tags?: RuleTag[];
-  /**
-   * matches first occurance of rule in input
-   */
-  fn?: MatchFunc;
 }
 
 
 export type RuleNode = {
-  def: string,
+  rule: AstNode,
   pattern: AstNode,
   match: AstNode,
   where?: AstNode[],
-  constraints?: Constraint[],
   matchFunc: MatchFunc
 }
 
 export interface Runtime {
   get skillRegistry(): SkillRegistry;
   get ruleCache(): RuleCache;
-  get constraintRegistry(): ConstraintFunctionRegistry;
 
   // Tree navigation / update
   /**
@@ -67,9 +58,6 @@ export interface Runtime {
    * walk all nodes starting from root
    */
   walk(root: AstNode, cb: (node: AstNode, path: Path) => void): void;
-
-  // Matching and rule application (you have these already)
-  matches(patternStr: string, node: AstNode): boolean;
 
   // Optional: goal checks
   goalMet(root: AstNode, goal: Goal): boolean;

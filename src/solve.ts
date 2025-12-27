@@ -1,4 +1,4 @@
-import { AstNode, cloneAst, createAdd, createDiv, createMul, createNeg, createPow, createSqrt, createSub, isFunc, isNumber } from '../ast.js';
+import { AstNode, cloneAst, createAdd, createDiv, createMul, createNeg, createPow, createSqrt, createSub, isFunc, isNumber } from './ast.js';
 
 function expectQuadraticTerms(terms: ReadonlyArray<AstNode>): {
   A: AstNode;

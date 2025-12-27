@@ -16,6 +16,8 @@
   ], // <- only compile files under src
   "exclude": [
     "node_modules",
-    "out"
+    "out",
+    "**/*.bak",
+    "**/*.bak.*"
   ] // <- don't recompile output / deps}
 }

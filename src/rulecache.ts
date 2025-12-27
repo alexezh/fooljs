@@ -1,78 +1,72 @@
 import { AstNode, MatchFuncRet } from "./ast.js";
-import { astMatch, astReplace } from "./ast_match.js";
+import { astCreateMatcher } from "./ast_match2.js";
+import { matcherSymbols, MatcherSymbols } from "./matchersymbols.js";
 import { parse } from "./parser.js";
 import { RuleBody, RuleId, RuleMeta, RuleNode, RuleTag } from "./runtime.js";
+
+let funcSource = Symbol("FuncSource");
 
 /**
  * cache of compiled rules
  */
 export class RuleCache {
   private nextId: number = 1;
-  private rules: RuleNode[] = [];
+  private rules: Map<string, RuleNode> = new Map();
   private exprCache: Map<string, AstNode> = new Map();
 
 
-  addRule(m: RuleMeta, ruleAst?: AstNode): RuleNode {
+  // matchRule(inp: AstNode): MatchFuncRet[] {
+  //   const results: MatchFuncRet[] = [];
 
-    ruleAst ??= parse(m.rule);
+  //   for (const rule of this.rules) {
+  //     const result = rule.matchFunc!(inp);
+  //     if (result !== undefined) {
+  //       result.ruleDef = rule.def;
+  //       results.push(result);
+  //     }
+  //     continue;
+  //   }
 
-    if (ruleAst.kind !== "rule") {
+  //   return results;
+  // }
+
+  compileRule(ruleInp: RuleBody | AstNode, id?: RuleId): RuleNode {
+    // Check cache
+    let ruleExpr: AstNode | undefined;
+    if (typeof (ruleInp) === "string") {
+      ruleExpr = this.exprCache.get(ruleInp);
+      if (!ruleExpr) {
+        ruleExpr = parse(ruleInp);
+        this.exprCache.set(ruleInp, ruleExpr);
+      }
+    } else {
+      ruleExpr = ruleInp;
+    }
+
+    if (ruleExpr.kind !== "rule") {
       throw "Should be rule"
     }
 
-    let node: RuleNode = {
-      def: m.rule,
-      pattern: ruleAst.children![0],
-      match: ruleAst.children![1],
-      where: ruleAst.where,
-      constraints: ruleAst.constraints,
-      matchFunc: m.fn!
-    }
-    this.rules.push(node);
-    return node;
-  }
-
-  matchRule(inp: AstNode): MatchFuncRet[] {
-    const results: MatchFuncRet[] = [];
-
-    for (const rule of this.rules) {
-      const result = rule.matchFunc!(inp);
-      if (result !== undefined) {
-        result.ruleDef = rule.def;
-        results.push(result);
-      }
-      continue;
+    let ruleId = ruleExpr.toString();
+    let node = this.rules.get(ruleId);
+    if (node) {
+      return node;
     }
 
-    return results;
-  }
-
-  compileRule(ruleStr: RuleBody): RuleNode {
-    // Check cache
-    let ruleExpr = this.exprCache.get(ruleStr);
-    if (!ruleExpr) {
-      ruleExpr = parse(ruleStr);
-      this.exprCache.set(ruleStr, ruleExpr);
+    node = {
+      rule: ruleExpr,
+      pattern: ruleExpr.children![0],
+      match: ruleExpr.children![1],
+      where: ruleExpr.where,
+      matchFunc: undefined!
     }
 
-    const node = this.addRule({
-      id: this.nextId.toString() as RuleId,
-      rule: ruleStr,
-      tags: [],
-      fn: (inputAst: AstNode) => {
-        let res = astMatch(ruleExpr!.children![0], inputAst);
-        if (!res) {
-          return undefined;
-        }
-        const replace = astReplace(ruleExpr!.children![0], res)
-        return {
-          ruleDef: ruleStr,
-          replace: replace,
-          cost: 1
-        }
-      }
-    });
+    let matcher = astCreateMatcher(node);
+    node.matchFunc = (ast: AstNode) => matcher(matcherSymbols, ast);
 
+    node.matchFunc[funcSource] = ruleId;
+
+    this.rules.set(ruleId, node);
     return node;
   }
 }

@@ -1,4 +1,4 @@
-import { AstNode, MatchFuncRet } from "../ast";
+import { AstNode, MatchFuncRet } from "./ast";
 
 let nextId = 1;
 

@@ -1,17 +1,16 @@
-import { astCreateMatcher } from "./ast_match2.js";
-import { matcherSymbols } from "./matchersymbols.js";
-import { parse } from "./parser.js";
-import { RuleNode } from "./runtime.js";
-import { AstNode } from "./ast.js";
+import { astCreateMatcher } from "../ast_match2.js";
+import { matcherSymbols } from "../matchersymbols.js";
+import { parse } from "../parser.js";
+import { RuleNode } from "../runtime.js";
+import { AstNode } from "../ast.js";
 
 function testRule(rule: string, expr: string, shouldMatch: boolean, testName: string): boolean {
   let ruleAst = parse(rule);
   let node: RuleNode = {
-    def: rule,
+    rule: ruleAst,
     pattern: ruleAst.children![0],
     match: ruleAst.children![1],
     where: ruleAst.where,
-    constraints: ruleAst.constraints,
     matchFunc: undefined!
   }
 

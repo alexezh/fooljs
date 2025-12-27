@@ -1,7 +1,7 @@
 import * as ohm from 'ohm-js';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { AstNode, ASymbol, Constraint, FuncName, TypeName } from "./ast.js";
+import { AstNode, ASymbol, FuncName, TypeName } from "./ast.js";
 
 // Examples:
 // "1" → AstNode(kind='number', value=1)
@@ -35,74 +35,6 @@ const grammarPath = join(process.cwd(), 'out', 'grammar.ohm');
 const grammarSource = readFileSync(grammarPath, 'utf-8');
 const grammar = ohm.grammar(grammarSource);
 
-// Helper function to convert expressions to constraints
-function exprToConstraint(expr: AstNode): Constraint {
-  // type(?var, typename) => type constraint
-  if (expr.kind === 'func' && expr.value === 'type') {
-    const args = expr.children || [];
-    if (args.length === 2) {
-      const varNode = args[0];
-      const typeNode = args[1];
-      const varName = varNode.kind === 'patvar' ?
-        (typeof varNode.value === 'string' ? varNode.value : varNode.value.toString()) :
-        varNode.toString();
-      const typeName = typeNode.kind === 'symbol' ?
-        (typeNode.value as any).name :
-        typeNode.toString();
-      return Constraint.typeConstraint(varName, typeName as TypeName);
-    }
-  }
-
-  // or(...) => or constraint
-  if (expr.kind === 'func' && expr.value === 'or') {
-    const args = expr.children || [];
-    if (args.length === 2) {
-      return Constraint.orConstraint(
-        exprToConstraint(args[0]),
-        exprToConstraint(args[1])
-      );
-    }
-  }
-
-  // and(...) => and constraint
-  if (expr.kind === 'func' && expr.value === 'and') {
-    const args = expr.children || [];
-    if (args.length === 2) {
-      return Constraint.andConstraint(
-        exprToConstraint(args[0]),
-        exprToConstraint(args[1])
-      );
-    }
-  }
-
-  // not(...) => not constraint
-  if (expr.kind === 'func' && expr.value === 'not') {
-    const args = expr.children || [];
-    if (args.length === 1) {
-      return Constraint.notConstraint(exprToConstraint(args[0]));
-    }
-  }
-
-  // eq_ast(...) => eq_ast constraint
-  if (expr.kind === 'func' && expr.value === 'eq_ast') {
-    const args = expr.children || [];
-    if (args.length === 2) {
-      return Constraint.eqAstConstraint(args[0], args[1]);
-    }
-  }
-
-  // rule syntax: a => b
-  if (expr.kind === 'rule') {
-    const args = expr.children || [];
-    if (args.length === 2) {
-      return Constraint.ruleConstraint(args[0], args[1]);
-    }
-  }
-
-  // Default: treat as call constraint
-  return Constraint.callConstraint(expr);
-}
-
 // Semantic actions
 const semantics = grammar.createSemantics().addOperation('toAst', {
   Program(expr) {
@@ -118,9 +50,8 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
   Rule_simple(left, _arrow, right, whereClause) {
     const leftNode = left.toAst();
     const rightNode = right.toAst();
-    const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
     const where = whereClause.toAst() as AstNode[][];
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints, where[0]);
+    return AstNode.create('rule', 'rule', [leftNode, rightNode], where[0]);
   },
 
   DoBlock(_do, _lbrack, ruleList, _rbrack) {
@@ -131,8 +62,7 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
   InnerRule(left, _arrow, right, whereClause) {
     const leftNode = left.toAst();
     const rightNode = right.toAst();
-    const constraints = whereClause.children.length > 0 ? whereClause.children[0].toAst() : undefined;
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], constraints, whereClause.toAst());
+    return AstNode.create('rule', 'rule', [leftNode, rightNode], whereClause.toAst());
   },
 
   Equation(left, _eq, right) {
