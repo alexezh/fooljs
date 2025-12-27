@@ -67,6 +67,7 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
     return;
   }
 
+  let fixedArgs = 0;
   for (let idx = 0; idx < pattern.children.length; idx++) {
     let v = pattern.children[idx];
     if (v.kind === 'spread') {
@@ -74,7 +75,8 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
       startSpreadName = writer.appendNumberVar(idx);
       break;
     }
-    processPatternFuncArg(v, exprName, idx, writer)
+    processPatternFuncArg(v, exprName, idx, writer);
+    fixedArgs++;
   }
 
   if (patternSpread) {
@@ -88,9 +90,13 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
       }
       processPatternFuncArg(v, exprName, exprIdx, writer)
       exprIdx--;
+      fixedArgs++;
     }
 
+    writer.appendLine(`if (${exprName}.children.length < ${fixedArgs}) { return undefined; }`);
     writer.appendLine(`let ${patternSpread.children![0].value} = ${exprName}.children.slice(${startSpreadName}, ${endSpreadName});`)
+  } else {
+    writer.appendLine(`if (${exprName}.children.length !== ${pattern.children.length}) { return undefined; }`);
   }
 }
 
@@ -144,12 +150,21 @@ function processContraintsNode(where: AstNode[] | undefined, exprName: string, w
  */
 function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
   for (let arg of callNode.children!) {
-    if (arg.kind === 'patvar') {
-      writer.writeCallArg(arg.value);
-    } else {
-      debugger;
-      // let exprChildName = writer.appendExprVar(`${exprName}.children[${exprIdx}]`);
-      // processPatternNode(argNode, exprChildName, writer);
+    switch (arg.kind) {
+      case 'patvar': {
+        // unwrap patvar to name of variable
+        writer.writeCallArg(arg.value);
+        break;
+      }
+      case 'number': {
+        writer.writeCallArg(arg.value);
+        break;
+      }
+      case 'func': {
+        writer.writeCallStart(`sym.${arg.value}` as string);
+        processConstraintFuncArgs(arg, writer);
+        writer.writeCallEnd();
+      }
     }
   }
 }
@@ -161,7 +176,7 @@ function processReplaceNode(replace: AstNode, writer: JsWriter): void {
   switch (replace.kind) {
     case 'eq':
     case 'func': {
-      writer.writeCallStart('AstNode.create', `'${replace.kind}'`, `'${replace.value}'`);
+      writer.writeCallStart('sym.makeNode', `'${replace.kind}'`, `'${replace.value}'`);
       writer.writeArrayStart();
       processReplaceFuncArgs(replace, writer);
       writer.writeArrayEnd();
@@ -187,13 +202,13 @@ function processReplaceFuncArgs(replace: AstNode, writer: JsWriter): void {
       }
       case 'number': {
         // check number
-        writer.writeCallArg(replace.value);
+        writer.writeCallArg(argNode.value);
         break;
       }
       case 'spread': {
         // spread is generated variable of array type
         // expand it with JS spread
-        writer.writeCallArg('...' + replace.value);
+        writer.writeCallArg('...' + argNode.children![0].value);
         break;
       }
       default: {

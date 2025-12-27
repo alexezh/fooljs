@@ -1,5 +1,5 @@
 import { AstNode, astEquals } from "./ast.js";
-import { gt, gte, lt, lte, is_symbol_name, is_number, is_func, is_func_name, map_div_by_x, all_divisible_by } from "./constraintfuncs.js";
+import { map_div_by_x, all_divisible_by } from "./constraintfuncs.js";
 
 /**
  * Interface for symbols/functions that can be used in where clauses
@@ -7,9 +7,9 @@ import { gt, gte, lt, lte, is_symbol_name, is_number, is_func, is_func_name, map
  */
 export interface IMatcherSymbols {
   // Logical operators
-  or(v1: AstNode, v2: AstNode): boolean;
-  and(v1: AstNode, v2: AstNode): boolean;
-  not(v: AstNode): boolean;
+  or(v1: boolean | number | AstNode, v2: boolean | number | AstNode): boolean;
+  and(v1: boolean | number | AstNode, v2: boolean | number | AstNode): boolean;
+  not(v: boolean | number | AstNode): boolean;
 
   // Equality
   eq_ast(v1: AstNode, v2: AstNode): boolean;
@@ -21,14 +21,17 @@ export interface IMatcherSymbols {
   is_func_name(x: AstNode): boolean;
 
   // Comparison
-  gt(a: AstNode, b: AstNode): boolean;
-  gte(a: AstNode, b: AstNode): boolean;
-  lt(a: AstNode, b: AstNode): boolean;
-  lte(a: AstNode, b: AstNode): boolean;
+  gt(a: AstNode | number, b: AstNode | number): boolean;
+  gte(a: AstNode | number, b: AstNode | number): boolean;
+  lt(a: AstNode | number, b: AstNode | number): boolean;
+  lte(a: AstNode | number, b: AstNode | number): boolean;
 
   // List/array operations
   map_div_by_x(terms: AstNode, x: AstNode): AstNode | undefined;
   all_divisible_by(terms: AstNode, x: AstNode): boolean;
+
+  // Node creation
+  makeNode(kind: string, value: any, children?: AstNode[]): AstNode;
 }
 
 /**
@@ -37,16 +40,16 @@ export interface IMatcherSymbols {
  */
 export class MatcherSymbols implements IMatcherSymbols {
   // Logical operators
-  or(v1: AstNode, v2: AstNode): boolean {
-    return this.isTruthy(v1) || this.isTruthy(v2);
+  or(v1: boolean | number | AstNode, v2: boolean | number | AstNode): boolean {
+    return this.toBoolean(v1) || this.toBoolean(v2);
   }
 
-  and(v1: AstNode, v2: AstNode): boolean {
-    return this.isTruthy(v1) && this.isTruthy(v2);
+  and(v1: boolean | number | AstNode, v2: boolean | number | AstNode): boolean {
+    return this.toBoolean(v1) && this.toBoolean(v2);
   }
 
-  not(v: AstNode): boolean {
-    return !this.isTruthy(v);
+  not(v: boolean | number | AstNode): boolean {
+    return !this.toBoolean(v);
   }
 
   // Equality
@@ -56,44 +59,56 @@ export class MatcherSymbols implements IMatcherSymbols {
 
   // Type checking
   is_symbol_name(x: AstNode): boolean {
-    const result = is_symbol_name([x]);
-    return this.isTruthy(result);
+    return x.kind === 'symbol';
   }
 
   is_number(x: AstNode): boolean {
-    const result = is_number([x]);
-    return this.isTruthy(result);
+    return x.kind === 'number';
   }
 
   is_func(x: AstNode): boolean {
-    const result = is_func([x]);
-    return this.isTruthy(result);
+    return x.kind === 'func';
   }
 
   is_func_name(x: AstNode): boolean {
-    const result = is_func_name([x]);
-    return this.isTruthy(result);
+    return x.kind === 'func';
   }
 
   // Comparison
-  gt(a: AstNode, b: AstNode): boolean {
-    const result = gt([a, b]);
-    return this.isTruthy(result);
+  gt(a: AstNode | number, b: AstNode | number): boolean {
+    const aVal = this.toNumber(a);
+    const bVal = this.toNumber(b);
+    if (aVal === undefined || bVal === undefined) {
+      return false;
+    }
+    return aVal > bVal;
   }
 
-  gte(a: AstNode, b: AstNode): boolean {
-    const result = gte([a, b]);
-    return this.isTruthy(result);
+  gte(a: AstNode | number, b: AstNode | number): boolean {
+    const aVal = this.toNumber(a);
+    const bVal = this.toNumber(b);
+    if (aVal === undefined || bVal === undefined) {
+      return false;
+    }
+    return aVal >= bVal;
   }
 
-  lt(a: AstNode, b: AstNode): boolean {
-    const result = lt([a, b]);
-    return this.isTruthy(result);
+  lt(a: AstNode | number, b: AstNode | number): boolean {
+    const aVal = this.toNumber(a);
+    const bVal = this.toNumber(b);
+    if (aVal === undefined || bVal === undefined) {
+      return false;
+    }
+    return aVal < bVal;
   }
 
-  lte(a: AstNode, b: AstNode): boolean {
-    const result = lte([a, b]);
-    return this.isTruthy(result);
+  lte(a: AstNode | number, b: AstNode | number): boolean {
+    const aVal = this.toNumber(a);
+    const bVal = this.toNumber(b);
+    if (aVal === undefined || bVal === undefined) {
+      return false;
+    }
+    return aVal <= bVal;
   }
 
   // List/array operations
@@ -104,6 +119,40 @@ export class MatcherSymbols implements IMatcherSymbols {
   all_divisible_by(terms: AstNode, x: AstNode): boolean {
     const result = all_divisible_by([terms, x]);
     return this.isTruthy(result);
+  }
+
+  // Node creation
+  makeNode(kind: string, value: any, children?: AstNode[]): AstNode {
+    return AstNode.create(kind as any, value, children);
+  }
+
+  /**
+   * Helper to convert AstNode or number to number
+   */
+  private toNumber(value: AstNode | number): number | undefined {
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (value.kind === 'number') {
+      return value.value as number;
+    }
+    return undefined;
+  }
+
+  /**
+   * Helper to convert boolean, number, or AstNode to boolean
+   * - boolean: return as-is
+   * - number: 0 = false, non-zero = true
+   * - AstNode: number 0 = false, undefined/null = false, everything else = true
+   */
+  private toBoolean(value: boolean | number | AstNode): boolean {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      return value !== 0;
+    }
+    return this.isTruthy(value);
   }
 
   /**

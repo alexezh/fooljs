@@ -313,7 +313,7 @@ export function ruleBucketSamePick(ast: AstNode): MatchFuncRet | undefined {
   return {
     replace: AstNode.create('func', 'acc', [
       AstNode.create('func', 'pick', [...pickItems, element]),
-      AstNode.create('func', 'rest', restItems)
+      AstNode.create('func', 'rest', [...restItems])
     ]),
     cost: 3 // Creates 3 new nodes: acc, pick, rest
   };
@@ -348,7 +348,7 @@ export function ruleBucketSameRest(ast: AstNode): MatchFuncRet | undefined {
   // Build acc(pick(?p...), rest(?r..., ?t))
   return {
     replace: AstNode.create('func', 'acc', [
-      AstNode.create('func', 'pick', pickItems),
+      AstNode.create('func', 'pick', [...pickItems]),
       AstNode.create('func', 'rest', [...restItems, element])
     ]),
     cost: 3 // Creates 3 new nodes: acc, pick, rest

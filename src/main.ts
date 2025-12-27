@@ -1,4 +1,5 @@
 import { AstNode, ASymbol } from "./ast.js";
+import { testMatcherCodegen } from "./ast_match2.test.js";
 import { seedBaselineSkills } from "./baselineskills.js";
 import { DumbPolicy } from "./dumbpolicy.js";
 import { LlmClientLlama } from "./llmclient.js";
@@ -187,4 +188,5 @@ async function main(runtime: Runtime) {
 //await testTrainingProblems();
 
 // Uncomment to run full orchestrator with LLM
-await main(RuntimeImpl.instance);
+//await main(RuntimeImpl.instance);
+testMatcherCodegen()
