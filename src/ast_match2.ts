@@ -2,6 +2,11 @@ import { AstNode } from "./ast.js";
 import { JsWriter } from "./jswriter.js";
 import { RuleNode } from "./runtime.js";
 
+function matcherThrow(msg: string): never {
+  debugger;
+  throw msg;
+}
+
 /**
   *
   * rule: "eq(sum(?t, ?c), $rhs) => eq(?t, sum(?rhs, neg(?c)))",
@@ -44,8 +49,7 @@ function processPatternNode(pattern: AstNode, exprName: string, writer: JsWriter
     }
       break;
     default:
-      debugger;
-      break;
+      matcherThrow('pattern: unknown kind:' + pattern.kind);
   }
 }
 
@@ -56,6 +60,10 @@ function processPatternNode(pattern: AstNode, exprName: string, writer: JsWriter
    const [a, ...rest, b] = args;
   */
 function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWriter): void {
+  processPatternList(pattern, exprName, writer);
+}
+
+function processPatternList(pattern: AstNode, exprName: string, writer: JsWriter): void {
   // both in terms of expr index
   let startSpreadName: string | undefined;
   let endSpreadName: string | undefined;
@@ -101,12 +109,41 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
  * exprIdx can be negative; meaning from the end
  */
 function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: number, writer: JsWriter): void {
-  if (argNode.kind === 'patvar') {
-    // use pattern name as variable
-    writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
-  } else {
-    let exprChildName = writer.addExprVar(`${exprName}.children[${exprIdx}]`);
-    processPatternNode(argNode, exprChildName, writer);
+  switch (argNode.kind) {
+    case 'patvar': {
+      // use pattern name as variable
+      writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
+      break;
+    }
+    case 'list': {
+      // special case, matching []
+      if (argNode.children!.length === 0) {
+        writer.appendLine(`if(${exprName}.children.length !== 0) { return undefined; }`);
+      } else {
+        for (let elem of argNode.children!) {
+          switch (elem.kind) {
+            case 'patvar': {
+              // use pattern name as variable
+              writer.writeVar(elem.value as string, `${exprName}.children[${exprIdx}]`)
+              break;
+            }
+            case 'spread': {
+              writer.a
+              processPatternList(elem, writer);
+              break;
+            }
+            default:
+              matcherThrow('pattern: unknown list element type: ' + elem.kind);
+          }
+        }
+      }
+      break;
+    }
+    default: {
+      let exprChildName = writer.addExprVar(`${exprName}.children[${exprIdx}]`);
+      processPatternNode(argNode, exprChildName, writer);
+      break;
+    }
   }
 }
 
@@ -196,16 +233,35 @@ function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
       }
       case 'list': {
         // if this is [patvar...], create a list AstNode from the array variable
-        if (arg.children?.length !== 1) {
-          throw "Constrains. Only [patvar...] supported"
+        // this is simple case
+        if (arg.children?.length === 1) {
+          let spread = arg.children[0];
+          if (spread.kind !== 'spread') {
+            throw "Constrains. Only [patvar...] supported"
+          }
+          let patvar = spread.children![0];
+          // we already have list, just pass it
+          writer.writeCallArg(patvar.value);
+        } else {
+          // make new array and pass it
+          writer.writeArrayStart();
+          for (let elem of arg.children!) {
+            switch (elem.kind) {
+              case 'patvar':
+                writer.writeArrayElemenent(elem.value as string)
+                break;
+              case 'spread': {
+                let patvar = elem.children![0];
+                // we already have list, just pass it
+                writer.writeCallArg(`...${patvar.value}`);
+                break;
+              }
+              default:
+                debugger;
+            }
+          }
+          writer.writeArrayEnd();
         }
-        let spread = arg.children[0];
-        if (spread.kind !== 'spread') {
-          throw "Constrains. Only [patvar...] supported"
-        }
-        let patvar = spread.children![0];
-        // we already have list, just pass it
-        writer.writeCallArg(patvar.value);
         break;
       }
       case 'func': {
@@ -242,6 +298,30 @@ function processReplaceNode(replace: AstNode, writer: JsWriter): void {
     }
     case 'patvar': {
       writer.writeBuffer(replace.value as string);
+      break;
+    }
+    case 'list': {
+      if (replace.children!.length === 1 && replace.children![0].kind === 'patvar') {
+        writer.writeBuffer(replace.value as string);
+      } else {
+        writer.writeArrayStart()
+        for (let elem of replace.children!) {
+          switch (elem.kind) {
+            case 'number': {
+              writer.writeArrayElemenent(elem.value);
+              break;
+            }
+            case 'spread': {
+              let patvar = elem.children![0];
+              writer.writeArrayElemenent(`...${patvar.value}`);
+              break;
+            }
+            default:
+              matcherThrow('replace: unsupported list element type ' + elem.kind);
+          }
+        }
+        writer.writeArrayEnd();
+      }
       break;
     }
     default:

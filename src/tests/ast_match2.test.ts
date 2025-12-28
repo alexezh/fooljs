@@ -46,7 +46,7 @@ export function testMatcherCodegen(): void {
   // =========================================================================
   console.log("--- Basic Function Calls (Positive Matches) ---");
 
-  if (false) {
+  if (!testOnly()) {
     if (testRule(
       "sum(?a, ?b) => sum(?b, ?a)",
       "sum(1, 2)",
@@ -334,22 +334,103 @@ export function testMatcherCodegen(): void {
       false,
       "GCD factorization fails: gcd=1 is trivial"
     )) passed++; else failed++;
+
+
+    if (testRule(
+      "solve(eq(sum(mul(?x, ?a), ?c), 0), solved_for(?x)) => div(neg(?c), ?a) where[is_symbol(?x)]",
+      "sum(1, 2, 3)",
+      false,
+      "GCD factorization fails: gcd=1 is trivial"
+    )) passed++; else failed++;
+
+    if (testRule(
+      "sum(?a, ?rest...) => mul(?n, ?a) where[ all_eq([?a, ?rest...], ?a), ?n := count([?a, ?rest...]) ]",
+      "sum(1, 1, 1)",
+      true,
+      "sum multiple numbers"
+    )) passed++; else failed++;
+
+    // =========================================================================
+    // Fold patterns
+    // =========================================================================
+    console.log("--- Fold Patterns ---");
+
+    // Base case: empty list
+    if (testRule(
+      "fold(?f, ?acc, []) => ?acc",
+      "fold(sum, 0, [])",
+      true,
+      "Fold base case: empty list returns accumulator"
+    )) passed++; else failed++;
   }
 
   if (testRule(
-    "solve(eq(sum(mul(?x, ?a), ?c), 0), solved_for(?x)) => div(neg(?c), ?a) where[is_symbol(?x)]",
-    "sum(1, 2, 3)",
+    "fold(?f, ?acc, []) => ?acc",
+    "fold(sum, 0, [1])",
     false,
-    "GCD factorization fails: gcd=1 is trivial"
+    "Fold base case: non-empty list fails match"
+  )) passed++; else failed++;
+
+  // Recursive case: list with elements
+  if (testRule(
+    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+    "fold(sum, 0, [1])",
+    true,
+    "Fold recursive case: single element list"
   )) passed++; else failed++;
 
   if (testRule(
-    "sum(?a, ?rest...) => mul(?n, ?a) where[ all_eq([?a, ?rest...], ?a), ?n := count([?a, ?rest...]) ]",
-    "sum(1, 1, 1)",
+    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+    "fold(sum, 0, [1, 2, 3])",
     true,
-    "sum multiple numbers"
+    "Fold recursive case: multiple element list"
   )) passed++; else failed++;
-  rule:
+
+  if (testRule(
+    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+    "fold(mul, 1, [x, y, z])",
+    true,
+    "Fold recursive case: symbols in list"
+  )) passed++; else failed++;
+
+  // Negative test: base case should not match non-empty list
+  if (testRule(
+    "fold(?f, ?acc, []) => ?acc",
+    "fold(sum, 0, [1, 2])",
+    false,
+    "Fold base case: should not match non-empty list"
+  )) passed++; else failed++;
+
+  // Negative test: recursive case should not match empty list
+  if (testRule(
+    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+    "fold(sum, 0, [])",
+    false,
+    "Fold recursive case: should not match empty list"
+  )) passed++; else failed++;
+
+  // Negative test: wrong number of arguments
+  if (testRule(
+    "fold(?f, ?acc, []) => ?acc",
+    "fold(sum, 0)",
+    false,
+    "Fold: should not match when missing list argument"
+  )) passed++; else failed++;
+
+  // Negative test: third argument not a list
+  if (testRule(
+    "fold(?f, ?acc, []) => ?acc",
+    "fold(sum, 0, 1)",
+    false,
+    "Fold: should not match when third arg is not a list"
+  )) passed++; else failed++;
+
+  if (testRule(
+    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+    "fold(sum, 0, 1)",
+    false,
+    "Fold recursive: should not match when third arg is not a list"
+  )) passed++; else failed++;
 
   console.log();
 
@@ -361,6 +442,8 @@ export function testMatcherCodegen(): void {
   console.log(`Failed: ${failed}`);
   console.log(`Total: ${passed + failed}`);
 }
+
+function testOnly(): boolean { return true; }
 
 // Run tests if this module is executed directly
 testMatcherCodegen();

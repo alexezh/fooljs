@@ -127,7 +127,7 @@ export class JsWriter {
     });
   }
 
-  public writeArrayElemenent(element: string): void {
+  public writeArrayElemenent(element: any): void {
     this.writeCallArg(element);
   }
 

@@ -30,6 +30,8 @@ export interface IMatcherSymbols {
   all_divisible_by(terms: AstNode, x: AstNode): boolean;
   gcd_factor(terms: AstNode): AstNode | undefined;
   nontrivial_factor(x: AstNode): boolean;
+  all_eq(terms: AstNode | AstNode[]): boolean;
+  count(terms: AstNode | AstNode[]): number;
 
   // Node creation
   makeNode(kind: string, value: any, children?: AstNode[]): AstNode;
@@ -282,6 +284,33 @@ export class MatcherSymbols implements IMatcherSymbols {
       const value = Math.abs(x.value as number);
       return value > 1;
     }
+  }
+
+  all_eq(terms: AstNode | AstNode[]): boolean {
+    let termsList = this.toArray(terms);
+    if (!termsList || termsList.length === 0) {
+      return true; // Empty list is trivially all equal
+    }
+
+    if (termsList.length === 1) {
+      return true; // Single element is trivially all equal
+    }
+
+    const first = termsList[0];
+    for (let i = 1; i < termsList.length; i++) {
+      if (!astEquals(first, termsList[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  count(terms: AstNode | AstNode[]): number {
+    let termsList = this.toArray(terms);
+    if (!termsList) {
+      return 0;
+    }
+    return termsList.length;
   }
 
   private gcd(a: number, b: number): number {
