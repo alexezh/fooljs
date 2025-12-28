@@ -431,20 +431,43 @@ export function testMatcherCodegen(): void {
       false,
       "Fold recursive: should not match when third arg is not a list"
     )) passed++; else failed++;
+
+    if (testRule(
+      "div(?a, 1) => ?a",
+      "div(x, 1)",
+      true,
+      "Match divide by 1"
+    )) passed++; else failed++;
+
+    if (testRule(
+      "div(?a, 1) => ?a",
+      "div(x, 2)",
+      false,
+      "Match divide by 1"
+    )) passed++; else failed++;
+
+    if (testRule(
+      `solve(eq(?x, ?rhs), solved_for(?x)) =>
+  do[
+    eq(?x, ?rhs) => ?rhs,
+    eq(?lhs, ?x) => ?lhs
+  ]
+  where[is_sym(?x)]`,
+      "solve(eq(sum(x, 1), 0), solved_for(x))",
+      false,
+      "Match sum(x, 1) to x - fail"
+    )) passed++; else failed++;
   }
 
   if (testRule(
-    "div(?a, 1) => ?a",
-    "div(x, 1)",
+    `solve(eq(sum(?x, ?c), 0), solved_for(?x)) =>
+  do[
+    eq(?x, ?c) => ?c
+  ]
+  where[is_sym(?x)]`,
+    "solve(eq(sum(x, 1), 0), solved_for(x))",
     true,
-    "Match divide by 1"
-  )) passed++; else failed++;
-
-  if (testRule(
-    "div(?a, 1) => ?a",
-    "div(x, 2)",
-    false,
-    "Match divide by 1"
+    "Match sum(x, 1) - success"
   )) passed++; else failed++;
 
   console.log();

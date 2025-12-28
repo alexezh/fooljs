@@ -36,10 +36,12 @@ export class SkillExecutor {
         return { nextRoot: root, applied: false };
       }
 
-      const [doBlock] = skillAst.children || [];
+      const [pattern, doBlock] = skillAst.children || [];
       if (!doBlock) {
         return { nextRoot: root, applied: false };
       }
+
+      // TODO: double check that pattern matches
 
       // Get the node at focus
       let current = this.runtime.getAt(root, focus);

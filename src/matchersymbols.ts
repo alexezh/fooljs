@@ -14,7 +14,7 @@ export interface IMatcherSymbols {
   eq_ast(v1: AstNode, v2: AstNode): boolean;
 
   // Type checking
-  is_symbol_name(x: AstNode): boolean;
+  is_sym(x: AstNode): boolean;
   is_number(x: AstNode): boolean;
   is_func(x: AstNode): boolean;
   is_func_name(x: AstNode): boolean;
@@ -61,7 +61,7 @@ export class MatcherSymbols implements IMatcherSymbols {
   }
 
   // Type checking
-  is_symbol_name(x: AstNode): boolean {
+  is_sym(x: AstNode): boolean {
     return x.kind === 'symbol';
   }
 

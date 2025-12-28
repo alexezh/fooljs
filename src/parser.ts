@@ -41,10 +41,11 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return expr.toAst();
   },
 
-  Rule_do(left, _arrow, doBlock) {
+  Rule_do(left, _arrow, doBlock, whereClause) {
     const leftNode = left.toAst();
     const doNode = doBlock.toAst();
-    return AstNode.create('rule', 'rule', [leftNode, doNode]);
+    const where = whereClause.toAst() as AstNode[][];
+    return AstNode.create('rule', 'rule', [leftNode, doNode], where[0]);
   },
 
   Rule_simple(left, _arrow, right, whereClause) {

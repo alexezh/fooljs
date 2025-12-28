@@ -106,7 +106,7 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
     payload: {
       kind: "macro_action",
       budget: 1,
-      skillBody: "solve(eq(sum(?t, ?c), 0), solved_for(?x)) => do [eq(sum(?t, ?c), 0) => eq(?t, neg(?c))]" as any,
+      skillBody: "solve(eq(sum(?x, ?c), 0), solved_for(?x)) => do [eq(sum(?x, ?c), 0) => eq(?x, neg(?c))]" as any,
     },
     tags: ["solve", "eq", "isolate", "progress"],
   });

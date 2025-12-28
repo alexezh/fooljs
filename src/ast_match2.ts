@@ -320,6 +320,12 @@ function processReplaceNode(replace: AstNode, writer: JsWriter): void {
       }
       break;
     }
+    case 'do': {
+      // for do, we are going to run rule by rule
+      // REVIEW: this might create problems with scopes
+      writer.writeBuffer('true');
+      break;
+    }
     default:
       debugger;
       break;
