@@ -301,33 +301,55 @@ export function testMatcherCodegen(): void {
     )) passed++; else failed++;
 
     console.log();
+
+    // =========================================================================
+    // Where clauses - bind and GCD factor
+    // =========================================================================
+    console.log("--- Where Clauses (Bind and GCD Factor) ---");
+
+    if (testRule(
+      'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
+      "sum(2, 4, 6)",
+      true,
+      "GCD factorization: 2+4+6 = 2*(1+2+3)"
+    )) passed++; else failed++;
+
+    if (testRule(
+      'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
+      "sum(3, 6, 9)",
+      true,
+      "GCD factorization: 3+6+9 = 3*(1+2+3)"
+    )) passed++; else failed++;
+
+    if (testRule(
+      'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
+      "sum(1, 2, 3)",
+      false,
+      "GCD factorization fails: gcd=1 is trivial"
+    )) passed++; else failed++;
+
+    if (testRule(
+      'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
+      "sum(1, 2, 3)",
+      false,
+      "GCD factorization fails: gcd=1 is trivial"
+    )) passed++; else failed++;
   }
 
-  // =========================================================================
-  // Where clauses - bind and GCD factor
-  // =========================================================================
-  console.log("--- Where Clauses (Bind and GCD Factor) ---");
-
   if (testRule(
-    'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
-    "sum(2, 4, 6)",
-    true,
-    "GCD factorization: 2+4+6 = 2*(1+2+3)"
-  )) passed++; else failed++;
-
-  if (testRule(
-    'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
-    "sum(3, 6, 9)",
-    true,
-    "GCD factorization: 3+6+9 = 3*(1+2+3)"
-  )) passed++; else failed++;
-
-  if (testRule(
-    'sum(?terms...) => mul(?f, sum(?quot...)) where[?f := gcd_factor([?terms...]), nontrivial_factor(?f), all_divisible_by([?terms...], ?f), [?quot...] := map_div([?terms...], ?f)]',
+    "solve(eq(sum(mul(?x, ?a), ?c), 0), solved_for(?x)) => div(neg(?c), ?a) where[is_symbol(?x)]",
     "sum(1, 2, 3)",
     false,
     "GCD factorization fails: gcd=1 is trivial"
   )) passed++; else failed++;
+
+  if (testRule(
+    "sum(?a, ?rest...) => mul(?n, ?a) where[ all_eq([?a, ?rest...], ?a), ?n := count([?a, ?rest...]) ]",
+    "sum(1, 1, 1)",
+    true,
+    "sum multiple numbers"
+  )) passed++; else failed++;
+  rule:
 
   console.log();
 

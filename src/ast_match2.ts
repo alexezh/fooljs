@@ -69,7 +69,7 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
     let v = pattern.children[idx];
     if (v.kind === 'spread') {
       patternSpread = v;
-      startSpreadName = writer.appendNumberVar(idx);
+      startSpreadName = writer.addNumberVar(idx);
       break;
     }
     processPatternFuncArg(v, exprName, idx, writer);
@@ -82,7 +82,7 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
       let v = pattern.children[idx];
       if (v.kind === 'spread') {
         // value negative, printed with - so we skil -
-        endSpreadName = writer.appendExprVar(`${exprName}.children.length ${exprIdx}`)
+        endSpreadName = writer.addExprVar(`${exprName}.children.length ${exprIdx}`)
         break;
       }
       processPatternFuncArg(v, exprName, exprIdx, writer)
@@ -91,7 +91,7 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
     }
 
     writer.appendLine(`if (${exprName}.children.length < ${fixedArgs}) { return undefined; }`);
-    writer.appendLine(`let ${patternSpread.children![0].value} = ${exprName}.children.slice(${startSpreadName}, ${endSpreadName});`)
+    writer.writeVar(patternSpread.children![0].value as string, `${exprName}.children.slice(${startSpreadName}, ${endSpreadName});`)
   } else {
     writer.appendLine(`if (${exprName}.children.length !== ${pattern.children.length}) { return undefined; }`);
   }
@@ -103,9 +103,9 @@ function processPatternFuncArgs(pattern: AstNode, exprName: string, writer: JsWr
 function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: number, writer: JsWriter): void {
   if (argNode.kind === 'patvar') {
     // use pattern name as variable
-    writer.appendLine(`let ${argNode.value} = ${exprName}.children[${exprIdx}];`)
+    writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
   } else {
-    let exprChildName = writer.appendExprVar(`${exprName}.children[${exprIdx}]`);
+    let exprChildName = writer.addExprVar(`${exprName}.children[${exprIdx}]`);
     processPatternNode(argNode, exprChildName, writer);
   }
 }
@@ -236,6 +236,14 @@ function processReplaceNode(replace: AstNode, writer: JsWriter): void {
       writer.writeCallEnd();
     }
       break;
+    case 'number': {
+      writer.writeBuffer((replace.value as number).toString());
+      break;
+    }
+    case 'patvar': {
+      writer.writeBuffer(replace.value as string);
+      break;
+    }
     default:
       debugger;
       break;

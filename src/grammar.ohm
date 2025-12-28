@@ -14,7 +14,7 @@ FoolJS {
               | "where" ListOf<WhereExpr, ",">  -- inline
 
   WhereExpr
-    = AddExpr "=>" AddExpr  -- rule
+    = Expression ":=" Expression  -- bind
     | Expression
 
   Expression

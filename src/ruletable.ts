@@ -113,7 +113,7 @@ export function initRules(runtime: Runtime) {
     // -------------------------
     {
       id: "sum_to_mul_count" as RuleId,
-      rule: "sum(?a, ?rest...) => mul(count([?a, ?rest...]), ?a)",
+      rule: "sum(?a, ?rest...) => mul(?n, ?a) where[ all_eq([?a, ?rest...], ?a), ?n := count([?a, ?rest...]) ]"
     },
     {
       id: "mul_to_sum_repeat" as RuleId,

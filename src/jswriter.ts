@@ -7,6 +7,7 @@ export class JsWriter {
   private nextVar: number = 0;
   private buffer: string = '';
   private stack: FuncState[] = [];
+  private vars: Set<string> = new Set();
 
   public appendLine(l: string) {
     if (this.stack.length > 0) {
@@ -25,16 +26,24 @@ export class JsWriter {
     return name;
   }
 
-  public appendNumberVar(v: number): string {
+  public addNumberVar(v: number): string {
     const name = this.makeVar();
     this.appendLine(`let ${name} = ${v};`)
     return name;
   }
 
-  public appendExprVar(v: string): string {
+  public addExprVar(v: string): string {
     const name = this.makeVar();
     this.appendLine(`let ${name} = ${v};`)
     return name;
+  }
+
+  public writeVar(name: string, val: string): void {
+    if (this.vars.has(name)) {
+      return;
+    }
+    this.vars.add(name);
+    this.appendLine(`let ${name} = ${val};`);
   }
 
   public writeBuffer(s: string): void {
