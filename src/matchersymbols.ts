@@ -1,5 +1,4 @@
-import { AstNode, astEquals } from "./ast.js";
-import { map_div_by_x, all_divisible_by } from "./constraintfuncs.js";
+import { AstNode, ASymbol, astEquals } from "./ast.js";
 
 /**
  * Interface for symbols/functions that can be used in where clauses
@@ -27,8 +26,10 @@ export interface IMatcherSymbols {
   lte(a: AstNode | number, b: AstNode | number): boolean;
 
   // List/array operations
-  map_div_by_x(terms: AstNode, x: AstNode): AstNode | undefined;
+  map_div(terms: AstNode, x: AstNode): AstNode[] | undefined;
   all_divisible_by(terms: AstNode, x: AstNode): boolean;
+  gcd_factor(terms: AstNode): AstNode | undefined;
+  nontrivial_factor(x: AstNode): boolean;
 
   // Node creation
   makeNode(kind: string, value: any, children?: AstNode[]): AstNode;
@@ -112,13 +113,184 @@ export class MatcherSymbols implements IMatcherSymbols {
   }
 
   // List/array operations
-  map_div_by_x(terms: AstNode, x: AstNode): AstNode | undefined {
-    return map_div_by_x([terms, x]);
+  map_div(terms: AstNode, x: AstNode): AstNode[] | undefined {
+    let termsList = this.toArray(terms);
+    if (!termsList || termsList.length === 0) {
+      return undefined;
+    }
+
+    const quotients: AstNode[] = [];
+
+    for (const term of termsList) {
+      const quotient = this.divideTermBy(term, x);
+      if (quotient === undefined) {
+        return undefined; // Cannot divide this term by x
+      }
+      quotients.push(quotient);
+    }
+
+    // Return as a list
+    return quotients;
   }
 
-  all_divisible_by(terms: AstNode, x: AstNode): boolean {
-    const result = all_divisible_by([terms, x]);
-    return this.isTruthy(result);
+  all_divisible_by(terms: AstNode | AstNode[], x: AstNode): boolean {
+    let termsList = this.toArray(terms);
+    if (!termsList || termsList.length === 0) {
+      return false;
+    }
+
+    for (const term of termsList) {
+      if (this.divideTermBy(term, x) === undefined) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private divideTermBy(term: AstNode, x: AstNode): AstNode | undefined {
+    // If x is a number, divide numerically
+    if (x.kind === 'number') {
+      return this.divideTermByNumber(term, x.value as number);
+    }
+
+    // Otherwise, treat x as an AST factor to remove from multiplication
+    return this.divideTermByFactor(term, x);
+  }
+
+  private divideTermByNumber(term: AstNode, n: number): AstNode | undefined {
+    if (n === 0) return undefined; // Can't divide by zero
+
+    // If term is a number, divide it
+    if (term.kind === 'number') {
+      const result = (term.value as number) / n;
+      // Check if it divides evenly
+      if (result !== Math.floor(result)) {
+        return undefined;
+      }
+      return AstNode.create('number', result);
+    }
+
+    // If term is mul(...), look for a numeric factor
+    if (term.kind === 'func' && term.value === 'mul') {
+      const factors = term.children || [];
+      const numIndex = factors.findIndex(f => f.kind === 'number');
+
+      if (numIndex !== -1) {
+        const numFactor = factors[numIndex];
+        const result = (numFactor.value as number) / n;
+
+        // Check if it divides evenly
+        if (result !== Math.floor(result)) {
+          return undefined;
+        }
+
+        // Replace the numeric factor with the result
+        const newFactors = [...factors];
+        if (result === 1) {
+          // Remove the factor
+          newFactors.splice(numIndex, 1);
+        } else {
+          newFactors[numIndex] = AstNode.create('number', result);
+        }
+
+        if (newFactors.length === 0) {
+          return AstNode.create('number', 1);
+        } else if (newFactors.length === 1) {
+          return newFactors[0];
+        } else {
+          return AstNode.create('func', 'mul', newFactors);
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private divideTermByFactor(term: AstNode, x: AstNode): AstNode | undefined {
+    // Case 1: term equals x => quotient is 1
+    if (astEquals(term, x)) {
+      return AstNode.create('number', 1);
+    }
+
+    // Case 2: term is mul(...) containing x => remove x from factors
+    if (term.kind === 'func' && term.value === 'mul') {
+      const factors = term.children || [];
+
+      // Look for x in the factors
+      const xIndex = factors.findIndex(f => astEquals(f, x));
+
+      if (xIndex !== -1) {
+        // Remove x from factors
+        const remaining = factors.filter((_, i) => i !== xIndex);
+
+        if (remaining.length === 0) {
+          return AstNode.create('number', 1);
+        } else if (remaining.length === 1) {
+          return remaining[0];
+        } else {
+          return AstNode.create('func', 'mul', remaining);
+        }
+      }
+    }
+
+    // Case 3: term doesn't contain x
+    return undefined;
+  }
+
+  gcd_factor(terms: AstNode | AstNode[]): AstNode | undefined {
+    let children = this.toArray(terms);
+    if (!children || children.length === 0) {
+      return undefined;
+    }
+
+    // Extract numeric coefficients from terms
+    const coefficients: number[] = [];
+    for (const term of children) {
+      if (term.kind === 'number') {
+        coefficients.push(Math.abs(term.value as number));
+      } else if (term.kind === 'func' && term.value === 'mul') {
+        // Look for numeric factor in multiplication
+        const numChild = term.children?.find(c => c.kind === 'number');
+        if (numChild) {
+          coefficients.push(Math.abs(numChild.value as number));
+        }
+      }
+    }
+
+    if (coefficients.length === 0) {
+      return undefined;
+    }
+
+    // Compute GCD of all coefficients
+    let gcd = coefficients[0];
+    for (let i = 1; i < coefficients.length; i++) {
+      gcd = this.gcd(gcd, coefficients[i]);
+    }
+
+    return AstNode.create('number', gcd);
+  }
+
+  nontrivial_factor(x: AstNode | number): boolean {
+    if (typeof (x) === 'number') {
+      const value = Math.abs(x as number);
+      return value > 1;
+    } else {
+      if (x.kind !== 'number') {
+        return false;
+      }
+      const value = Math.abs(x.value as number);
+      return value > 1;
+    }
+  }
+
+  private gcd(a: number, b: number): number {
+    while (b !== 0) {
+      const temp = b;
+      b = a % b;
+      a = temp;
+    }
+    return a;
   }
 
   // Node creation
@@ -153,6 +325,16 @@ export class MatcherSymbols implements IMatcherSymbols {
       return value !== 0;
     }
     return this.isTruthy(value);
+  }
+
+  private toArray(terms: AstNode | AstNode[]): ReadonlyArray<AstNode> | undefined {
+    if (Array.isArray(terms)) {
+      return terms;
+    } else if (terms.kind !== 'list') {
+      return undefined;
+    } else {
+      return terms.children || [];
+    }
   }
 
   /**

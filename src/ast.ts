@@ -7,6 +7,7 @@ export type AstNodeKind =
   | 'func'
   | 'eq'
   | 'rule'
+  | 'bind'
   | 'list'
   | 'tuple'
   | 'spread'
@@ -127,6 +128,7 @@ export class AstNode {
   // static create(kind: 'solve_for', value: 'solve_for', children?: AstNode[]): AstNode;
   static create(kind: 'eq', value: 'eq', children?: AstNode[]): AstNode;
   static create(kind: 'rule', value: 'rule', children?: AstNode[], where?: AstNode[]): AstNode;
+  static create(kind: 'bind', value: 'bind', children?: AstNode[]): AstNode;
   static create(kind: 'list', value: 'list', children?: AstNode[]): AstNode;
   static create(kind: 'tuple', value: 'tuple', children?: AstNode[]): AstNode;
   static create(kind: 'spread', value: '...', children?: AstNode[]): AstNode;

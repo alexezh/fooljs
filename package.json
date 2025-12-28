@@ -7,17 +7,8 @@
     "build": "tsc && cp src/grammar.ohm out/grammar.ohm",
     "test:parser": "node --import=tsx/esm src/parsertest.ts",
     "test:corefunc": "node --import=tsx/esm src/corefunctest.ts",
-    "test:search": "node --import=tsx/esm src/searchtest.ts",
-    "test:solve": "node --import=tsx/esm src/solvetest.ts",
-    "test:solveeq": "node --import=tsx/esm src/solveequationtest.ts",
-    "test:workflow": "node --import=tsx/esm src/solveworkflowtest.ts",
-    "test:eqpow": "node --import=tsx/esm src/eqpowtest.ts",
     "test:cost": "node --import=tsx/esm src/costtest.ts",
-    "test:step": "node --import=tsx/esm src/steptest.ts",
-    "test:searchdebug": "node --import=tsx/esm src/searchdebugtest.ts",
-    "test:transcendental": "node --import=tsx/esm src/transcendentaltest.ts",
-    "test:liketerms": "node --import=tsx/esm src/liketermtest.ts",
-    "demo:infix": "node --import=tsx/esm src/infixtest.ts"
+    "test:matcher": "node --import=tsx/esm src/test/ast_match2.test.ts"
   },
   "dependencies": {
     "ohm-js": "^17.2.1"

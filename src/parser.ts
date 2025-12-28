@@ -81,6 +81,12 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return exprs;
   },
 
+  WhereExpr_bind(left, _bind, right) {
+    const leftNode = left.toAst();
+    const rightNode = right.toAst();
+    return AstNode.create('bind', 'bind', [leftNode, rightNode]);
+  },
+
   WhereExpr_rule(left, _arrow, right) {
     const leftNode = left.toAst();
     const rightNode = right.toAst();

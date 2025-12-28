@@ -18,7 +18,9 @@ import { SkillDescriptor } from "./skilldescriptor.js";
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime) { }
 
-  // Execute a skill at focus. For macro_action, apply its steps.
+  /**
+   * Execute a skill at focus. For macro_action, apply its steps.
+   */
   tryExecute(skill: SkillDescriptor | SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
     const s = (typeof (skill) === "string" ? this.runtime.skillRegistry.get(skill) : skill);
     if (!s) return { nextRoot: root, applied: false };
@@ -42,12 +44,6 @@ export class SkillExecutor {
       // Get the node at focus
       let current = this.runtime.getAt(root, focus);
 
-      // Determine the working content to transform
-      // If pattern is a wrapper function like solve(...) or eval(...), extract the inner content
-      let workingContent = current;
-      let wrapperFunc: string | null = null;
-      let wrapperArgs: AstNode[] = [];
-
       if (doBlock.kind !== 'do') {
         throw 'Incorrect AST. Expecting do block';
       }
@@ -55,7 +51,6 @@ export class SkillExecutor {
       // Check if pattern is a wrapper function
       // If doBlock is a 'do' node, apply rules sequentially to working content
       const rules = doBlock.children || [];
-      let applied = false;
 
       for (let i = 0; i < Math.min(s.payload.budget, rules.length); i++) {
         const ruleAst = rules[i];
@@ -63,20 +58,16 @@ export class SkillExecutor {
         const rule = this.runtime.ruleCache.compileRule(ruleAst);
 
         const next = rule.matchFunc(current);
-        workingContent = next;
-        applied = true;
+        if (next) {
+          current = next.replace;
+        }
       }
-      // If no match, continue with same workingContent (rules are optional)
 
-      if (applied) {
-
-        // Update the tree at focus
-        const nextRoot = this.runtime.setAt(root, focus, result);
-        return { nextRoot, applied: true };
-      }
+      // Update the tree at focus
+      const nextRoot = this.runtime.setAt(root, focus, current);
+      return { nextRoot, applied: true };
     }
 
-    // tagger doesn't execute
     return { nextRoot: root, applied: false };
   }
 }

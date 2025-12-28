@@ -45,7 +45,7 @@ export function initRules(runtime: Runtime) {
     },
     {
       id: "sum_factor_common_divisor" as RuleId,
-      rule: "sum(?terms...) => mul(?x, sum(?quot...)) where[all_divisible_by([?terms...], ?x), map_div([?terms...], ?x) => [?quot...]]",
+      rule: "sum(?terms...) => mul(?x, sum(?quot...)) where[all_divisible_by([?terms...], ?x), [?quot...] := map_div([?terms...], ?x)]",
     },
 
     // -------------------------

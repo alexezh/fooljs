@@ -129,6 +129,43 @@ function processContraintsNode(where: AstNode[] | undefined, exprName: string, w
 
         break;
       }
+      case 'bind': {
+        if (st.children?.length !== 2) {
+          throw 'Invalid bind. Requires two args';
+        }
+        let right = st.children[1];
+        if (right.kind !== 'func') {
+          throw 'Invalid bind. Right part has to be function';
+        }
+
+        let target = st.children[0];
+        if (target.kind === 'patvar') {
+          // Simple pattern variable: ?f := gcd_factor(...)
+          writer.writeBuffer(`const ${target.value} = `);
+          writer.writeCallStart(`sym.${right.value}` as string);
+          processConstraintFuncArgs(right, writer);
+          writer.writeCallEnd();
+          writer.writeBuffer(`;`);
+          writer.writeBuffer(`if (${target.value} === undefined) { return undefined; } `);
+        } else if (target.kind === 'list') {
+          // List with spread: [?quot...] := map_div(...)
+          let spread = target.children![0];
+          if (spread.kind !== 'spread') {
+            throw 'Invalid bind target; has to be spread for now';
+          }
+          // now we have variable, set it
+          let patvar = spread.children![0];
+          writer.writeBuffer(`const ${patvar.value} = `);
+          writer.writeCallStart(`sym.${right.value}` as string);
+          processConstraintFuncArgs(right, writer);
+          writer.writeCallEnd();
+          writer.writeBuffer(`;`);
+          writer.writeBuffer(`if (${patvar.value} === undefined) { return undefined; } `);
+        } else {
+          throw 'Invalid bind target; has to be patvar or list';
+        }
+        break;
+      }
       //   break;
       // case 'number': {
       //   // check number
@@ -157,10 +194,29 @@ function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
         writer.writeCallArg(arg.value);
         break;
       }
+      case 'list': {
+        // if this is [patvar...], create a list AstNode from the array variable
+        if (arg.children?.length !== 1) {
+          throw "Constrains. Only [patvar...] supported"
+        }
+        let spread = arg.children[0];
+        if (spread.kind !== 'spread') {
+          throw "Constrains. Only [patvar...] supported"
+        }
+        let patvar = spread.children![0];
+        // we already have list, just pass it
+        writer.writeCallArg(patvar.value);
+        break;
+      }
       case 'func': {
         writer.writeCallStart(`sym.${arg.value}` as string);
         processConstraintFuncArgs(arg, writer);
         writer.writeCallEnd();
+        break;
+      }
+      default: {
+        debugger;
+        break;
       }
     }
   }
