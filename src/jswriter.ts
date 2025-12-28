@@ -20,6 +20,10 @@ export class JsWriter {
     this.lines.push(l);
   }
 
+  public appendComment(l: string) {
+    this.appendLine('// ' + l);
+  }
+
   public makeVar(): string {
     const name = '_t' + this.nextVar.toString();
     this.nextVar++;

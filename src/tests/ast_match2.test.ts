@@ -362,68 +362,69 @@ export function testMatcherCodegen(): void {
       true,
       "Fold base case: empty list returns accumulator"
     )) passed++; else failed++;
+
+    if (testRule(
+      "fold(?f, ?acc, []) => ?acc",
+      "fold(sum, 0, [1])",
+      false,
+      "Fold base case: non-empty list fails match"
+    )) passed++; else failed++;
+
+
+    // Recursive case: list with elements
+    if (testRule(
+      "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+      "fold(sum, 0, [1])",
+      true,
+      "Fold recursive case: single element list"
+    )) passed++; else failed++;
+
+    if (testRule(
+      "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+      "fold(sum, 0, [1, 2, 3])",
+      true,
+      "Fold recursive case: multiple element list"
+    )) passed++; else failed++;
+
+    if (testRule(
+      "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+      "fold(mul, 1, [x, y, z])",
+      true,
+      "Fold recursive case: symbols in list"
+    )) passed++; else failed++;
+
+    // Negative test: base case should not match non-empty list
+    if (testRule(
+      "fold(?f, ?acc, []) => ?acc",
+      "fold(sum, 0, [1, 2])",
+      false,
+      "Fold base case: should not match non-empty list"
+    )) passed++; else failed++;
+
+    // Negative test: recursive case should not match empty list
+    if (testRule(
+      "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+      "fold(sum, 0, [])",
+      false,
+      "Fold recursive case: should not match empty list"
+    )) passed++; else failed++;
+
+    // Negative test: wrong number of arguments
+    if (testRule(
+      "fold(?f, ?acc, []) => ?acc",
+      "fold(sum, 0)",
+      false,
+      "Fold: should not match when missing list argument"
+    )) passed++; else failed++;
+
+    // Negative test: third argument not a list
+    if (testRule(
+      "fold(?f, ?acc, []) => ?acc",
+      "fold(sum, 0, 1)",
+      false,
+      "Fold: should not match when third arg is not a list"
+    )) passed++; else failed++;
   }
-
-  if (testRule(
-    "fold(?f, ?acc, []) => ?acc",
-    "fold(sum, 0, [1])",
-    false,
-    "Fold base case: non-empty list fails match"
-  )) passed++; else failed++;
-
-  // Recursive case: list with elements
-  if (testRule(
-    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
-    "fold(sum, 0, [1])",
-    true,
-    "Fold recursive case: single element list"
-  )) passed++; else failed++;
-
-  if (testRule(
-    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
-    "fold(sum, 0, [1, 2, 3])",
-    true,
-    "Fold recursive case: multiple element list"
-  )) passed++; else failed++;
-
-  if (testRule(
-    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
-    "fold(mul, 1, [x, y, z])",
-    true,
-    "Fold recursive case: symbols in list"
-  )) passed++; else failed++;
-
-  // Negative test: base case should not match non-empty list
-  if (testRule(
-    "fold(?f, ?acc, []) => ?acc",
-    "fold(sum, 0, [1, 2])",
-    false,
-    "Fold base case: should not match non-empty list"
-  )) passed++; else failed++;
-
-  // Negative test: recursive case should not match empty list
-  if (testRule(
-    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
-    "fold(sum, 0, [])",
-    false,
-    "Fold recursive case: should not match empty list"
-  )) passed++; else failed++;
-
-  // Negative test: wrong number of arguments
-  if (testRule(
-    "fold(?f, ?acc, []) => ?acc",
-    "fold(sum, 0)",
-    false,
-    "Fold: should not match when missing list argument"
-  )) passed++; else failed++;
-
-  // Negative test: third argument not a list
-  if (testRule(
-    "fold(?f, ?acc, []) => ?acc",
-    "fold(sum, 0, 1)",
-    false,
-    "Fold: should not match when third arg is not a list"
-  )) passed++; else failed++;
 
   if (testRule(
     "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",

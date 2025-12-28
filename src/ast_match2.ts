@@ -99,6 +99,7 @@ function processPatternList(pattern: AstNode, exprName: string, writer: JsWriter
     }
 
     writer.appendLine(`if (${exprName}.children.length < ${fixedArgs}) { return undefined; }`);
+    writer.appendComment(patternSpread.toString());
     writer.writeVar(patternSpread.children![0].value as string, `${exprName}.children.slice(${startSpreadName}, ${endSpreadName});`)
   } else {
     writer.appendLine(`if (${exprName}.children.length !== ${pattern.children.length}) { return undefined; }`);
@@ -110,22 +111,31 @@ function processPatternList(pattern: AstNode, exprName: string, writer: JsWriter
  */
 function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: number, writer: JsWriter): void {
   switch (argNode.kind) {
-    case 'patvar': {
+    case 'number': {
       // use pattern name as variable
       writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
       break;
     }
+    case 'patvar': {
+      // use pattern name as variable
+      writer.appendComment("patvar: " + argNode.toString());
+      writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
+      break;
+    }
     case 'list': {
+      writer.appendComment("list: " + argNode.toString());
       // special case, matching []
       if (argNode.children!.length === 0) {
         writer.appendLine(`if(${exprName}.children.length !== 0) { return undefined; }`);
       } else {
         let listExpr = writer.addExprVar(`${exprName}.children[${exprIdx}]`)
+        writer.appendLine(`if (!${listExpr}.children) { return undefined; }`)
         processPatternList(argNode, listExpr, writer);
       }
       break;
     }
     default: {
+      writer.appendComment(argNode.toString());
       let exprChildName = writer.addExprVar(`${exprName}.children[${exprIdx}]`);
       processPatternNode(argNode, exprChildName, writer);
       break;
@@ -243,7 +253,7 @@ function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
                 break;
               }
               default:
-                debugger;
+                matcherThrow('contraints: unsupported array element - ' + elem.kind);
             }
           }
           writer.writeArrayEnd();
