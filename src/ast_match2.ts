@@ -113,7 +113,7 @@ function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: numb
   switch (argNode.kind) {
     case 'number': {
       // use pattern name as variable
-      writer.writeVar(argNode.value as string, `${exprName}.children[${exprIdx}]`)
+      writer.appendLine(`if (${exprName}.children[${exprIdx}].value !== ${argNode.value}) { return undefined; }`);
       break;
     }
     case 'patvar': {

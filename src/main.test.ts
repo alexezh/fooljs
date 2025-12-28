@@ -84,7 +84,7 @@ async function testBasicOrchestrator() {
   console.log("Problem:", problem1);
 
   const expr1 = parse(problem1);
-  const goal1: Goal = { kind: "solve_for", x: "x" };
+  const goal1: Goal = { kind: "solve_for", sym: "x" };
   const focusCandidates1 = defaultFocusCandidates(expr1);
 
   try {

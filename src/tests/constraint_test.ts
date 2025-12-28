@@ -27,7 +27,7 @@ try {
   console.log("Input:", input.toString());
   console.log("Expected: solve(eq(mul(x, sum(2, 3)), 10), solved_for(x))");
 
-  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', x: 'x' });
+  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', sym: 'x' });
   console.log("Applied:", result.applied);
   console.log("Result:", result.nextRoot.toString());
 
@@ -53,7 +53,7 @@ try {
   console.log("Input:", input.toString());
   console.log("Expected: solve(eq(mul(x, sum(1, 2)), 9), solved_for(x))");
 
-  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', x: 'x' });
+  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', sym: 'x' });
   console.log("Applied:", result.applied);
   console.log("Result:", result.nextRoot.toString());
 
@@ -79,7 +79,7 @@ try {
   console.log("Input:", input.toString());
   console.log("Expected: NOT applied");
 
-  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', x: 'x' });
+  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', sym: 'x' });
   console.log("Applied:", result.applied);
   console.log("Result:", result.nextRoot.toString());
 
@@ -105,7 +105,7 @@ try {
   console.log("Input:", input.toString());
   console.log("Expected: solve(eq(mul(x, sum(2, 3)), 15), solved_for(x))");
 
-  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', x: 'x' });
+  const result = executor.tryExecute(skill, input, [], { kind: 'solve_for', sym: 'x' });
   console.log("Applied:", result.applied);
   console.log("Result:", result.nextRoot.toString());
 

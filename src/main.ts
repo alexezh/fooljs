@@ -5,6 +5,7 @@ import { LlmClientLlama } from "./llmclient.js";
 import { AbstractionProposer, Orchestrator, SymbolicVerifier } from "./orchestrator.js";
 import { parse, parseEquation } from "./parser.js";
 import { Goal } from "./planner/plannercore.js";
+import { BoolVec, FeatureFn, LeafNodeNN, PolicyNN, RoutingNodeNN } from "./planner/policynn.js";
 import { initRules } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
@@ -72,14 +73,16 @@ function makeVerifySet(): AstNode[] {
 // 1) Bootstrapping: baseline skills in registry
 // ----------------------------
 
-
-const dumbPolicy = new DumbPolicy();
-
 async function main(runtime: Runtime) {
   // 3.1 LLM REST client (OpenAI-compatible chat endpoint)
   const llm = new LlmClientLlama();
 
   initRules(RuntimeImpl.instance);
+  const policy = new PolicyNN(
+    new FeatureExtractor(),
+    new RoutingNodeNN({ id: 'route', childIds: ['leaf'], featureDim: 3 }),
+    new LeafNodeNN({ id: 'leaf', featureDim: 3 })
+  );
   const proposer = new AbstractionProposer(llm);
   const verifier = new SymbolicVerifier(runtime);
 
@@ -89,7 +92,7 @@ async function main(runtime: Runtime) {
 
   const orchestrator = new Orchestrator(
     runtime,
-    dumbPolicy,      // swap for your RL policy
+    policy,      // swap for your RL policy
     proposer,
     verifier,
     executor,
@@ -142,7 +145,7 @@ async function main(runtime: Runtime) {
   console.log("=== TRAINING ===");
   for (const p of trainingProblems) {
     const expr = parseEquation(p);
-    const goal: Goal = { kind: "solve_for", x: "x" };
+    const goal: Goal = { kind: "solve_for", sym: "x" };
     const focusCandidates = defaultFocusCandidates(expr);
 
     const out = await orchestrator.solveOne({
@@ -166,7 +169,7 @@ async function main(runtime: Runtime) {
   const finalExpr = parse(finalProblem);
   const finalOut = await orchestrator.solveOne({
     expr: finalExpr,
-    goal: { kind: "solve_for", x: "x" },
+    goal: { kind: "solve_for", sym: "x" },
     focusCandidates: defaultFocusCandidates(finalExpr),
     testSetForVerify: verifySet,
   });

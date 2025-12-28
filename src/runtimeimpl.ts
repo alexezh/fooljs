@@ -78,7 +78,7 @@ export class RuntimeImpl implements Runtime {
         const children = root.children ?? [];
         if (children.length === 2) {
           const [lhs, rhs] = children;
-          const varName = goal.x;
+          const varName = goal.sym;
 
           // Check if lhs is the variable and rhs doesn't contain it
           if (lhs.kind === 'symbol' && (lhs.value as ASymbol).name === varName) {

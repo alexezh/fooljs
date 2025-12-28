@@ -424,13 +424,27 @@ export function testMatcherCodegen(): void {
       false,
       "Fold: should not match when third arg is not a list"
     )) passed++; else failed++;
+
+    if (testRule(
+      "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+      "fold(sum, 0, 1)",
+      false,
+      "Fold recursive: should not match when third arg is not a list"
+    )) passed++; else failed++;
   }
 
   if (testRule(
-    "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
-    "fold(sum, 0, 1)",
+    "div(?a, 1) => ?a",
+    "div(x, 1)",
+    true,
+    "Match divide by 1"
+  )) passed++; else failed++;
+
+  if (testRule(
+    "div(?a, 1) => ?a",
+    "div(x, 2)",
     false,
-    "Fold recursive: should not match when third arg is not a list"
+    "Match divide by 1"
   )) passed++; else failed++;
 
   console.log();

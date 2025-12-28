@@ -115,125 +115,125 @@ export function initRules(runtime: Runtime) {
       id: "sum_to_mul_count" as RuleId,
       rule: "sum(?a, ?rest...) => mul(?n, ?a) where[ all_eq([?a, ?rest...], ?a), ?n := count([?a, ?rest...]) ]"
     },
-    {
-      id: "mul_to_sum_repeat" as RuleId,
-      rule: "mul(?n, ?a) => sum(?a, ?rest...) where[is_number(?n)]",
+{
+  id: "mul_to_sum_repeat" as RuleId,
+    rule: "mul(?n, ?a) => sum(?a, ?rest...) where[is_number(?n)]",
     },
 
-    // -------------------------
-    // Eq / Solve / Step / Eval
-    // -------------------------
-    {
-      id: "eq_normalize_to_zero_form" as RuleId,
-      rule: "eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)",
+// -------------------------
+// Eq / Solve / Step / Eval
+// -------------------------
+{
+  id: "eq_normalize_to_zero_form" as RuleId,
+    rule: "eq(?a, ?b) => eq(sum(?a, neg(?b)), 0)",
     },
-    {
-      id: "eq_move_addend_general" as RuleId,
-      rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+{
+  id: "eq_move_addend_general" as RuleId,
+    rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
     },
-    {
-      id: "eval_eq_both_sides" as RuleId,
-      rule: "eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))",
+{
+  id: "eval_eq_both_sides" as RuleId,
+    rule: "eval(eq(?a, ?b)) => eq(eval(?a), eval(?b))",
     },
-    {
-      id: "eq_divide_both_sides_left_mul" as RuleId,
-      rule: "eq(mul(?k, ?x), ?b) => eq(?x, div(?b, ?k))",
+{
+  id: "eq_divide_both_sides_left_mul" as RuleId,
+    rule: "eq(mul(?k, ?x), ?b) => eq(?x, div(?b, ?k))",
     },
-    {
-      id: "eq_divide_both_sides_right_mul" as RuleId,
-      rule: "eq(?b, mul(?k, ?x)) => eq(div(?b, ?k), ?x)",
+{
+  id: "eq_divide_both_sides_right_mul" as RuleId,
+    rule: "eq(?b, mul(?k, ?x)) => eq(div(?b, ?k), ?x)",
     },
-    {
-      id: "solve_goal_met" as RuleId,
-      rule: "solve(?e, ?p) => ?e",
+{
+  id: "solve_goal_met" as RuleId,
+    rule: "solve(?e, ?p) => ?e",
     },
-    {
-      id: "solve_eq_normalize" as RuleId,
-      rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
+{
+  id: "solve_eq_normalize" as RuleId,
+    rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve(eq(sub(?lhs, ?rhs), 0), solved_for(?x))",
     },
-    {
-      id: "solve_linear_match" as RuleId,
-      rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve_linear(eq(?lhs, ?rhs), solved_for(?x)) where[or(linear_in(?lhs, ?x), linear_in(?rhs, ?x))]",
+{
+  id: "solve_linear_match" as RuleId,
+    rule: "solve(eq(?lhs, ?rhs), solved_for(?x)) => solve_linear(eq(?lhs, ?rhs), solved_for(?x)) where[or(linear_in(?lhs, ?x), linear_in(?rhs, ?x))]",
     },
-    {
-      id: "solve_isolated_left" as RuleId,
-      rule: "solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs",
+{
+  id: "solve_isolated_left" as RuleId,
+    rule: "solve(eq(?x, ?rhs), solved_for(?x)) => ?rhs",
     },
-    {
-      id: "solve_isolated_right" as RuleId,
-      rule: "solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs",
-    },
-
-    // {
-    //   id: "step_via_eval_progress" as RuleId,
-    //   rule: "step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)",
-    // },
-    // {
-    //   id: "solve_driver_step" as RuleId,
-    //   rule: "solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1",
-    // },
-
-    {
-      id: "eval_number" as RuleId,
-      rule: "eval(?n) => ?n where[is_number(?n)]",
-    },
-    {
-      id: "eval_symbol" as RuleId,
-      rule: "eval(sym(?x)) => sym(?x) where[is_symbol_name(?x)]",
-    },
-    {
-      id: "eval_progressive" as RuleId,
-      rule: "eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where[is_func_name(?f)]",
-    },
-    {
-      id: "eval_collapse" as RuleId,
-      rule: "eval(eval(?x)) => eval(?x)",
+{
+  id: "solve_isolated_right" as RuleId,
+    rule: "solve(eq(?lhs, ?x), solved_for(?x)) => ?lhs",
     },
 
-    // -------------------------
-    // Eval compute rules
-    // -------------------------
+// {
+//   id: "step_via_eval_progress" as RuleId,
+//   rule: "step(?e) => ?e1 where eval(?e) => ?e1, not eq_ast(?e, ?e1)",
+// },
+// {
+//   id: "solve_driver_step" as RuleId,
+//   rule: "solve(?e, ?p) => solve(?e1, ?p) where step(?e) => ?e1",
+// },
 
-    // Direct compute (no eval wrapper)
+{
+  id: "eval_number" as RuleId,
+    rule: "eval(?n) => ?n where[is_number(?n)]",
+    },
+{
+  id: "eval_symbol" as RuleId,
+    rule: "eval(sym(?x)) => sym(?x) where[is_symbol_name(?x)]",
+    },
+{
+  id: "eval_progressive" as RuleId,
+    rule: "eval(?f(?a, ?rest...)) => eval(?f(eval(?a), ?rest...)) where[is_func_name(?f)]",
+    },
+{
+  id: "eval_collapse" as RuleId,
+    rule: "eval(eval(?x)) => eval(?x)",
+    },
 
-    // -------------------------
-    // Transcendentals
-    // -------------------------
+// -------------------------
+// Eval compute rules
+// -------------------------
 
+// Direct compute (no eval wrapper)
 
+// -------------------------
+// Transcendentals
+// -------------------------
 
 
 
-    // -------------------------
-    // Fold (generic)
-    // -------------------------
-    {
-      id: "fold_base" as RuleId,
-      rule: "fold(?f, ?acc, []) => ?acc",
+
+
+// -------------------------
+// Fold (generic)
+// -------------------------
+{
+  id: "fold_base" as RuleId,
+    rule: "fold(?f, ?acc, []) => ?acc",
     },
-    {
-      id: "fold_step" as RuleId,
-      rule: "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
+{
+  id: "fold_step" as RuleId,
+    rule: "fold(?f, ?acc, [?x, ?xs...]) => fold(?f, ?f(?acc, ?x), [?xs...])",
     },
 
-    // -------------------------
-    // Group same terms
-    // -------------------------
-    {
-      id: "group_same" as RuleId,
-      rule: "group_same(sum(?terms...), ?target) => rebuild_group(fold(bucket_same(?target), acc(pick(), rest()), [?terms...]))",
+// -------------------------
+// Group same terms
+// -------------------------
+{
+  id: "group_same" as RuleId,
+    rule: "group_same(sum(?terms...), ?target) => rebuild_group(fold(bucket_same(?target), acc(pick(), rest()), [?terms...]))",
     },
-    {
-      id: "bucket_same_pick" as RuleId,
-      rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where[eq_ast(?t, ?target)]",
+{
+  id: "bucket_same_pick" as RuleId,
+    rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where[eq_ast(?t, ?target)]",
     },
-    {
-      id: "bucket_same_rest" as RuleId,
-      rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p...), rest(?r..., ?t))",
+{
+  id: "bucket_same_rest" as RuleId,
+    rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p...), rest(?r..., ?t))",
     },
-    {
-      id: "rebuild_group" as RuleId,
-      rule: "rebuild_group(acc(pick(?p...), rest(?r...))) => sum(?p..., ?r...)",
+{
+  id: "rebuild_group" as RuleId,
+    rule: "rebuild_group(acc(pick(?p...), rest(?r...))) => sum(?p..., ?r...)",
     },
 
     // -------------------------
@@ -249,18 +249,18 @@ export function initRules(runtime: Runtime) {
     // },
   ];
 
-  // let x: RuleMeta = {
-  //   id: "eq_move_addend_general" as RuleId,
-  //   // rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
-  //   rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where[eq_ast(?t, ?target), eq_ast(?t, ?target)]",
-  // };
-  // let rule = add(runtime, x);
+// let x: RuleMeta = {
+//   id: "eq_move_addend_general" as RuleId,
+//   // rule: "eq(sum(?t, ?c), ?rhs) => eq(?t, sum(?rhs, neg(?c)))",
+//   rule: "bucket_same(?target, acc(pick(?p...), rest(?r...)), ?t) => acc(pick(?p..., ?t), rest(?r...)) where[eq_ast(?t, ?target), eq_ast(?t, ?target)]",
+// };
+// let rule = add(runtime, x);
 
-  // let func = astCreateMatcher(rule);
-  //func(matcherSymbols,);
+// let func = astCreateMatcher(rule);
+//func(matcherSymbols,);
 
-  for (const r of rules) {
-    runtime.ruleCache.compileRule(r.rule as RuleBody, r.id as RuleId);
-  }
+for (const r of rules) {
+  runtime.ruleCache.compileRule(r.rule as RuleBody, r.id as RuleId);
+}
 }
 
