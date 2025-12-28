@@ -120,22 +120,8 @@ function processPatternFuncArg(argNode: AstNode, exprName: string, exprIdx: numb
       if (argNode.children!.length === 0) {
         writer.appendLine(`if(${exprName}.children.length !== 0) { return undefined; }`);
       } else {
-        for (let elem of argNode.children!) {
-          switch (elem.kind) {
-            case 'patvar': {
-              // use pattern name as variable
-              writer.writeVar(elem.value as string, `${exprName}.children[${exprIdx}]`)
-              break;
-            }
-            case 'spread': {
-              writer.a
-              processPatternList(elem, writer);
-              break;
-            }
-            default:
-              matcherThrow('pattern: unknown list element type: ' + elem.kind);
-          }
-        }
+        let listExpr = writer.addExprVar(`${exprName}.children[${exprIdx}]`)
+        processPatternList(argNode, listExpr, writer);
       }
       break;
     }
