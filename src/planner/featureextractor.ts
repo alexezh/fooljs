@@ -1,6 +1,6 @@
-import { AstNode } from "../ast";
-import { BoolVec, FEATURE_COUNT, FEATURE_INDEX, FeatureFn } from "./featurefn";
-import { Goal } from "./plannercore";
+import { AstNode } from "../ast.js";
+import { BoolVec, FEATURE_COUNT, FEATURE_INDEX, FeatureFn } from "./featurefn.js";
+import { Goal } from "./plannercore.js";
 
 export class FeatureExtractor implements FeatureFn {
   constructor(

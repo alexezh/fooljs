@@ -1,9 +1,9 @@
-import { AstNode } from "../ast";
-import { Runtime } from "../runtime";
-import { SkillDescriptor } from "../skilldescriptor";
-import { BoolVec, FeatureFn } from "./featurefn";
-import { Goal } from "./plannercore";
-import { Choice, Policy } from "./policy";
+import { AstNode } from "../ast.js";
+import { Runtime } from "../runtime.js";
+import { SkillDescriptor } from "../skilldescriptor.js";
+import { BoolVec, FeatureFn } from "./featurefn.js";
+import { Goal } from "./plannercore.js";
+import { Choice, Policy } from "./policy.js";
 
 // ============================================================
 // Small NN utilities (linear + softmax + REINFORCE update)
