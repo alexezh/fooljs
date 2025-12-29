@@ -53,9 +53,14 @@ FoolJS {
     | List
     | Tuple
     | "(" Expression ")"  -- paren
+    | MatchRoot
     | Symbol
     | PatVar
     | number
+
+  MatchRoot
+    = "$" "[" Expression "]"  -- indexed
+    | "$"  -- root
 
   FuncCall = CallTarget "(" ListOf<Expression, ","> ")"
 

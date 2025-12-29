@@ -33,6 +33,14 @@ export interface IMatcherSymbols {
   all_eq(terms: AstNode | AstNode[]): boolean;
   count(terms: AstNode | AstNode[]): number;
 
+  // Tag predicates (for where clauses)
+  has_tag(node: AstNode, key: string): boolean;
+  tag_eq(node: AstNode, key: string, value: boolean | number | string): boolean;
+
+  // Tag actions (for RHS/do blocks)
+  tag(node: AstNode, key: string, value: boolean | number | string): void;
+  untag(node: AstNode, key: string): void;
+
   // Node creation
   makeNode(kind: string, value: any, children?: AstNode[]): AstNode;
 }
@@ -311,6 +319,25 @@ export class MatcherSymbols implements IMatcherSymbols {
       return 0;
     }
     return termsList.length;
+  }
+
+  // Tag predicates
+  has_tag(node: AstNode, key: string): boolean {
+    return node.hasTag(key);
+  }
+
+  tag_eq(node: AstNode, key: string, value: boolean | number | string): boolean {
+    const tagValue = node.getTag(key);
+    return tagValue === value;
+  }
+
+  // Tag actions
+  tag(node: AstNode, key: string, value: boolean | number | string): void {
+    node.setTag(key, value);
+  }
+
+  untag(node: AstNode, key: string): void {
+    node.removeTag(key);
   }
 
   private gcd(a: number, b: number): number {

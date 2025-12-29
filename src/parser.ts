@@ -249,6 +249,15 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return AstNode.create('patvar', varName);
   },
 
+  MatchRoot_root(_dollar) {
+    return AstNode.create('matchroot', '$');
+  },
+
+  MatchRoot_indexed(_dollar, _lbrack, expr, _rbrack) {
+    const indexNode = expr.toAst();
+    return AstNode.create('index', '$', [indexNode]);
+  },
+
   number(_digits) {
     return AstNode.create('number', parseInt(this.sourceString, 10));
   },

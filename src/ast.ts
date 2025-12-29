@@ -11,7 +11,9 @@ export type AstNodeKind =
   | 'list'
   | 'tuple'
   | 'spread'
-  | 'do';
+  | 'do'
+  | 'matchroot'
+  | 'index';
 
 export type TypeName = 'number' |
   'var' |
@@ -100,6 +102,8 @@ export const COST = {
   DIV_COST: 2,                    // Base division cost
 } as const;
 
+export type TagValue = boolean | number | string;
+
 export class AstNode {
   kind: AstNodeKind;
   value: number | string | ASymbol | AstNode;
@@ -109,6 +113,7 @@ export class AstNode {
   //private changedNodes?: number;
   private totalNodes?: number;
   public source?: string;
+  public tags?: Map<string, TagValue>;
 
   private constructor(
     kind: AstNodeKind,
@@ -134,6 +139,8 @@ export class AstNode {
   static create(kind: 'spread', value: '...', children?: AstNode[]): AstNode;
   static create(kind: 'do', value: 'do', children?: AstNode[]): AstNode;
   static create(kind: 'symbol', value: ASymbol, children?: AstNode[]): AstNode;
+  static create(kind: 'matchroot', value: '$', children?: AstNode[]): AstNode;
+  static create(kind: 'index', value: '$', children?: AstNode[]): AstNode;
   static create(kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
     children?: AstNode[], where?: AstNode[]): AstNode {
@@ -141,7 +148,41 @@ export class AstNode {
   }
 
   clone(children?: AstNode[]): AstNode {
-    return new AstNode(this.kind, this.value, children ?? this.children, this.where);
+    const cloned = new AstNode(this.kind, this.value, children ?? this.children, this.where);
+    // Don't copy tags - clones should start fresh
+    return cloned;
+  }
+
+  setTag(key: string, value: TagValue): void {
+    if (!this.tags) {
+      this.tags = new Map();
+    }
+    this.tags.set(key, value);
+  }
+
+  getTag(key: string): TagValue | undefined {
+    return this.tags?.get(key);
+  }
+
+  hasTag(key: string): boolean {
+    return this.tags?.has(key) ?? false;
+  }
+
+  removeTag(key: string): void {
+    this.tags?.delete(key);
+  }
+
+  clearTags(prefix?: string): void {
+    if (!this.tags) return;
+    if (prefix) {
+      for (const key of this.tags.keys()) {
+        if (key.startsWith(prefix)) {
+          this.tags.delete(key);
+        }
+      }
+    } else {
+      this.tags.clear();
+    }
   }
 
   getCost(): number {
@@ -154,6 +195,16 @@ export class AstNode {
   }
 
   toString(): string {
+    if (this.kind === 'matchroot') {
+      return '$';
+    }
+
+    if (this.kind === 'index') {
+      const indexExpr = this.children && this.children[0];
+      const indexStr = indexExpr ? indexExpr.toString() : '?';
+      return `$[${indexStr}]`;
+    }
+
     if (this.kind === 'list') {
       const items = this.children ?? [];
       const contents = items.map(x => x.toString()).join(',');

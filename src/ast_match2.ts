@@ -218,6 +218,23 @@ function processContraintsNode(where: AstNode[] | undefined, exprName: string, w
 function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
   for (let arg of callNode.children!) {
     switch (arg.kind) {
+      case 'matchroot': {
+        // $ refers to the matched expression root
+        writer.writeCallArg('expr');
+        break;
+      }
+      case 'index': {
+        // $[i] refers to expr.children[i]
+        const indexExpr = arg.children![0];
+        if (indexExpr.kind === 'number') {
+          writer.writeCallArg(`expr.children[${indexExpr.value}]`);
+        } else if (indexExpr.kind === 'patvar') {
+          writer.writeCallArg(`expr.children[${indexExpr.value}]`);
+        } else {
+          matcherThrow('index expression must be number or patvar');
+        }
+        break;
+      }
       case 'patvar': {
         // unwrap patvar to name of variable
         writer.writeCallArg(arg.value);
@@ -225,6 +242,13 @@ function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
       }
       case 'number': {
         writer.writeCallArg(arg.value);
+        break;
+      }
+      case 'symbol': {
+        // For tag operations, symbols are treated as string literals
+        const sym = arg.value as any;
+        const symName = sym.name || sym;
+        writer.writeCallArg(`"${symName}"`);
         break;
       }
       case 'list': {
@@ -279,6 +303,23 @@ function processConstraintFuncArgs(callNode: AstNode, writer: JsWriter): void {
  */
 function processReplaceNode(replace: AstNode, writer: JsWriter): void {
   switch (replace.kind) {
+    case 'matchroot': {
+      // $ refers to the matched expression root
+      writer.writeBuffer('expr');
+      break;
+    }
+    case 'index': {
+      // $[i] refers to expr.children[i]
+      const indexExpr = replace.children![0];
+      if (indexExpr.kind === 'number') {
+        writer.writeBuffer(`expr.children[${indexExpr.value}]`);
+      } else if (indexExpr.kind === 'patvar') {
+        writer.writeBuffer(`expr.children[${indexExpr.value}]`);
+      } else {
+        matcherThrow('index expression must be number or patvar');
+      }
+      break;
+    }
     case 'eq':
     case 'func': {
       writer.writeCallStart('sym.makeNode', `'${replace.kind}'`, `'${replace.value}'`);

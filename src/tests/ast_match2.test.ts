@@ -470,6 +470,73 @@ export function testMatcherCodegen(): void {
     "Match sum(x, 1) - success"
   )) passed++; else failed++;
 
+  // =========================================================================
+  // Match root ($) tests
+  // =========================================================================
+  console.log("--- Match Root ($) Tests ---");
+
+  if (testRule(
+    "sum(?a, ?b) => $",
+    "sum(1, 2)",
+    true,
+    "$ returns the matched expression itself"
+  )) passed++; else failed++;
+
+  if (testRule(
+    "sum(?a, ?b) => $[0]",
+    "sum(1, 2)",
+    true,
+    "$[0] returns first child of matched expression"
+  )) passed++; else failed++;
+
+  if (testRule(
+    "sum(?a, ?b) => $[1]",
+    "sum(1, 2)",
+    true,
+    "$[1] returns second child of matched expression"
+  )) passed++; else failed++;
+
+  if (testRule(
+    "mul(?x, ?y) => sum($[0], $[1])",
+    "mul(3, 4)",
+    true,
+    "Use $[i] to access children in RHS"
+  )) passed++; else failed++;
+
+  console.log();
+
+  // =========================================================================
+  // Tag operations tests
+  // =========================================================================
+  console.log("--- Tag Operations Tests ---");
+
+  // Note: tag() is an action, not a predicate, so it doesn't affect matching
+  // We can test that it parses and generates correct code
+  if (testRule(
+    "sum(?a, ?b) => sum(?a, ?b) where[tag($, tmp, true)]",
+    "sum(1, 2)",
+    true,
+    "tag() action in where clause (action executed)"
+  )) passed++; else failed++;
+
+  // Test has_tag predicate - this should fail initially since no tag is set
+  // We would need a way to set tags first to properly test this
+  // For now, just test that it parses and doesn't crash
+  if (testRule(
+    "sum(?a, ?b) => sum(?a, ?b) where[has_tag($, test)]",
+    "sum(1, 2)",
+    false,
+    "has_tag() predicate - no tag set, should fail"
+  )) passed++; else failed++;
+
+  // Test tag_eq predicate
+  if (testRule(
+    "sum(?a, ?b) => sum(?a, ?b) where[tag_eq($, test, true)]",
+    "sum(1, 2)",
+    false,
+    "tag_eq() predicate - no tag set, should fail"
+  )) passed++; else failed++;
+
   console.log();
 
   // =========================================================================
