@@ -27,7 +27,6 @@ export interface SkillDescriptor {
 export type SkillPayload =
   | RewriteRulePayload
   | MacroActionPayload
-  | TaggerPayload;
 
 export type SkillBody = string;
 
@@ -53,20 +52,5 @@ export interface RewriteRulePayload {
 
   skillBody: SkillBody;
 }
-
-
-export interface TaggerPayload {
-  kind?: "tagger";
-
-  // Pattern that tags a node
-  pattern: string;
-
-  // Optional semantic label
-  tag?: string;
-
-  // Used by policy / heuristics
-  priority?: number;
-}
-
 
 

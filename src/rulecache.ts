@@ -61,7 +61,7 @@ export class RuleCache {
       matchFunc: undefined!
     }
 
-    let matcher = astCreateMatcher(node);
+    const matcher = astCreateMatcher(node);
     node.matchFunc = (ast: AstNode) => matcher(matcherSymbols, ast);
 
     node.matchFunc[funcSource] = ruleId;

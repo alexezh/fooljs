@@ -1,4 +1,5 @@
 import { SkillId } from "./runtime";
+import { SkillBody } from "./skilldescriptor";
 import { SkillRegistry } from "./skillregistry";
 
 export async function seedBaselineSkills(registry: SkillRegistry) {
@@ -168,8 +169,30 @@ export async function seedBaselineSkills(registry: SkillRegistry) {
         eq(sum(mul(?k, ?y), ?c), 0) => eq(mul(?k, ?y), neg(?c)),
         eq(mul(?k, ?y), ?b) => eq(?y, div(?b, ?k)),
         eq(?y, ?rhs) => ?rhs
-      ]` as any,
+      ]` as SkillBody,
     },
+    tags: ["solve", "linear", "procedure", "generic", "inline_rules"],
+  });
+
+  await registry.add({
+    id: "solve_linear" as SkillId,
+    name: "Solve ax + c = 0 (normalize, move addend, divide, discharge)",
+    // input: "eq(?lhs, ?rhs) where ?x only var",
+    // goal: "eq(?x, ?c)",
+    payload: {
+      kind: "macro_action",
+      budget: 20,
+      skillBody: `[
+        $ =>
+          eq(sum(?lhs, neg(?rhs)), 0) => 
+          eq(mul(sym(?x), ?a), number(?c)), 0) where is_number(?a), is_number(?c) =>
+          eq(sum(?x, ?a), neg(?c)) =>
+          eq(?x, div(neg(?c) / ?a)
+      ]` as SkillBody,
+    },
+    // samples: [
+    //   "eq(sum(1, 2, mul(3, x), 4), 5) => eq(sum(1, 2, mul(3, x), 4, neg(-5)) => eq(sum(mul(3, x), sum(1, 2, 4, neg(-5)))"
+    // ],
     tags: ["solve", "linear", "procedure", "generic", "inline_rules"],
   });
 }

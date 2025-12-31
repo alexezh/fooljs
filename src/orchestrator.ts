@@ -27,7 +27,7 @@ export type { LlmClient } from "./llmclient.js";
 import { Policy } from "./planner/policy.js";
 import { SolveTrace } from "./planner/solvetrace.js";
 import { RuleBody, Runtime } from "./runtime.js";
-import { MacroActionPayload, RewriteRulePayload, SkillDescriptor, TaggerPayload } from "./skilldescriptor.js";
+import { MacroActionPayload, RewriteRulePayload, SkillDescriptor } from "./skilldescriptor.js";
 import { SkillExecutor } from "./skillexecutor.js";
 import { SkillRegistry } from "./skillregistry.js";
 

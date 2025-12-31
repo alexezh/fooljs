@@ -4,6 +4,7 @@ import { SkillDescriptor } from "../skilldescriptor.js";
 import { BoolVec, FeatureFn } from "./featurefn.js";
 import { Goal } from "./plannercore.js";
 import { Choice, Policy } from "./policy.js";
+import { Clause, ClauseId, Verb, VerbId } from "./verb.js";
 
 // ============================================================
 // Small NN utilities (linear + softmax + REINFORCE update)
@@ -55,7 +56,7 @@ function sampleCategorical(probs: Float64Array, rng: () => number): number {
 
 export class RoutingNodeNN {
   readonly id: string;
-  readonly childIds: string[];
+  readonly children: (RoutingNodeNN | LeafNodeNN)[];
 
   private readonly N: number;
   private readonly K: number;
@@ -72,7 +73,7 @@ export class RoutingNodeNN {
 
   constructor(params: {
     id: string;
-    childIds: string[];
+    children: (RoutingNodeNN | LeafNodeNN)[];
     featureDim: number;     // N
     lr?: number;            // default 0.05
     temperature?: number;   // default 1.0
@@ -80,9 +81,9 @@ export class RoutingNodeNN {
     rng?: () => number;
   }) {
     this.id = params.id;
-    this.childIds = [...params.childIds];
+    this.children = [...params.children];
     this.N = params.featureDim;
-    this.K = this.childIds.length;
+    this.K = this.children.length;
 
     this.lr = params.lr ?? 0.05;
     this.temperature = params.temperature ?? 1.0;
@@ -111,10 +112,10 @@ export class RoutingNodeNN {
     return { probs, logits };
   }
 
-  chooseChild(xBool: BoolVec): { childId: string; index: number; prob: number; probs: Float64Array } {
+  chooseChild(xBool: BoolVec): { child: (RoutingNodeNN | LeafNodeNN); index: number; prob: number; probs: Float64Array } {
     const { probs } = this.forward(xBool);
     const idx = sampleCategorical(probs, this.rng);
-    return { childId: this.childIds[idx], index: idx, prob: probs[idx], probs };
+    return { child: this.children[idx], index: idx, prob: probs[idx], probs };
   }
 
   observe(input: { x: BoolVec; chosenIndex: number; reward: number; probs: Float64Array }) {
@@ -157,8 +158,8 @@ export class LeafNodeNN {
 
   // Skills are dynamic in your system; we keep an index map built at choose time.
   // We store a weight vector per skillId (linear policy).
-  private readonly WBySkill = new Map<string, Float64Array>(); // each is length N
-  private readonly bBySkill = new Map<string, number>();
+  private readonly WByChoice = new Map<ClauseId | VerbId, Float64Array>(); // each is length N
+  private readonly bByChoice = new Map<ClauseId | VerbId, number>();
 
   private readonly lr: number;
   private readonly temperature: number;
@@ -183,24 +184,24 @@ export class LeafNodeNN {
     this.rng = params.rng ?? Math.random;
   }
 
-  private ensureSkill(skillId: string) {
-    if (!this.WBySkill.has(skillId)) {
+  private ensureChoice(choice: ClauseId | VerbId) {
+    if (!this.WByChoice.has(choice)) {
       const w = new Float64Array(this.N);
       for (let i = 0; i < w.length; i++) w[i] = (this.rng() - 0.5) * 0.01;
-      this.WBySkill.set(skillId, w);
-      this.bBySkill.set(skillId, 0);
+      this.WByChoice.set(choice, w);
+      this.bByChoice.set(choice, 0);
     }
   }
 
-  forward(xBool: BoolVec, skills: SkillDescriptor[]): { probs: Float64Array; logits: Float64Array } {
+  forward(xBool: BoolVec, choices: (Verb | Clause)[]): { probs: Float64Array; logits: Float64Array } {
     const x = boolToFloat(xBool);
-    const logits = new Float64Array(skills.length);
+    const logits = new Float64Array(choices.length);
 
-    for (let i = 0; i < skills.length; i++) {
-      const sid = skills[i].id;
-      this.ensureSkill(sid);
-      const w = this.WBySkill.get(sid)!;
-      const b = this.bBySkill.get(sid)!;
+    for (let i = 0; i < choices.length; i++) {
+      const sid = choices[i].id;
+      this.ensureChoice(sid);
+      const w = this.WByChoice.get(sid)!;
+      const b = this.bByChoice.get(sid)!;
 
       let z = b;
       for (let n = 0; n < this.N; n++) z += x[n] * w[n];
@@ -211,21 +212,21 @@ export class LeafNodeNN {
     return { probs, logits };
   }
 
-  chooseSkill(xBool: BoolVec, skills: SkillDescriptor[]): { skill: SkillDescriptor; index: number; prob: number; probs: Float64Array } | null {
-    if (skills.length === 0) return null;
-    const { probs } = this.forward(xBool, skills);
+  chooseSkill(xBool: BoolVec, choices: (Verb | Clause)[]): { choice: Verb | Clause; index: number; prob: number; probs: Float64Array } | null {
+    if (choices.length === 0) return null;
+    const { probs } = this.forward(xBool, choices);
     const idx = sampleCategorical(probs, this.rng);
-    return { skill: skills[idx], index: idx, prob: probs[idx], probs };
+    return { choice: choices[idx], index: idx, prob: probs[idx], probs };
   }
 
   observe(input: {
     x: BoolVec;
     chosenIndex: number;
-    skills: SkillDescriptor[];
+    choices: (Clause | Verb)[];
     reward: number;
     probs: Float64Array;
   }) {
-    if (input.skills.length === 0) return;
+    if (input.choices.length === 0) return;
 
     this.baseline = (1 - this.baselineDecay) * this.baseline + this.baselineDecay * input.reward;
     const adv = input.reward - this.baseline;
@@ -235,12 +236,12 @@ export class LeafNodeNN {
     const pi = input.probs;
 
     // We only update skills present in this masked set (the candidate list).
-    for (let i = 0; i < input.skills.length; i++) {
-      const sid = input.skills[i].id;
-      this.ensureSkill(sid);
+    for (let i = 0; i < input.choices.length; i++) {
+      const sid = input.choices[i].id;
+      this.ensureChoice(sid);
 
-      const w = this.WBySkill.get(sid)!;
-      const b = this.bBySkill.get(sid)!;
+      const w = this.WByChoice.get(sid)!;
+      const b = this.bByChoice.get(sid)!;
 
       // grad log pi(a) w.r.t. logits: (1{i=a} - pi[i])
       const g = (i === a ? 1 : 0) - pi[i];
@@ -252,7 +253,7 @@ export class LeafNodeNN {
       }
 
       // bias update
-      this.bBySkill.set(sid, b + this.lr * adv * g);
+      this.bByChoice.set(sid, b + this.lr * adv * g);
     }
   }
 }
@@ -275,64 +276,60 @@ type Trace = {
   routeProbs: Float64Array;
 
   // leaf (masked candidates)
-  leafSkills: SkillDescriptor[];
+  leafChoices: (Verb | Clause)[];
   leafIndex: number;
   leafProbs: Float64Array;
 
   chosen: Choice;
 };
 
-export class PolicyNN implements Policy {
+export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
   private lastTrace: Trace | null = null;
 
   constructor(
     private fx: FeatureFn,
+    private choices: TElem[],
     private router: RoutingNodeNN,
-    private leaf: LeafNodeNN,
-    private routeToSkillFilter?: (routeChildId: string, skill: SkillDescriptor, goal: Goal) => boolean
+    private leaf: LeafNodeNN
   ) { }
 
-  async chooseSkill(input: {
+  async choose(input: {
     root: AstNode;
     goal: Goal;
     focusCandidates: number[][];
-    runtime: Runtime;
-  }): Promise<Choice | null> {
+  }): Promise<{ choice: TElem; focus: number[] } | null> {
     const x = this.fx.extract(input.root, input.goal);
 
     // 1) Route
     const r = this.router.chooseChild(x);
-    const routeChildId = r.childId;
+    const routeChild = r.child;
 
     // 2) Candidate skills (optionally masked by route)
-    const allSkills = input.runtime.skillRegistry.listAll();
-    const leafSkills = this.routeToSkillFilter
-      ? allSkills.filter(s => this.routeToSkillFilter!(routeChildId, s, input.goal))
-      : allSkills;
+    const leafChoices = this.choices;
 
     // 3) Leaf picks skill
-    const leafPick = this.leaf.chooseSkill(x, leafSkills);
+    const leafPick = this.leaf.chooseSkill(x, leafChoices);
     if (!leafPick) return null;
 
     // 4) Focus (kept simple; still “model owns choice of skill”)
     const focus = input.focusCandidates[0] ?? [];
 
-    const choice: Choice = { skill: leafPick.skill, focus };
+    const choice: Choice = { choice: leafPick.choice, focus };
 
     // Save trace for observe()
     this.lastTrace = {
       x,
       goal: input.goal,
-      routeChildId,
+      routeChildId: routeChild.id,
       routeIndex: r.index,
       routeProbs: r.probs,
-      leafSkills,
+      leafChoices: leafChoices,
       leafIndex: leafPick.index,
       leafProbs: leafPick.probs,
       chosen: choice,
     };
 
-    return choice;
+    return choice as unknown as { choice: TElem; focus: number[] };
   }
 
   observe(evt: {
@@ -348,7 +345,7 @@ export class PolicyNN implements Policy {
 
     // Basic safety: only learn if the observed choice matches the last issued choice
     // (if your orchestrator can interleave, add an id)
-    if (t.chosen.skill.id !== evt.chosen.skill.id) return;
+    if (t.chosen.choice.id !== evt.chosen.choice.id) return;
 
     // REINFORCE updates on router and leaf
     this.router.observe({
@@ -361,7 +358,7 @@ export class PolicyNN implements Policy {
     this.leaf.observe({
       x: t.x,
       chosenIndex: t.leafIndex,
-      skills: t.leafSkills,
+      choices: t.leafChoices,
       reward: evt.reward,
       probs: t.leafProbs,
     });

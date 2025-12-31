@@ -3,13 +3,56 @@ The goal is not to build a solver, but to develop a framework for recursive a* s
 
 we have list of tokens, which is basically lisp program. This is where lisp was ahead, mix of code and data
 but now we add model on it, where compute can go ahead and then go back. And this is from inside the program
-which is where my previous attempt ended. So all I need is to combine things. Another thing which was not good 
-about lisp is that basic ops were (+, a, b) rather than (sum, a, b, c)
+which is where my previous attempt ended. 
 
-sum a*x, b*x = sum( sum(a + b), x) 
-substitute sum(a, b) = y1 where y = 
+The latest iteration is a hiearchy of
 
-sum, a, b, c = sum((a + b), c) - number of choices is limited, 1, skip 1, ???
-def sum
+clause - rule -> pattern for chanding ast
 
-solve(x, pred) 
+skill - sequence of rules with name
+
+action:
+
+verbs:
+
+solve(x, e) {
+  descriptions: [
+
+  ]
+  inputs: [
+    //eq(?lhs, ?rhs) where x
+  ]
+  plans: [{
+    move to left
+    
+    collect(is_number()) 
+  }]
+}
+
+solve_linear.move_left {
+
+}
+
+collect {
+  plans: [
+    {
+      task: collect()
+      goal: ?c where is_number(?c)
+    }
+  ]
+  samples: [
+    {
+      task: 1 + 2 + 3
+    }
+  ]
+
+}
+
+action - verb + params
+
+simplify:
+1 + 2 + 3 => 6 
+   simplify(sum(1, 2, 3)) => collect([1, 2, 3]) -> sum
+
+1 + 3 => 4 : collect([1,3]) => sum()
+1 + 

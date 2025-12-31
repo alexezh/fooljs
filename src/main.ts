@@ -79,15 +79,16 @@ async function main(runtime: Runtime) {
   const llm = new LlmClientLlama();
 
   initRules(RuntimeImpl.instance);
+  const leafNode = new LeafNodeNN({ id: 'leaf', featureDim: 3 });
   const policy = new PolicyNN(
     new FeatureExtractor(),
-    new RoutingNodeNN({ id: 'route', childIds: ['leaf'], featureDim: 3 }),
+    new RoutingNodeNN({ id: 'route', children: [leafNode], featureDim: 3 }),
     new LeafNodeNN({ id: 'leaf', featureDim: 3 })
   );
   const proposer = new AbstractionProposer(llm);
   const verifier = new SymbolicVerifier(runtime);
 
-  await seedBaselineSkills(RuntimeImpl.instance.skillRegistry);
+  //await seedBaselineSkills(RuntimeImpl.instance.skillRegistry);
 
   const executor = new SkillExecutor(runtime);
 

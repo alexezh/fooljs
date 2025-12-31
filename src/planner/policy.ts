@@ -3,20 +3,20 @@ import { FeatureVector, Goal, Path } from "./plannercore.js";
 import type { SkillRegistry } from "../skillregistry.js";
 import { Runtime, SkillId } from "../runtime.js";
 import { AstNode } from "../ast.js";
+import { Clause, Verb } from "./verb.js";
 
 export type BoolVec = boolean[];
 
-export type Choice = { skill: SkillDescriptor; focus: number[] };
+export type Choice = { choice: Verb | Clause; focus: number[] };
 
-export interface Policy {
+export interface Policy<TElem extends Verb | Clause> {
 
   // Decide whether to invoke a macro/skill now, and which one.
-  chooseSkill(input: {
+  choose(input: {
     root: AstNode;
     goal: Goal;
     focusCandidates: number[][];
-    runtime: Runtime;
-  }): Promise<{ skill: SkillDescriptor; focus: number[] } | null>;
+  }): Promise<{ choice: TElem; focus: number[] } | null>;
 
   // Learn from outcomes
   observe?(evt: {
