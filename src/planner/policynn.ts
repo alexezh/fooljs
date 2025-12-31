@@ -193,7 +193,7 @@ export class LeafNodeNN {
     }
   }
 
-  forward(xBool: BoolVec, choices: (Verb | Clause)[]): { probs: Float64Array; logits: Float64Array } {
+  forward(xBool: BoolVec, choices: ReadonlyArray<Verb | Clause>): { probs: Float64Array; logits: Float64Array } {
     const x = boolToFloat(xBool);
     const logits = new Float64Array(choices.length);
 
@@ -212,7 +212,7 @@ export class LeafNodeNN {
     return { probs, logits };
   }
 
-  chooseSkill(xBool: BoolVec, choices: (Verb | Clause)[]): { choice: Verb | Clause; index: number; prob: number; probs: Float64Array } | null {
+  choose(xBool: BoolVec, choices: ReadonlyArray<Verb | Clause>): { choice: Verb | Clause; index: number; prob: number; probs: Float64Array } | null {
     if (choices.length === 0) return null;
     const { probs } = this.forward(xBool, choices);
     const idx = sampleCategorical(probs, this.rng);
@@ -222,7 +222,7 @@ export class LeafNodeNN {
   observe(input: {
     x: BoolVec;
     chosenIndex: number;
-    choices: (Clause | Verb)[];
+    choices: ReadonlyArray<Clause | Verb>;
     reward: number;
     probs: Float64Array;
   }) {
@@ -276,7 +276,7 @@ type Trace = {
   routeProbs: Float64Array;
 
   // leaf (masked candidates)
-  leafChoices: (Verb | Clause)[];
+  leafChoices: ReadonlyArray<Verb | Clause>;
   leafIndex: number;
   leafProbs: Float64Array;
 
@@ -288,7 +288,7 @@ export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
 
   constructor(
     private fx: FeatureFn,
-    private choices: TElem[],
+    private choices: ReadonlyArray<TElem>,
     private router: RoutingNodeNN,
     private leaf: LeafNodeNN
   ) { }
@@ -308,7 +308,7 @@ export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
     const leafChoices = this.choices;
 
     // 3) Leaf picks skill
-    const leafPick = this.leaf.chooseSkill(x, leafChoices);
+    const leafPick = this.leaf.choose(x, leafChoices);
     if (!leafPick) return null;
 
     // 4) Focus (kept simple; still “model owns choice of skill”)

@@ -34,22 +34,30 @@ export class Verb {
   public id: VerbId;
   public kind: VerbKind;
   public intent: string;
-  public input: AstNode;
+  public match: AstNode;
   public goal: AstNode;
   public plan: ReadonlyArray<Clause>;
   public sample: AstNode;
 }
 
 export class VerbRegistry {
-  private _verbs = new Map<VerbKind, Verb[]>();
+  private _verbByKind = new Map<VerbKind, Verb[]>();
+  private _verbs: Verb[] = [];
 
-  addVerb(sent: Verb): void {
-    let e = this._verbs.get(sent.kind);
+  public static instance: VerbRegistry = new VerbRegistry();
+
+  getVerbs(): ReadonlyArray<Verb> {
+    return this._verbs;
+  }
+
+  addVerb(verb: Verb): void {
+    let e = this._verbByKind.get(verb.kind);
     if (!e) {
       e = [];
-      this._verbs.set(sent.kind, e);
+      this._verbByKind.set(verb.kind, e);
     }
-    e.push(sent);
+    e.push(verb);
+    this._verbs.push(verb);
   }
 }
 

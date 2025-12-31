@@ -26,6 +26,7 @@ import { Goal } from "./planner/plannercore.js";
 export type { LlmClient } from "./llmclient.js";
 import { Policy } from "./planner/policy.js";
 import { SolveTrace } from "./planner/solvetrace.js";
+import { Clause, Verb } from "./planner/verb.js";
 import { RuleBody, Runtime } from "./runtime.js";
 import { MacroActionPayload, RewriteRulePayload, SkillDescriptor } from "./skilldescriptor.js";
 import { SkillExecutor } from "./skillexecutor.js";
@@ -226,15 +227,15 @@ export interface OrchestratorConfig {
   maxProposals: number;
 }
 
-export class Orchestrator {
+export class Orchestrator<TElem extends Verb | Clause> {
   private successCounter = 0;
 
   constructor(
     private readonly runtime: Runtime,
-    private readonly policy: Policy,
+    private readonly policy: Policy<Verb>,
     private readonly proposer: AbstractionProposer,
     private readonly verifier: SymbolicVerifier,
-    private readonly executor: SkillExecutor,
+    //private readonly executor: SkillExecutor,
     private readonly cfg: OrchestratorConfig
   ) { }
 
@@ -257,34 +258,33 @@ export class Orchestrator {
         break;
       }
 
-      const choice = await this.policy.chooseSkill({
+      const choice = await this.policy.choose({
         root,
         goal: input.goal,
         focusCandidates: input.focusCandidates,
-        runtime: this.runtime,
       });
 
       if (!choice) break;
 
       const before = root;
-      const { nextRoot, applied } = this.executor.tryExecute(choice.skill, root, choice.focus, input.goal);
-      if (!applied) {
-        // Optionally penalize / teach policy that this choice was ineffective
-        this.policy.observe?.call({
-          rootBefore: before,
-          rootAfter: before,
-          chosen: choice,
-          reward: -0.05,
-          success: false,
-        });
-        continue;
-      }
+      //const { nextRoot, applied } = this.executor.tryExecute(choice.choice, root, choice.focus, input.goal);
+      // if (!applied) {
+      //   // Optionally penalize / teach policy that this choice was ineffective
+      //   this.policy.observe?.call({
+      //     rootBefore: before,
+      //     rootAfter: before,
+      //     chosen: choice,
+      //     reward: -0.05,
+      //     success: false,
+      //   });
+      //   continue;
+      // }
 
-      root = nextRoot;
+      //root = nextRoot;
 
       trace.steps.push({
         focus: choice.focus,
-        appliedRuleId: choice.skill!.id, // skillId (macro or rule) used
+        appliedChoiceId: choice.choice!.id, // skillId (macro or rule) used
         before,
         after: root,
       });

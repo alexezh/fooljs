@@ -1,6 +1,8 @@
+import { ClauseId, VerbId } from "./verb";
+
 export interface TraceStep {
   focus: number[];
-  appliedRuleId: string;
+  appliedChoiceId: ClauseId | VerbId;
   before: any;
   after: any;
 }

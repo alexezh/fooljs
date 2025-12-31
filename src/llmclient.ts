@@ -126,3 +126,16 @@ export class LlmClientGpt implements LlmClient {
     return { content, raw: json };
   }
 }
+
+export function extractJsonObject(text: string): any {
+  const fenced = text.match(/```json\s*([\s\S]*?)```/i);
+  const raw = (fenced?.[1] ?? text).trim();
+
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(`No JSON object found in LLM response:\n${text}`);
+  }
+  return JSON.parse(raw.slice(start, end + 1));
+}
+
