@@ -239,11 +239,13 @@ export class Orchestrator<TElem extends Verb | Clause> {
     private readonly cfg: OrchestratorConfig
   ) { }
 
-  async solveOne(input: { expr: AstNode; goal: Goal; focusCandidates: number[][]; testSetForVerify: any[] }): Promise<{
+  async solveOne(input: { expr: AstNode; goal: Goal; focusCandidates: number[][] }): Promise<{
+    verb: Verb,
     result: AstNode,
     trace: SolveTrace
   }> {
     let root = input.expr;
+    let verb: Verb | undefined;
     const trace: SolveTrace = {
       traceId: `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`,
       goal: input.goal,
@@ -266,6 +268,7 @@ export class Orchestrator<TElem extends Verb | Clause> {
 
       if (!choice) break;
 
+      verb = choice.choice;
       const before = root;
       //const { nextRoot, applied } = this.executor.tryExecute(choice.choice, root, choice.focus, input.goal);
       // if (!applied) {
@@ -300,37 +303,10 @@ export class Orchestrator<TElem extends Verb | Clause> {
         reward,
         success,
       });
+
+      break;
     }
 
-    if (trace.success) {
-      this.successCounter++;
-
-      // Periodically ask the LLM for new abstractions based on recent traces
-      if (this.successCounter % this.cfg.proposeEveryNSuccesses === 0) {
-        await this.learnNewSkillsFromTraces([trace], input.testSetForVerify);
-      }
-    }
-
-    return { result: root, trace };
-  }
-
-  private async learnNewSkillsFromTraces(traces: SolveTrace[], testSet: any[]): Promise<void> {
-    // 1) LLM proposes abstractions
-    const proposals = await this.proposer.proposeFromTraces({
-      traces,
-      maxProposals: this.cfg.maxProposals,
-      domainNotes:
-        "Use the existing DSL rule format and keep macros bounded. Prefer general reusable abstractions.",
-    });
-
-    // 2) Symbolic core verifies
-    for (const p of proposals) {
-      const vr = this.verifier.verify(p, testSet);
-      if (!vr.ok) continue;
-
-      // 3) If verified, register skill so RL can choose it in the future
-      // In a real system, you'd compile rule strings into runtime rule IDs here.
-      this.runtime.skillRegistry.add(p);
-    }
+    return { verb: verb!, result: root, trace };
   }
 }

@@ -31,8 +31,8 @@ export class LlmClientLlama implements LlmClient {
   private readonly embeddingsUrl: string;
 
   constructor(
-    private readonly endpointUrl: string = "http://localhost:8080/v1/chat/completions",
-    private readonly model: string = "llama",
+    private readonly endpointUrl: string = "http://localhost:11434/api/chat",
+    private readonly llamaModel: string = "llama3.1:8b",
     private readonly embeddingModel: string = "nomic-embed-text"
   ) {
     // Derive embeddings endpoint from chat endpoint
@@ -42,9 +42,10 @@ export class LlmClientLlama implements LlmClient {
 
   async chat(messages: ChatMessage[], opts?: { temperature?: number }): Promise<ChatResponse> {
     const body = {
-      model: this.model,
+      model: this.llamaModel,
       messages,
       temperature: opts?.temperature ?? 0.2,
+      stream: false,  // Disable streaming for simpler parsing
     };
 
     const res = await fetch(this.endpointUrl, {
@@ -60,10 +61,40 @@ export class LlmClientLlama implements LlmClient {
       throw new Error(`LLM chat failed: ${res.status} ${text}`);
     }
 
-    const json = await res.json();
-    // OpenAI-compatible: json.choices[0].message.content
-    const content = json?.choices?.[0]?.message?.content ?? "";
-    return { content, raw: json };
+    const text = await res.text();
+
+    // Ollama returns newline-delimited JSON objects when streaming
+    // Each line: {"message":{"content":"..."},"done":false}
+    // Keep reading until done is true
+    const lines = text.trim().split('\n');
+    let fullContent = '';
+    let lastJson: any = null;
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      try {
+        const json = JSON.parse(line);
+        lastJson = json;
+
+        // Ollama format: message.content contains the chunk
+        if (json.message?.content) {
+          fullContent += json.message.content;
+        }
+
+        // Stop when done is true
+        if (json.done === true) {
+          break;
+        }
+      } catch (e) {
+        // If parsing fails, might be OpenAI format - try that
+        const json = extractJsonObject(text);
+        const content = json?.choices?.[0]?.message?.content ?? "";
+        return { content, raw: json };
+      }
+    }
+
+    return { content: fullContent, raw: lastJson };
   }
 
   async embed(text: string): Promise<EmbeddingResponse> {

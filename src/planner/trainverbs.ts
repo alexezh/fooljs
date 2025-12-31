@@ -3,7 +3,7 @@ import { LlmClient, Orchestrator } from "../orchestrator.js";
 import { parse, parseEquation } from "../parser.js";
 import { Goal } from "./plannercore.js";
 import { requestGeneralize } from "./traingeneralize.js";
-import { Verb, VerbKind } from "./verb.js";
+import { Verb, VerbKind, VerbRegistry, makeVerbId } from "./verb.js";
 
 // Training result interface (per train.md spec)
 export interface TrainVerbResult {
@@ -26,41 +26,79 @@ export interface BlockReport {
   failures: Array<{ exprStr: string; reason: string }>;
 }
 
-// 3.2 Training set
-const trainingProblems = [
-  // Basic x + c = 0 (tests move addend, discharge isolated)
-  "eq(sum(x, 7), 0)",
+// Training data item
+export interface TrainingDataItem {
+  sample: string;  // Example expression to train on
+  verb: VerbKind;  // Expected verb for this example
+  body: string;    // Rule/statement body
+}
 
-  // Simple kx + c = 0 (tests move addend, divide both sides, discharge)
-  "eq(sum(mul(2, x), 4), 0)",
-  "eq(sum(mul(3, x), 9), 0)",
-
-  // Combining like terms (3x + 2x + 5 = 0 => 5x + 5 = 0)
-  "eq(sum(mul(3, x), mul(2, x), 5), 0)",
-
-  // Equation normalization (a = b => a - b = 0)
-  "eq(sum(x, 3), 5)",
-  "eq(mul(2, x), 10)",
-
-  // Subtraction to sum conversion
-  "eq(sub(x, 5), 0)",
-  "eq(sub(mul(3, x), 6), 0)",
-
-  // Simplification cases
-  "eq(sum(x, 0, 7), 0)",  // Dropping zeros
-  "eq(sum(mul(2, x), 3, 2), 0)",  // Combining numbers (3 + 2)
-  "eq(neg(neg(sum(x, 5))), 0)",  // Double negation
-
-  // Equation symmetry (variable on right side)
-  "eq(0, sum(x, 4))",
-  "eq(8, mul(2, x))",
-
-  // Grouping same terms with more complex expressions
-  "eq(sum(mul(2, x), mul(3, x), mul(4, x), 9), 0)",
-
-  // Factoring common divisor from constants
-  "eq(sum(mul(2, x), 6, 4), 0)",  // 2x + 6 + 4 = 0 => 2x + 10 = 0
+// Training data array (exported for testing)
+export const trainingData: TrainingDataItem[] = [
+  // BLOCK 1: evaluate
+  {
+    sample: "sum(1, 1)",
+    verb: "evaluate",
+    body: "sum(?a, ?b) => sum(?a, ?b) where[is_number(?a), is_number(?b)]"
+  },
+  {
+    sample: "sum(1, 2, 3)",
+    verb: "evaluate",
+    body: "sum(?a, ?b, ?c) => sum(?a, ?b, ?c) where[is_number(?a), is_number(?b), is_number(?c)]"
+  },
+  // BLOCK 2: collect
+  {
+    sample: "sum(1, 2, x)",
+    verb: "collect",
+    body: "sum(?a, ?b, ?c) => sum(sum(?a, ?b), ?c) where[is_number(?a), is_number(?b)]"
+  },
+  {
+    sample: "sum(1, x, 2)",
+    verb: "collect",
+    body: "sum(?a, ?b, ?c) => sum(sum(?a, ?c), ?b) where[is_number(?a), is_number(?c)]"
+  },
+  {
+    sample: "sum(x, 1, 2)",
+    verb: "collect",
+    body: "sum(?a, ?b, ?c) => sum(?a, sum(?b, ?c)) where[is_number(?b), is_number(?c)]"
+  },
 ];
+
+/**
+ * Register verbs from training data into VerbRegistry
+ * Exported for testing
+ */
+export function registerTrainingVerbs(registry: VerbRegistry): void {
+  for (const item of trainingData) {
+    try {
+      const bodyAst = parse(item.body);
+      const sampleAst = parse(item.sample);
+
+      // Create Verb object
+      const verb = new Verb();
+      verb.id = makeVerbId();
+      verb.kind = item.verb;
+      verb.intent = `${item.verb} for ${item.sample}`;
+      verb.sample = sampleAst;
+
+      // Extract match and goal from rule body
+      if (bodyAst.kind === 'rule') {
+        verb.match = bodyAst.children![0];  // LHS of =>
+        verb.goal = bodyAst.children![1];   // RHS of =>
+      } else {
+        verb.match = sampleAst;
+        verb.goal = bodyAst;
+      }
+
+      verb.plan = [];  // Empty plan for now
+
+      registry.addVerb(verb);
+      console.log(`Registered verb: ${verb.kind} for ${item.sample}`);
+    } catch (error) {
+      console.error(`Failed to register verb for ${item.sample}:`, error);
+    }
+  }
+}
 
 // Generate reasonable focus candidates for equations: root + lhs subtree
 function defaultFocusCandidates(expr: AstNode): number[][] {
@@ -69,23 +107,6 @@ function defaultFocusCandidates(expr: AstNode): number[][] {
   // if expr is eq(lhs, rhs) then lhs is child 0 in your AST
   focuses.push([0]);
   return focuses;
-}
-
-// A small "verification set" used to test LLM proposals.
-// In practice: include random linear combos and a few edge cases.
-function makeVerifySet(): AstNode[] {
-  return [
-    parse("eq(sum(x, 7), 0)"),
-    parse("eq(sum(mul(2, x), 4), 0)"),
-    parse("eq(sum(mul(3, x), 9), 0)"),
-    parse("eq(sum(mul(5, x), 1), 0)"),
-    parse("eq(sum(mul(2, x), mul(3, x), 5), 0)"),
-    parse("eq(sum(mul(7, x), 4), 2)"),
-    parse("eq(sub(x, 3), 0)"),
-    parse("eq(mul(4, x), 12)"),
-    parse("eq(0, sum(x, 5))"),
-    parse("eq(sum(x, 0, 6), 0)"),
-  ];
 }
 
 async function trainVerb(
@@ -102,14 +123,12 @@ async function trainVerb(
     : { kind: "simplify" };
 
   const focusCandidates = defaultFocusCandidates(expr);
-  const verifySet = makeVerifySet();
 
   try {
     const out = await orchestrator.solveOne({
       expr,
       goal,
       focusCandidates,
-      testSetForVerify: verifySet,
     });
 
     // Locate first decision point where:
@@ -119,7 +138,7 @@ async function trainVerb(
     const decisionFound = out.trace.steps.length > 0;
 
     // TODO: Get predictedVerb from policy before update
-    const predictedVerb: VerbKind | undefined = undefined;
+    const predictedVerb = out.verb;
 
     // TODO: Perform online update to verb policy using supervision
     // expectedVerb = verbKind (passed in)
@@ -131,7 +150,7 @@ async function trainVerb(
 
     return {
       decisionFound,
-      predictedVerb,
+      predictedVerb: predictedVerb!.kind,
       expectedVerb: verbKind,
       success: out.trace.success,
       traceId: out.trace.traceId,
@@ -175,7 +194,6 @@ async function evalSumBlock(
         expr,
         goal,
         focusCandidates,
-        testSetForVerify: [],
       });
 
       // A) Verb-choice accuracy
@@ -301,6 +319,11 @@ async function acceptGeneralizations(
 }
 
 export async function trainVerbs(orchestrator: Orchestrator<Verb>, llmClient: LlmClient): Promise<void> {
+  // Register verbs from training data first
+  const registry = VerbRegistry.instance;
+  registerTrainingVerbs(registry);
+
+  // Then run training
   await trainSumVerb(orchestrator, llmClient);
 }
 
@@ -318,24 +341,23 @@ export async function trainSumVerb(
     { exprStr: "sum(1, x, y)", expectedVerb: "check" },
   ];
 
+  // Group training data by verb
+  const evaluateData = trainingData.filter((d) => d.verb === "evaluate");
+  const collectData = trainingData.filter((d) => d.verb === "collect");
+
   // ============================================================
   // BLOCK 1: evaluate (SEED, no varargs)
   // ============================================================
   console.log("\n=== BLOCK 1: evaluate (SEED) ===");
 
-  const seedStmts1 = [
-    "sum(?a, ?b) where is_number(a), is_number(b) do sum(?a, ?b)",
-    "sum(?a, ?b, ?c) where is_number(a), is_number(b), is_number(c) do sum(?a, ?b, ?c)",
-  ];
-
-  // Seed training (sequential with await)
   const results1: TrainVerbResult[] = [];
-  results1.push(
-    await trainVerb(orchestrator, "sum(1, 1)", "evaluate", seedStmts1[0])
-  );
-  results1.push(
-    await trainVerb(orchestrator, "sum(1, 2, 3)", "evaluate", seedStmts1[1])
-  );
+
+  // Seed training (sequential with await) using trainingData
+  for (const item of evaluateData) {
+    results1.push(
+      await trainVerb(orchestrator, item.sample, item.verb, item.body)
+    );
+  }
 
   // Evaluate policy after seeds
   const report1 = await evalSumBlock(
@@ -346,7 +368,7 @@ export async function trainSumVerb(
   );
 
   // Generalize based on seed statements
-  const gen1 = await requestGeneralize(llmClient, "evaluate", seedStmts1);
+  const gen1 = await requestGeneralize(llmClient, "evaluate", evaluateData.map((d) => d.body));
 
   // Filter candidates using eval + constraints
   const accepted1 = await acceptGeneralizations(
@@ -364,41 +386,26 @@ export async function trainSumVerb(
 
   // ============================================================
   // BLOCK 2: collect constants into one sub-sum (SEED, arity-3 only)
-  // Required output shape: sum(sum(.), ^...)
   // ============================================================
   console.log("\n=== BLOCK 2: collect (SEED) ===");
 
-  const seedStmts2 = [
-    "sum(?a, ?b, ?c) do select([?a, ?b, ?c], is_number); sum(sum(.), ^...)",
-  ];
-
-  // Seed training (sequential with await)
+  const seedStmts2 = collectData.map((d) => d.body);
   const results2: TrainVerbResult[] = [];
-  results2.push(
-    await trainVerb(orchestrator, "sum(1, 2, x)", "collect", seedStmts2[0])
-  );
-  results2.push(
-    await trainVerb(orchestrator, "sum(1, x, 2)", "collect", seedStmts2[0])
-  );
-  results2.push(
-    await trainVerb(orchestrator, "sum(x, 1, 2)", "collect", seedStmts2[0])
-  );
 
-  // Optional guards
-  results2.push(
-    await trainVerb(
-      orchestrator,
-      "sum(1, x, y)",
-      "check",
-      "sum(?a, ?b, ?c) do select([?a, ?b, ?c], is_number); len(.) < 2"
-    )
-  );
+  // Seed training (sequential with await) using trainingData
+  for (const item of collectData) {
+    results2.push(
+      await trainVerb(orchestrator, item.sample, item.verb, item.body)
+    );
+  }
 
   // Evaluate policy after seeds
   const report2 = await evalSumBlock(
     orchestrator,
     "block2-collect",
-    verifySet.filter((v) => v.expectedVerb === "collect" || v.expectedVerb === "check"),
+    verifySet.filter(
+      (v) => v.expectedVerb === "collect" || v.expectedVerb === "check"
+    ),
     results2.length
   );
 
@@ -419,4 +426,5 @@ export async function trainSumVerb(
   }
 
   console.log("\n=== trainSumVerb completed ===");
+  console.log(`Total verbs registered: ${VerbRegistry.instance.getVerbs().length}`);
 }
