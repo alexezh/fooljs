@@ -1,4 +1,4 @@
-import { ChatMessage, ChatResponse, LlmClient } from "../llmclient";
+import { ChatMessage, ChatResponse, LlmClient } from "../llmclient.js";
 
 export interface GeneralizeResult {
   verb: string;
