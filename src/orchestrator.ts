@@ -232,7 +232,7 @@ export class Orchestrator<TElem extends Verb | Clause> {
 
   constructor(
     private readonly runtime: Runtime,
-    private readonly policy: Policy<Verb>,
+    public readonly policy: Policy<Verb>,
     private readonly proposer: AbstractionProposer,
     private readonly verifier: SymbolicVerifier,
     //private readonly executor: SkillExecutor,

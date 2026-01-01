@@ -285,12 +285,12 @@ type Trace = {
 
 export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
   private lastTrace: Trace | null = null;
+  private lastLeaf: LeafNodeNN | null = null;
 
   constructor(
     private fx: FeatureFn,
     private choices: ReadonlyArray<TElem>,
-    private router: RoutingNodeNN,
-    private leaf: LeafNodeNN
+    private router: RoutingNodeNN
   ) { }
 
   async choose(input: {
@@ -308,7 +308,8 @@ export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
     const leafChoices = this.choices;
 
     // 3) Leaf picks skill
-    const leafPick = this.leaf.choose(x, leafChoices);
+    this.lastLeaf = routeChild as LeafNodeNN;
+    const leafPick = this.lastLeaf.choose(x, leafChoices);
     if (!leafPick) return null;
 
     // 4) Focus (kept simple; still “model owns choice of skill”)
@@ -355,7 +356,7 @@ export class PolicyNN<TElem extends Verb | Clause> implements Policy<TElem> {
       probs: t.routeProbs,
     });
 
-    this.leaf.observe({
+    this.lastLeaf?.observe({
       x: t.x,
       chosenIndex: t.leafIndex,
       choices: t.leafChoices,

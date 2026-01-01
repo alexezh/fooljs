@@ -26,44 +26,6 @@ export interface BlockReport {
   failures: Array<{ exprStr: string; reason: string }>;
 }
 
-// Training data item
-export interface TrainingDataItem {
-  sample: string;  // Example expression to train on
-  verb: VerbKind;  // Expected verb for this example
-  body: string;    // Rule/statement body
-}
-
-// Training data array (exported for testing)
-export const trainingData: TrainingDataItem[] = [
-  // BLOCK 1: evaluate
-  {
-    sample: "sum(1, 1)",
-    verb: "evaluate",
-    body: "sum(?a, ?b) => sum(?a, ?b) where[is_number(?a), is_number(?b)]"
-  },
-  {
-    sample: "sum(1, 2, 3)",
-    verb: "evaluate",
-    body: "sum(?a, ?b, ?c) => sum(?a, ?b, ?c) where[is_number(?a), is_number(?b), is_number(?c)]"
-  },
-  // BLOCK 2: collect
-  {
-    sample: "sum(1, 2, x)",
-    verb: "collect",
-    body: "sum(?a, ?b, ?c) => sum(sum(?a, ?b), ?c) where[is_number(?a), is_number(?b)]"
-  },
-  {
-    sample: "sum(1, x, 2)",
-    verb: "collect",
-    body: "sum(?a, ?b, ?c) => sum(sum(?a, ?c), ?b) where[is_number(?a), is_number(?c)]"
-  },
-  {
-    sample: "sum(x, 1, 2)",
-    verb: "collect",
-    body: "sum(?a, ?b, ?c) => sum(?a, sum(?b, ?c)) where[is_number(?b), is_number(?c)]"
-  },
-];
-
 /**
  * Register verbs from training data into VerbRegistry
  * Exported for testing
@@ -125,35 +87,37 @@ async function trainVerb(
   const focusCandidates = defaultFocusCandidates(expr);
 
   try {
-    const out = await orchestrator.solveOne({
-      expr,
+    // Use policy directly instead of orchestrator
+    const choice = await orchestrator.policy.choose({
+      root: expr,
       goal,
       focusCandidates,
     });
 
-    // Locate first decision point where:
-    // - focused node matches the statement's match
-    // - statement where holds
-    // TODO: Implement actual decision point detection
-    const decisionFound = out.trace.steps.length > 0;
+    // Locate first decision point
+    const decisionFound = choice !== undefined;
 
-    // TODO: Get predictedVerb from policy before update
-    const predictedVerb = out.verb;
+    // Get predictedVerb from policy choice
+    const predictedVerb = choice?.choice;
 
     // TODO: Perform online update to verb policy using supervision
     // expectedVerb = verbKind (passed in)
+    // orchestrator.policy.update(...) or similar
 
     console.log("trainVerb:", exprStr, "->", verbKind);
-    console.log("  result:", out.result);
-    console.log("  traceId:", out.trace.traceId, "success:", out.trace.success);
-    console.log("  steps:", out.trace.steps.length);
+    console.log("  choice:", choice?.choice.kind);
+    console.log("  focus:", choice?.focus);
+    console.log("  predictedVerb:", predictedVerb?.kind, "expectedVerb:", verbKind);
+    console.log("  match:", decisionFound ? "yes" : "no");
+
+    const success = decisionFound && predictedVerb?.kind === verbKind;
 
     return {
       decisionFound,
-      predictedVerb: predictedVerb!.kind,
+      predictedVerb: predictedVerb?.kind,
       expectedVerb: verbKind,
-      success: out.trace.success,
-      traceId: out.trace.traceId,
+      success,
+      traceId: `train-${Date.now()}`,
       exprStr,
     };
   } catch (error) {
