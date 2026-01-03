@@ -29,7 +29,7 @@ import { SolveTrace } from "./planner/solvetrace.js";
 import { Clause, Verb } from "./planner/verb.js";
 import { RuleBody, Runtime } from "./runtime.js";
 import { MacroActionPayload, RewriteRulePayload, SkillDescriptor } from "./skilldescriptor.js";
-import { SkillExecutor } from "./skillexecutor.js";
+import { SkillExecutor as ChoiceExecutor } from "./planner/verbexecutor.js";
 import { SkillRegistry } from "./skillregistry.js";
 
 // ----------------------------
@@ -233,9 +233,7 @@ export class Orchestrator<TElem extends Verb | Clause> {
   constructor(
     private readonly runtime: Runtime,
     public readonly policy: Policy<Verb>,
-    private readonly proposer: AbstractionProposer,
-    private readonly verifier: SymbolicVerifier,
-    //private readonly executor: SkillExecutor,
+    private readonly executor: ChoiceExecutor,
     private readonly cfg: OrchestratorConfig
   ) { }
 
@@ -270,20 +268,20 @@ export class Orchestrator<TElem extends Verb | Clause> {
 
       verb = choice.choice;
       const before = root;
-      //const { nextRoot, applied } = this.executor.tryExecute(choice.choice, root, choice.focus, input.goal);
-      // if (!applied) {
-      //   // Optionally penalize / teach policy that this choice was ineffective
-      //   this.policy.observe?.call({
-      //     rootBefore: before,
-      //     rootAfter: before,
-      //     chosen: choice,
-      //     reward: -0.05,
-      //     success: false,
-      //   });
-      //   continue;
-      // }
+      const { nextRoot, applied } = this.executor.tryExecute(choice.choice, root, choice.focus, input.goal);
+      if (!applied) {
+        // Optionally penalize / teach policy that this choice was ineffective
+        this.policy.observe?.call({
+          rootBefore: before,
+          rootAfter: before,
+          chosen: choice,
+          reward: -0.05,
+          success: false,
+        });
+        continue;
+      }
 
-      //root = nextRoot;
+      root = nextRoot;
 
       trace.steps.push({
         focus: choice.focus,

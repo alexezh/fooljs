@@ -1,6 +1,6 @@
 import { AstNode } from "../ast.js";
 import { parse } from "../parser.js";
-import { SkillExecutor } from "../skillexecutor.js";
+import { SkillExecutor } from "../planner/verbexecutor.js";
 import { SkillDescriptor } from "../skilldescriptor.js";
 import { RuntimeImpl } from "../runtimeimpl.js";
 

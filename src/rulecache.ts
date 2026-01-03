@@ -30,7 +30,7 @@ export class RuleCache {
   //   return results;
   // }
 
-  compileRule(ruleInp: RuleBody | AstNode, id?: RuleId): RuleNode {
+  compileRule(ruleInp: RuleBody | AstNode): RuleNode {
     // Check cache
     let ruleExpr: AstNode | undefined;
     if (typeof (ruleInp) === "string") {
@@ -57,7 +57,7 @@ export class RuleCache {
       rule: ruleExpr,
       pattern: ruleExpr.children![0],
       match: ruleExpr.children![1],
-      where: ruleExpr.where,
+      where: ruleExpr.guard,
       matchFunc: undefined!
     }
 

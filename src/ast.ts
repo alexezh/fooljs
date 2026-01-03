@@ -108,7 +108,7 @@ export class AstNode {
   kind: AstNodeKind;
   value: number | string | ASymbol | AstNode;
   children: ReadonlyArray<AstNode> | undefined;
-  public readonly where?: AstNode[];
+  public readonly guard?: AstNode[];
   private cost?: number;
   //private changedNodes?: number;
   private totalNodes?: number;
@@ -119,11 +119,11 @@ export class AstNode {
     kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
     children?: ReadonlyArray<AstNode>,
-    where?: AstNode[]) {
+    guard?: AstNode[]) {
     this.kind = kind;
     this.value = value;
     this.children = children;
-    this.where = where;
+    this.guard = guard;
   }
 
   static create(kind: 'func', value: FuncName, children?: AstNode[]): AstNode;
@@ -143,12 +143,12 @@ export class AstNode {
   static create(kind: 'index', value: '$', children?: AstNode[]): AstNode;
   static create(kind: AstNodeKind,
     value: number | string | ASymbol | AstNode,
-    children?: AstNode[], where?: AstNode[]): AstNode {
-    return new AstNode(kind, value, children, where);
+    children?: AstNode[], guard?: AstNode[]): AstNode {
+    return new AstNode(kind, value, children, guard);
   }
 
   clone(children?: AstNode[]): AstNode {
-    const cloned = new AstNode(this.kind, this.value, children ?? this.children, this.where);
+    const cloned = new AstNode(this.kind, this.value, children ?? this.children, this.guard);
     // Don't copy tags - clones should start fresh
     return cloned;
   }
@@ -235,8 +235,8 @@ export class AstNode {
     }
 
     let constrStr: string | undefined;
-    if (this.where) {
-      constrStr = 'where ' + this.where.map(x => x.toString()).join(',');
+    if (this.guard) {
+      constrStr = 'where ' + this.guard.map(x => x.toString()).join(',');
     }
 
     let prefix = this.kind === 'patvar' ? '?' : '';

@@ -41,29 +41,20 @@ const semantics = grammar.createSemantics().addOperation('toAst', {
     return expr.toAst();
   },
 
-  Rule_do(left, _arrow, doBlock, whereClause) {
-    const leftNode = left.toAst();
-    const doNode = doBlock.toAst();
+  Rule(pattern, whereClause, _do, doBody) {
+    const patternNode = pattern.toAst();
+    const doBodyNode = doBody.toAst();
     const where = whereClause.toAst() as AstNode[][];
-    return AstNode.create('rule', 'rule', [leftNode, doNode], where[0]);
+    return AstNode.create('rule', 'rule', [patternNode, doBodyNode], where[0]);
   },
 
-  Rule_simple(left, _arrow, right, whereClause) {
-    const leftNode = left.toAst();
-    const rightNode = right.toAst();
-    const where = whereClause.toAst() as AstNode[][];
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], where[0]);
+  DoBody_multiple(_lbrack, exprList, _rbrack) {
+    const exprs = exprList.asIteration().children.map((e: any) => e.toAst());
+    return AstNode.create('do', 'do', exprs);
   },
 
-  DoBlock(_do, _lbrack, ruleList, _rbrack) {
-    const rules = ruleList.asIteration().children.map((rule: any) => rule.toAst());
-    return AstNode.create('do', 'do', rules);
-  },
-
-  InnerRule(left, _arrow, right, whereClause) {
-    const leftNode = left.toAst();
-    const rightNode = right.toAst();
-    return AstNode.create('rule', 'rule', [leftNode, rightNode], whereClause.toAst());
+  DoBody_single(expr) {
+    return expr.toAst();
   },
 
   Equation(left, _eq, right) {

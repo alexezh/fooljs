@@ -23,6 +23,7 @@ export type VerbKind =
   | 'split'
   | 'evaluate'
   | 'check'
+  | 'simplify'
   | 'finish'
   | 'reframe';
 
@@ -34,9 +35,11 @@ export class Verb {
   public id: VerbId;
   public kind: VerbKind;
   public intent: string;
-  public match: AstNode;
-  public goal: AstNode;
-  public plan: ReadonlyArray<Clause>;
+  public pattern: AstNode;
+  public guard?: AstNode[];
+  public emit: AstNode;
+  // public goal: AstNode;
+  // public plan: ReadonlyArray<Clause>;
   public sample: AstNode;
 }
 

@@ -10,7 +10,7 @@ import { Verb, VerbRegistry } from "./planner/verb.js";
 import { initRules } from "./ruletable.js";
 import { Runtime } from "./runtime.js";
 import { RuntimeImpl } from "./runtimeimpl.js";
-import { SkillExecutor } from "./skillexecutor.js";
+import { SkillExecutor } from "./planner/verbexecutor.js";
 
 // function main_search(): void {
 //   //const exprStr = '-4 + 3 * 4 + x + y - 3 + 5y';
@@ -66,11 +66,7 @@ async function main(runtime: Runtime) {
   const policy = new PolicyNN<Verb>(
     new FeatureExtractor(),
     VerbRegistry.instance.getVerbs(),
-    new RoutingNodeNN({ id: 'route', children: [leafNode], featureDim: 3 }),
-    leafNode);
-
-  const proposer = new AbstractionProposer(llm);
-  const verifier = new SymbolicVerifier(runtime);
+    new RoutingNodeNN({ id: 'route', children: [leafNode], featureDim: 3 }));
 
   //await seedBaselineSkills(RuntimeImpl.instance.skillRegistry);
 
@@ -79,9 +75,7 @@ async function main(runtime: Runtime) {
   const orchestrator = new Orchestrator(
     runtime,
     policy,      // swap for your RL policy
-    proposer,
-    verifier,
-    //executor,
+    executor,
     {
       maxSteps: 30,
       focusLimit: 10,

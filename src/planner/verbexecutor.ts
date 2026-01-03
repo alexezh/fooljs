@@ -9,11 +9,12 @@
 //
 // Here, "availableSkills" is everything in the registry that is relevant to this goal.
 
-import { AstNode } from "./ast.js";
-import { parse } from "./parser.js";
-import { Goal } from "./planner/plannercore.js";
-import { Runtime, SkillId } from "./runtime.js";
-import { SkillDescriptor } from "./skilldescriptor.js";
+import { AstNode } from "../ast.js";
+import { parse } from "../parser.js";
+import { Goal } from "./plannercore.js";
+import { Runtime, SkillId } from "../runtime.js";
+import { SkillDescriptor } from "../skilldescriptor.js";
+import { Verb } from "./verb.js";
 
 export class SkillExecutor {
   constructor(private readonly runtime: Runtime) { }
@@ -21,56 +22,29 @@ export class SkillExecutor {
   /**
    * Execute a skill at focus. For macro_action, apply its steps.
    */
-  tryExecute(skill: SkillDescriptor | SkillId, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
-    const s = (typeof (skill) === "string" ? this.runtime.skillRegistry.get(skill) : skill);
-    if (!s) return { nextRoot: root, applied: false };
+  tryExecute(verb: Verb, root: AstNode, focus: number[], goal: Goal): { nextRoot: AstNode; applied: boolean } {
 
-    if (s.payload.kind === "rewrite_rule") {
-      throw 'Not implemented';
-    } else if (s.payload.kind === "macro_action") {
-      // Parse the skill body to get the AST
-      const skillAst = parse(s.payload.skillBody);
+    // Get the node at focus
+    let current = this.runtime.getAt(root, focus);
 
-      // Should be a rule: pattern => do [...]
-      if (skillAst.kind !== 'rule') {
-        return { nextRoot: root, applied: false };
+    // Check if pattern is a wrapper function
+    // If doBlock is a 'do' node, apply rules sequentially to working content
+    const steps = verb.emit.children!;
+
+    for (let i = 0; i < steps.length; i++) {
+      const stepAst = steps[i];
+
+      const stepCode = this.runtime.ruleCache.compileRule(stepAst);
+
+      const next = stepCode.matchFunc(current);
+      if (next) {
+        current = next.replace;
       }
-
-      const [pattern, doBlock] = skillAst.children || [];
-      if (!doBlock) {
-        return { nextRoot: root, applied: false };
-      }
-
-      // TODO: double check that pattern matches
-
-      // Get the node at focus
-      let current = this.runtime.getAt(root, focus);
-
-      if (doBlock.kind !== 'do') {
-        throw 'Incorrect AST. Expecting do block';
-      }
-
-      // Check if pattern is a wrapper function
-      // If doBlock is a 'do' node, apply rules sequentially to working content
-      const rules = doBlock.children || [];
-
-      for (let i = 0; i < Math.min(s.payload.budget, rules.length); i++) {
-        const ruleAst = rules[i];
-
-        const rule = this.runtime.ruleCache.compileRule(ruleAst);
-
-        const next = rule.matchFunc(current);
-        if (next) {
-          current = next.replace;
-        }
-      }
-
-      // Update the tree at focus
-      const nextRoot = this.runtime.setAt(root, focus, current);
-      return { nextRoot, applied: true };
     }
 
-    return { nextRoot: root, applied: false };
+    // Update the tree at focus
+    const nextRoot = this.runtime.setAt(root, focus, current);
+    return { nextRoot, applied: true };
   }
 }
 

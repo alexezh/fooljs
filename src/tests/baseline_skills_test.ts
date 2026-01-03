@@ -1,5 +1,5 @@
 import { parse } from "../parser.js";
-import { SkillExecutor } from "../skillexecutor.js";
+import { SkillExecutor } from "../planner/verbexecutor.js";
 import { RuntimeImpl } from "../runtimeimpl.js";
 import { seedBaselineSkills } from "../baselineskills.js";
 import { SkillRegistry } from "../skillregistry.js";

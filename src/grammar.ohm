@@ -1,12 +1,10 @@
 FoolJS {
   Program = Rule | Equation | Expression
 
-  Rule = Expression "=>" DoBlock WhereClause?  -- do
-       | Expression "=>" Expression WhereClause?  -- simple
+  Rule = Expression WhereClause? "do" DoBody
 
-  DoBlock = "do" "[" ListOf<InnerRule, ","> "]"
-
-  InnerRule = Expression "=>" Expression WhereClause?
+  DoBody = "[" ListOf<Expression, ","> "]"  -- multiple
+         | Expression  -- single
 
   Equation = Expression "=" Expression
 

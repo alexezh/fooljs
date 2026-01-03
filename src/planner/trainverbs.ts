@@ -3,6 +3,7 @@ import { LlmClient, Orchestrator } from "../orchestrator.js";
 import { parse, parseEquation } from "../parser.js";
 import { Goal } from "./plannercore.js";
 import { requestGeneralize } from "./traingeneralize.js";
+import { trainingData, SampleDataItem } from "./trainingdata.js";
 import { Verb, VerbKind, VerbRegistry, makeVerbId } from "./verb.js";
 
 // Training result interface (per train.md spec)
@@ -32,32 +33,33 @@ export interface BlockReport {
  */
 export function registerTrainingVerbs(registry: VerbRegistry): void {
   for (const item of trainingData) {
-    try {
-      const bodyAst = parse(item.body);
-      const sampleAst = parse(item.sample);
+    if (item.kind === 'sample') {
+      for (let step of item.steps) {
+        const bodyAst = parse(step.body);
+        const sampleAst = parse(item.sample);
 
-      // Create Verb object
-      const verb = new Verb();
-      verb.id = makeVerbId();
-      verb.kind = item.verb;
-      verb.intent = `${item.verb} for ${item.sample}`;
-      verb.sample = sampleAst;
+        // Create Verb object
+        const verb = new Verb();
+        verb.id = makeVerbId();
+        verb.kind = step.verb;
+        verb.intent = `${step.verb} for ${item.sample}`;
+        verb.sample = sampleAst;
 
-      // Extract match and goal from rule body
-      if (bodyAst.kind === 'rule') {
-        verb.match = bodyAst.children![0];  // LHS of =>
-        verb.goal = bodyAst.children![1];   // RHS of =>
-      } else {
-        verb.match = sampleAst;
-        verb.goal = bodyAst;
+        // Extract match and goal from rule body
+        if (bodyAst.kind !== 'rule') {
+          throw 'Verb should have rule as top level'
+        }
+
+        verb.pattern = bodyAst.children![0];  // LHS of =>
+        if (bodyAst.guard) {
+          verb.guard = bodyAst.guard;   // RHS of =>
+        }
+
+        verb.emit = bodyAst.children![1];
+
+        registry.addVerb(verb);
+        console.log(`Registered verb: ${verb.kind} for ${item.sample}`);
       }
-
-      verb.plan = [];  // Empty plan for now
-
-      registry.addVerb(verb);
-      console.log(`Registered verb: ${verb.kind} for ${item.sample}`);
-    } catch (error) {
-      console.error(`Failed to register verb for ${item.sample}:`, error);
     }
   }
 }
@@ -87,38 +89,48 @@ async function trainVerb(
   const focusCandidates = defaultFocusCandidates(expr);
 
   try {
-    // Use policy directly instead of orchestrator
-    const choice = await orchestrator.policy.choose({
-      root: expr,
+    // Use full orchestrator logic
+    const out = await orchestrator.solveOne({
+      expr,
       goal,
       focusCandidates,
     });
 
-    // Locate first decision point
-    const decisionFound = choice !== undefined;
+    // Check if we found a decision point and what verb was chosen
+    const decisionFound = out.trace.steps.length > 0;
+    const predictedVerb = out.verb;
 
-    // Get predictedVerb from policy choice
-    const predictedVerb = choice?.choice;
+    // Success means:
+    // 1. A decision was made
+    // 2. The verb matches expected
+    // 3. The trace succeeded
+    const verbMatches = predictedVerb?.kind === verbKind;
+    const success = decisionFound && verbMatches && out.trace.success;
+
+    console.log("trainVerb:", exprStr, "->", verbKind);
+    console.log("  result:", out.result?.toString());
+    console.log("  predictedVerb:", predictedVerb?.kind, "expectedVerb:", verbKind);
+    console.log("  steps:", out.trace.steps.length);
+    console.log("  success:", success);
 
     // TODO: Perform online update to verb policy using supervision
     // expectedVerb = verbKind (passed in)
     // orchestrator.policy.update(...) or similar
-
-    console.log("trainVerb:", exprStr, "->", verbKind);
-    console.log("  choice:", choice?.choice.kind);
-    console.log("  focus:", choice?.focus);
-    console.log("  predictedVerb:", predictedVerb?.kind, "expectedVerb:", verbKind);
-    console.log("  match:", decisionFound ? "yes" : "no");
-
-    const success = decisionFound && predictedVerb?.kind === verbKind;
 
     return {
       decisionFound,
       predictedVerb: predictedVerb?.kind,
       expectedVerb: verbKind,
       success,
-      traceId: `train-${Date.now()}`,
+      traceId: out.trace.traceId,
       exprStr,
+      reason: !decisionFound
+        ? "no decision"
+        : !verbMatches
+          ? `verb mismatch (got ${predictedVerb?.kind})`
+          : !out.trace.success
+            ? "trace failed"
+            : undefined,
     };
   } catch (error) {
     console.error("trainVerb error:", exprStr, error);
@@ -287,108 +299,64 @@ export async function trainVerbs(orchestrator: Orchestrator<Verb>, llmClient: Ll
   const registry = VerbRegistry.instance;
   registerTrainingVerbs(registry);
 
-  // Then run training
-  await trainSumVerb(orchestrator, llmClient);
-}
-
-export async function trainSumVerb(
-  orchestrator: Orchestrator<Verb>,
-  llmClient: LlmClient
-): Promise<void> {
-  // Verify set for evaluation
-  const verifySet: Array<{ exprStr: string; expectedVerb: VerbKind }> = [
-    { exprStr: "sum(1, 1)", expectedVerb: "evaluate" },
-    { exprStr: "sum(2, 3)", expectedVerb: "evaluate" },
-    { exprStr: "sum(5, 7, 2)", expectedVerb: "evaluate" },
-    { exprStr: "sum(1, 2, x)", expectedVerb: "collect" },
-    { exprStr: "sum(x, 3, 4)", expectedVerb: "collect" },
-    { exprStr: "sum(1, x, y)", expectedVerb: "check" },
-  ];
-
-  // Group training data by verb
-  const evaluateData = trainingData.filter((d) => d.verb === "evaluate");
-  const collectData = trainingData.filter((d) => d.verb === "collect");
-
-  // ============================================================
-  // BLOCK 1: evaluate (SEED, no varargs)
-  // ============================================================
-  console.log("\n=== BLOCK 1: evaluate (SEED) ===");
-
-  const results1: TrainVerbResult[] = [];
-
-  // Seed training (sequential with await) using trainingData
-  for (const item of evaluateData) {
-    results1.push(
-      await trainVerb(orchestrator, item.sample, item.verb, item.body)
-    );
-  }
-
-  // Evaluate policy after seeds
-  const report1 = await evalSumBlock(
-    orchestrator,
-    "block1-evaluate",
-    verifySet.filter((v) => v.expectedVerb === "evaluate"),
-    results1.length
+  // Filter gen0 samples
+  const gen0Samples = trainingData.filter(
+    (item): item is SampleDataItem => item.kind === "sample" && item.gen === 0
   );
 
-  // Generalize based on seed statements
-  const gen1 = await requestGeneralize(llmClient, "evaluate", evaluateData.map((d) => d.body));
+  console.log("\n=== Training Gen0 Samples ===");
+  console.log(`Total gen0 samples: ${gen0Samples.length}`);
 
-  // Filter candidates using eval + constraints
-  const accepted1 = await acceptGeneralizations(
-    orchestrator,
-    gen1.generalized || [],
-    verifySet.filter((v) => v.expectedVerb === "evaluate"),
-    report1
-  );
+  // Run up to 10 iterations
+  const maxIterations = 10;
+  let allSuccess = false;
 
-  // Train on accepted generalizations
-  for (const stmt of accepted1) {
-    // TODO: pickExprFor(stmt) - auto-generate expression consistent with stmt.match
-    console.log("Would train on generalized statement:", stmt);
+  for (let iteration = 1; iteration <= maxIterations; iteration++) {
+    console.log(`\n--- Iteration ${iteration}/${maxIterations} ---`);
+
+    const results: TrainVerbResult[] = [];
+    let successCount = 0;
+
+    for (const sample of gen0Samples) {
+      const result = await trainVerb(
+        orchestrator,
+        sample.sample,
+        sample.steps[0].verb, // Use first step's verb
+        sample.steps[0].body
+      );
+      results.push(result);
+
+      if (result.success) {
+        successCount++;
+      }
+    }
+
+    const successRate = (successCount / gen0Samples.length) * 100;
+    console.log(`\nIteration ${iteration} Results:`);
+    console.log(`  Success: ${successCount}/${gen0Samples.length} (${successRate.toFixed(1)}%)`);
+    console.log(`  Failed: ${gen0Samples.length - successCount}`);
+
+    // Check if all succeeded
+    if (successCount === gen0Samples.length) {
+      console.log(`\n✓ All gen0 samples succeeded on iteration ${iteration}!`);
+      allSuccess = true;
+      break;
+    }
+
+    // Show failures
+    const failures = results.filter((r) => !r.success);
+    if (failures.length > 0 && failures.length <= 5) {
+      console.log("\nFailures:");
+      failures.forEach((f) => {
+        console.log(`  - ${f.exprStr}: ${f.reason || "no match"}`);
+      });
+    }
   }
 
-  // ============================================================
-  // BLOCK 2: collect constants into one sub-sum (SEED, arity-3 only)
-  // ============================================================
-  console.log("\n=== BLOCK 2: collect (SEED) ===");
-
-  const seedStmts2 = collectData.map((d) => d.body);
-  const results2: TrainVerbResult[] = [];
-
-  // Seed training (sequential with await) using trainingData
-  for (const item of collectData) {
-    results2.push(
-      await trainVerb(orchestrator, item.sample, item.verb, item.body)
-    );
+  if (!allSuccess) {
+    console.log("\n✗ Did not achieve 100% success within 10 iterations");
   }
 
-  // Evaluate policy after seeds
-  const report2 = await evalSumBlock(
-    orchestrator,
-    "block2-collect",
-    verifySet.filter(
-      (v) => v.expectedVerb === "collect" || v.expectedVerb === "check"
-    ),
-    results2.length
-  );
-
-  // Generalize
-  const gen2 = await requestGeneralize(llmClient, "collect", seedStmts2);
-
-  // Filter candidates
-  const accepted2 = await acceptGeneralizations(
-    orchestrator,
-    gen2.generalized || [],
-    verifySet.filter((v) => v.expectedVerb === "collect"),
-    report2
-  );
-
-  // Train on accepted generalizations
-  for (const stmt of accepted2) {
-    console.log("Would train on generalized statement:", stmt);
-  }
-
-  console.log("\n=== trainSumVerb completed ===");
+  console.log("\n=== Training Complete ===");
   console.log(`Total verbs registered: ${VerbRegistry.instance.getVerbs().length}`);
 }
